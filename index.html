@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Login CUTinterno</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>🔐 Login</h2>
+    <input id="email" type="email" placeholder="Correo">
+    <input id="password" type="password" placeholder="Contraseña">
+    <button id="btnLogin">Entrar</button>
+    <p id="msg"></p>
+  </div>
+  <script type="module">
+    import { supabase } from './supabase.js';
+    const email = document.getElementById('email');
+    const password = document.getElementById('password');
+    const btnLogin = document.getElementById('btnLogin');
+    const msg = document.getElementById('msg');
+
+    btnLogin.addEventListener('click', async () => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.value,
+        password: password.value,
+      });
+      if (error) msg.textContent = error.message;
+      else window.location = 'dashboard.html';
+    });
+  </script>
+</body>
+</html>

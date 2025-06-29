@@ -1,0 +1,38 @@
+body {
+  background: #0f0f0f;
+  color: #00ff41;
+  font-family: 'Source Code Pro', monospace;
+}
+.container {
+  max-width: 600px;
+  margin: 3rem auto;
+  padding: 2rem;
+  background: #111;
+  border: 2px solid #00ff41;
+  border-radius: 8px;
+}
+btn, button {
+  background: #00ff41;
+  color: #0f0f0f;
+  border: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+input, select {
+  background: #111;
+  color: #00ff41;
+  border: 1px solid #00ff41;
+  padding: 0.5rem;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+.task-list {
+  list-style: none;
+  padding: 0;
+}
+.task-list li {
+  padding: 0.5rem;
+  border-bottom: 1px solid #00ff41;
+  display: flex;
+  justify-content: space-between;
+}
