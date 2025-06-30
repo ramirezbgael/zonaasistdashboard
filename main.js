@@ -81,7 +81,7 @@ async function init() {
 async function loadEquipos() {
     const { data: equipos, error } = await supabase
         .from('equipos')
-        .select('id, nombre, pendientes(id, descripcion, status)')
+        .select('id, tipo, marca, nota, pendientes(id, descripcion, status)')
         .order('id', { ascending: true });
 
     if (error) {
@@ -93,29 +93,28 @@ async function loadEquipos() {
     listEquipos.innerHTML = '';
 
     equipos.forEach(e => {
-        // dentro de equipos.forEach(...)
+        // estado general del equipo
         let estado = '✅ Listo';
         if (e.pendientes && e.pendientes.some(p => p.status === 'pendiente')) {
             estado = '🛠 En proceso';
         }
-        li.textContent = `🖥 ${e.nombre || e.tipo} [Nota ${e.nota}] - ${estado}`;
-
 
         // opción para selector de equipo
         const opt = document.createElement('option');
         opt.value = e.id;
-        opt.textContent = e.nombre;
+        opt.textContent = `${e.tipo} ${e.marca} [${e.nota}]`;
         selEquipo.appendChild(opt);
 
-        // listado de pendientes
+        // contenedor del equipo
         const li = document.createElement('li');
-        li.textContent = '🖥 ${e.nombre}';
+        li.textContent = `🖥 ${e.tipo} ${e.marca} [Nota ${e.nota}] - ${estado}`;
 
+        // sublista de pendientes
         const sub = document.createElement('ul');
         if (e.pendientes && e.pendientes.length > 0) {
             e.pendientes.forEach(p => {
                 const pli = document.createElement('li');
-                pli.textContent = '${p.descripcion} [${p.status}]';
+                pli.textContent = `${p.descripcion} [${p.status}]`;
 
                 if (p.status === 'pendiente') {
                     const btn = document.createElement('button');
