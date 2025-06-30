@@ -1,21 +1,38 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Dashboard CUTinterno</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <title>Dashboard CUTinterno</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <div class="container">
-    <h2>👨‍💻 Dashboard</h2>
-    <button id="btnLogout">Cerrar Sesión</button>
-    <h3>Equipos</h3>
-    <ul id="equipos"></ul>
-    <h3>Agregar pendiente</h3>
-    <select id="selEquipo"></select>
-    <input id="desc" placeholder="Descripción">
-    <button id="btnAdd">Agregar</button>
-  </div>
-  <script type="module" src="main.js"></script>
+    <div class="container">
+        <h2>👨‍💻 Dashboard</h2>
+        <button id="btnLogout">Cerrar Sesión</button>
+        <h3>Equipos</h3>
+        <ul id="equipos"></ul>
+        <h3>Agregar nuevo equipo</h3>
+        <form id="formEquipo">
+            <select id="tipo">
+                <option>Laptop</option>
+                <option>PC armada</option>
+                <option>PC marca</option>
+                <option>Impresora</option>
+                <option>Tablet</option>
+            </select>
+            <input id="marca" placeholder="Marca">
+            <input id="modelo" placeholder="Modelo">
+            <input id="color" placeholder="Color">
+            <input id="contrasena" placeholder="Contraseña">
+            <input id="condiciones" placeholder="Condiciones">
+            <input id="problema" placeholder="Problema principal">
+            <button type="submit">Agregar equipo</button>
+        </form>
+
+    </div>
+    <script type="module" src="main.js"></script>
 </body>
+
 </html>
