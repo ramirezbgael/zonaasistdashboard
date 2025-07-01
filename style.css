@@ -1,3 +1,11 @@
+body, html {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+}
+
 body{
   background-color: #000;
 }
@@ -7,7 +15,31 @@ body{
 }
 
 .container {
-  z-index: 999;
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 1.5rem 1rem;
+  background: #181a20;
+  border-radius: 1rem;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+}
+
+input, select, button {
+  font-size: 1rem;
+}
+
+@media (max-width: 480px) {
+  .container {
+    max-width: 98vw;
+    padding: 1rem 0.5rem;
+    border-radius: 0.7rem;
+  }
+  h2, h3 {
+    font-size: 1.2rem;
+  }
+  input, select, button {
+    font-size: 1rem;
+    padding: 0.7rem 0.5rem;
+  }
 }
 
 /* Header */
@@ -179,18 +211,19 @@ body{
 
 .equipos-scroll {
   display: flex;
-  gap: 2rem;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: inherit;
+  background-color: #0ac2ec;
   overflow-x: auto;
-  padding: 2rem;
+  padding: 1rem 0.5rem 2rem 0.5rem;
   scroll-snap-type: x mandatory;
 }
 
 .equipo-card {
   background: #0ac2ec;
   border-radius: 24px;
-  padding: 2rem;
-  min-width: 340px;
-  max-width: 340px;
+  padding: 2rem;;
   color: #000;
   position: relative;
   flex-shrink: 0;
@@ -452,7 +485,9 @@ body{
   gap: 1rem;
 
   padding: 1rem;
-  width: 19rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background-color: hsla(240, 15%, 9%, 1);
   background-image: radial-gradient(
       at 88% 40%,
@@ -615,4 +650,37 @@ body{
 .check-btn.completed {
   background: var(--primary);
   border-color: var(--primary);
+}
+
+.card {
+  margin: 0 auto;
+  padding: 1rem 0.7rem;
+  font-size: 1rem;
+}
+
+@media (min-width: 600px) {
+  .card {
+    min-width: 340px;
+    max-width: 340px;
+    width: 340px;
+    padding: 1.5rem 1rem;
+  }
+  .equipos-scroll {
+    gap: 2rem;
+    padding: 2rem;
+  }
+}
+
+.add-btn, .keycap {
+  width: 48px;
+  height: 48px;
+  font-size: 1.3rem;
+}
+
+@media (min-width: 600px) {
+  .add-btn, .keycap {
+    width: 64px;
+    height: 64px;
+    font-size: 1.7rem;
+  }
 }
