@@ -1,8 +1,14 @@
+
+:root {
+    --max-width: 330px;
+}
+
 .card {
     border: 1px solid #000;
     width: 90vw;
     height: 42vh;
     border-radius: 20px;
+    max-width: 390px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
@@ -20,20 +26,25 @@
 .card_number {
     position: absolute;
     width: 90vw;
+    max-width: var(--max-width);
     text-align: right;
     padding: 10px;
-
     box-sizing: border-box;
     padding-bottom: 0;
+    color: #fff;
+    z-index: 3000;
 }
 
 .card_title {
     width: 90vw;
+
     padding: 14px;
+
+    max-width: var(--max-width);
     box-sizing: border-box;
     padding-bottom: 10px;
     z-index: 2000;
-    margin-left: 70px;
+
 }
 
 .card_list {
@@ -43,6 +54,7 @@
     padding: 14px;
     width: 78%;
     height: 36vh;
+    max-width: var(--max-width);
     padding-bottom: 0;
     margin: 0;
     list-style: none;
@@ -51,6 +63,8 @@
     font-size: 1.2em;
     transition: all 0.3s ease;
 }
+
+
 
 .card_list:hover {
     box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
@@ -66,5 +80,6 @@
 
 
 .card__list_item {
-    margin-top: 10vh;
+    margin-top: 12vh;
+    margin-left: 2vh;
 }
