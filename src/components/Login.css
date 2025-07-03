@@ -1,0 +1,44 @@
+.container {
+    background-color: #fff;
+    height: 100vh;
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column ;
+}
+
+.login-title {
+}
+
+ .email-input {
+    height: 6vh;
+    font-size: 1.5em;
+    padding: 1vh;
+    width: 60vw;
+    border-radius:  10px 10px 0px 0px;
+ }
+
+ .password-input {
+    height: 6vh;
+    font-size: 1.5em;
+    padding: 1vh;
+    width: 60vw;
+    border-radius: 0px 0px 10px 10px;
+ }
+
+ .login-button {
+    height: 6vh;
+    width: 60vw;
+    border-radius: 10px;
+    background-color: #00c8ff;
+    color: white;
+    font-size: 1.5em;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    margin-top: 1vh;
+ }
