@@ -7,8 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from './components/PrivateRoute.jsx';
 
 export default function App() {
-  const [user, setUser] = useState(null);
-
   return (
     <BrowserRouter>
       <Routes>

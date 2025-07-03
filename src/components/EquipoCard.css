@@ -1,6 +1,7 @@
 
 :root {
-    --max-width: 330px;
+    --max-width: 270px;
+    --card-bg-color: #26b9e9; /* color por defecto */
 }
 
 .card {
@@ -8,19 +9,40 @@
     width: 90vw;
     height: 42vh;
     border-radius: 20px;
-    max-width: 390px;
+    max-width: calc(var(--max-width) + 40px);
     display: flex;
     align-items: center;
     justify-content: flex-start;
     flex-direction: column;
-    background-color: rgb(15, 15, 15);
+    background-color: color-mix(in srgb, var(--card-bg-color) 70%, black);
     box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
-    transition: all 0.3s ease;
+    transition: all 0.25s ease;
+    box-shadow:  0 0 20px 0 var(--card-bg-color);
 }
 
 .card:hover {
     box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
     cursor: pointer;
+}
+
+/* Estilos cuando el modal está activo */
+.modal-active .card {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.modal-active .card:hover {
+    box-shadow: 0 0 30px 0 #df053f;
+    cursor: default;
+    transform: none;
+}
+
+.modal-active .card .card_list:hover {
+    scale: 1;
+    box-shadow: 0 0 10px 0 #3c0111;
+    height: 36vh;
+    margin-top: 0;
+    text-shadow: none;
 }
 
 .card_number {
@@ -32,7 +54,7 @@
     box-sizing: border-box;
     padding-bottom: 0;
     color: #fff;
-    z-index: 3000;
+    z-index: 1003;
 }
 
 .card_title {
@@ -43,7 +65,7 @@
     max-width: var(--max-width);
     box-sizing: border-box;
     padding-bottom: 10px;
-    z-index: 2000;
+    z-index: 1001;
 
 }
 
@@ -59,17 +81,23 @@
     margin: 0;
     list-style: none;
     border-radius: 15px;
-    background-color: #4b4b4b;
+    background-color: var(--card-bg-color);
     font-size: 1.2em;
     transition: all 0.3s ease;
+    box-shadow: 0 0 20px 0 var(--card-bg-color);
 }
 
-
-
 .card_list:hover {
+    scale: 0.98;
     box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
     height: 38vh;
-    margin-top: 10px;
+    margin-top: 5px;
+    text-shadow: 0 0 2px black;
+}
+
+.card_list:active {
+    scale: 0.90;
+    box-shadow: 0 0 100px 0 var(--card-bg-color);
 }
 
 .card_buttons {
