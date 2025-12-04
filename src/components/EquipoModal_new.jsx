@@ -11,7 +11,6 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [estadoEquipo, setEstadoEquipo] = useState(null);
   const [nuevaNota, setNuevaNota] = useState('');
   const [showNotaForm, setShowNotaForm] = useState(false);
-  const [tipoNota, setTipoNota] = useState('nota'); // 'nota' o 'pendiente'
 
   useEffect(() => {
     if (equipo?.id) {
@@ -98,17 +97,16 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     }
   };
 
-  const agregarNota = async (esPendiente = false) => {
+  const agregarNota = async () => {
     if (!nuevaNota.trim()) return;
     
     try {
-      const prefijo = esPendiente ? 'PENDIENTE: ' : 'NOTA: ';
       const { error } = await supabase
         .from('historial_procesos')
         .insert({
           equipo_id: equipo.id,
           proceso_id: procesoActual,
-          notas: `${prefijo}${nuevaNota.trim()}`,
+          notas: nuevaNota.trim(),
           completado: null
         });
 
@@ -143,8 +141,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     }
   };
 
-  const marcarComoListo = async () => {
-    if (!confirm('¿Estás seguro de que quieres marcar este equipo como listo? Se moverá a la lista de "Listos para recoger".')) {
+  const finalizarEquipo = async () => {
+    if (!confirm('¿Estás seguro de que quieres finalizar este equipo? Se moverá a la lista de listos.')) {
       return;
     }
 
@@ -165,7 +163,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         const { error } = await supabase
           .from('estado_equipos')
           .update({
-            estado: 'listo',
+            estado: 'finalizado',
             proceso_actual_id: procesoActual,
             updated_at: new Date().toISOString()
           })
@@ -176,7 +174,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           .from('estado_equipos')
           .insert({
             equipo_id: equipo.id,
-            estado: 'listo',
+            estado: 'finalizado',
             proceso_actual_id: procesoActual,
             updated_at: new Date().toISOString()
           });
@@ -190,54 +188,14 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         .insert({
           equipo_id: equipo.id,
           proceso_id: procesoActual,
-          notas: 'Equipo terminado y listo para entrega',
+          notas: 'Equipo finalizado y listo para entrega',
           completado: true,
           fecha_completado: new Date().toISOString()
         });
 
       if (historialError) throw historialError;
 
-      alert('Equipo marcado como listo exitosamente');
-      onEquipoUpdated?.();
-      onClose();
-    } catch (error) {
-      console.error('Error al marcar equipo como listo:', error);
-      alert('Error al marcar el equipo como listo');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const marcarComoFinalizado = async () => {
-    if (!confirm('¿Estás seguro de que quieres marcar este equipo como entregado? Esta acción es definitiva.')) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error: estadoError } = await supabase
-        .from('estado_equipos')
-        .update({
-          estado: 'finalizado',
-          updated_at: new Date().toISOString()
-        })
-        .eq('equipo_id', equipo.id);
-
-      if (estadoError) throw estadoError;
-
-      const { error: historialError } = await supabase
-        .from('historial_procesos')
-        .insert({
-          equipo_id: equipo.id,
-          proceso_id: procesoActual,
-          notas: 'Equipo entregado al cliente',
-          completado: true,
-          fecha_completado: new Date().toISOString()
-        });
-
-      if (historialError) throw historialError;
-
-      alert('Equipo marcado como entregado exitosamente');
+      alert('Equipo finalizado exitosamente');
       onEquipoUpdated?.();
       onClose();
     } catch (error) {
@@ -298,9 +256,14 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
               </span>
             )}
           </div>
-          {(procesoInfo || equipo.problema) && (
-            <div className="proceso-detalle-info">
-              <strong>{procesoInfo?.nombre || 'Sin proceso'}:</strong> {equipo.problema || 'Sin detalle específico'}
+          {equipo.problema && (
+            <div className="problema-info">
+              <strong>Problema:</strong> {equipo.problema}
+            </div>
+          )}
+          {procesoInfo && (
+            <div className="proceso-info">
+              <strong>Proceso:</strong> {procesoInfo.nombre}
             </div>
           )}
         </div>
@@ -348,14 +311,14 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           </div>
         )}
 
-        {/* Formulario para agregar nota/pendiente */}
+        {/* Formulario para agregar nota */}
         {showNotaForm && (
           <div className="nota-form">
-            <h3>{tipoNota === 'pendiente' ? '📌 Agregar pendiente' : '📝 Agregar nota'}</h3>
+            <h3>📝 Agregar nota</h3>
             <textarea
               value={nuevaNota}
               onChange={(e) => setNuevaNota(e.target.value)}
-              placeholder={tipoNota === 'pendiente' ? 'Describe el pendiente...' : 'Escribe una nota...'}
+              placeholder="Escribe una nota o pendiente..."
               rows="3"
             />
             <div className="nota-actions">
@@ -370,10 +333,10 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
               </button>
               <button 
                 className="btn-primary"
-                onClick={() => agregarNota(tipoNota === 'pendiente')}
+                onClick={agregarNota}
                 disabled={!nuevaNota.trim()}
               >
-                Guardar {tipoNota === 'pendiente' ? 'Pendiente' : 'Nota'}
+                Guardar
               </button>
             </div>
           </div>
@@ -381,61 +344,22 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
         {/* Acciones principales */}
         <div className="modal-actions">
-          {/* Primera fila: Agregar pendiente y nota */}
-          <div className="actions-row">
-            <button 
-              className="btn-pendiente"
-              onClick={() => {
-                setTipoNota('pendiente');
-                setShowNotaForm(!showNotaForm);
-                if (showNotaForm && tipoNota === 'pendiente') {
-                  setShowNotaForm(false);
-                  setNuevaNota('');
-                }
-              }}
-            >
-              📌 {showNotaForm && tipoNota === 'pendiente' ? 'Cerrar' : 'Agregar Pendiente'}
-            </button>
-            
-            <button 
-              className="btn-nota"
-              onClick={() => {
-                setTipoNota('nota');
-                setShowNotaForm(!showNotaForm);
-                if (showNotaForm && tipoNota === 'nota') {
-                  setShowNotaForm(false);
-                  setNuevaNota('');
-                }
-              }}
-            >
-              📝 {showNotaForm && tipoNota === 'nota' ? 'Cerrar' : 'Agregar Nota'}
-            </button>
-          </div>
+          <button 
+            className="btn-nota"
+            onClick={() => setShowNotaForm(!showNotaForm)}
+          >
+            📝 {showNotaForm ? 'Cerrar' : 'Agregar Nota'}
+          </button>
           
-          {/* Segunda fila: Botón de estado según el equipo */}
-          <div className="actions-row">
-            {/* Si está en proceso y todos los subprocesos están completados */}
-            {estadoEquipo?.estado === 'en_proceso' && subprocesosCompletados.length === subprocesos.length && subprocesos.length > 0 && (
-              <button 
-                className="btn-listo full-width"
-                onClick={marcarComoListo}
-                disabled={loading}
-              >
-                ✅ Marcar como Listo para Recoger
-              </button>
-            )}
-            
-            {/* Si está listo, puede ser entregado */}
-            {estadoEquipo?.estado === 'listo' && (
-              <button 
-                className="btn-finalizar full-width"
-                onClick={marcarComoFinalizado}
-                disabled={loading}
-              >
-                🏁 Marcar como Entregado
-              </button>
-            )}
-          </div>
+          {estadoEquipo?.estado !== 'finalizado' && subprocesosCompletados.length === subprocesos.length && subprocesos.length > 0 && (
+            <button 
+              className="btn-finalizar"
+              onClick={finalizarEquipo}
+              disabled={loading}
+            >
+              🏁 Finalizar Equipo
+            </button>
+          )}
         </div>
       </div>
     </div>

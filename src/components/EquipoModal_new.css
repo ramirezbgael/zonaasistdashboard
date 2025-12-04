@@ -10,7 +10,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: var(--z-modal-backdrop);
+  z-index: 1000;
   animation: modalOverlayFadeIn 0.3s ease-out;
 }
 
@@ -71,7 +71,7 @@
   justify-content: center;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 12px rgba(238, 90, 36, 0.3);
-  z-index: 1;
+  z-index: 10;
 }
 
 .close-btn:hover {
@@ -149,16 +149,21 @@
   color: white;
 }
 
-.proceso-detalle-info {
-  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
-  border: 1px solid #93c5fd;
+.problema-info,
+.proceso-info {
+  background: linear-gradient(135deg, #fef2f2, #fff5f5);
+  border: 1px solid #fca5a5;
   border-radius: 12px;
   padding: 1rem;
   margin-top: 1rem;
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.proceso-info {
+  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+  border-color: #93c5fd;
   color: #1d4ed8;
-  text-align: center;
 }
 
 /* Next Subprocess Section */
@@ -340,35 +345,11 @@
 /* Modal Actions */
 .modal-actions {
   display: flex;
-  flex-direction: column;
   gap: 1rem;
+  justify-content: center;
   padding-top: 1.5rem;
   border-top: 1px solid rgba(52, 73, 94, 0.1);
   margin-top: 1.5rem;
-}
-
-.actions-row {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-}
-
-.btn-pendiente {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-  flex: 1;
-}
-
-.btn-pendiente:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
 }
 
 .btn-nota {
@@ -381,7 +362,6 @@
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-  flex: 1;
 }
 
 .btn-nota:hover {
@@ -389,35 +369,8 @@
   box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
 }
 
-.btn-listo {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.btn-listo.full-width {
-  width: 100%;
-}
-
-.btn-listo:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
-}
-
-.btn-listo:disabled {
-  background: linear-gradient(135deg, #bdc3c7, #95a5a6);
-  cursor: not-allowed;
-  transform: none;
-}
-
 .btn-finalizar {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
   color: white;
   border: none;
   border-radius: 12px;
@@ -425,16 +378,12 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-}
-
-.btn-finalizar.full-width {
-  width: 100%;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
 
 .btn-finalizar:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.4);
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
 }
 
 .btn-finalizar:disabled {
@@ -521,17 +470,11 @@
   }
   
   .modal-actions {
-    gap: 0.75rem;
-  }
-  
-  .actions-row {
     flex-direction: column;
     gap: 0.75rem;
   }
   
-  .btn-pendiente,
   .btn-nota,
-  .btn-listo,
   .btn-finalizar {
     width: 100%;
   }

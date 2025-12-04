@@ -1,113 +1,310 @@
+/* EquipoCard.css - Usa variables globales de index.css */
 
 :root {
-    --max-width: 270px;
-    --card-bg-color: #26b9e9; /* color por defecto */
+    --card-bg-color: #26b9e9; /* color por defecto para cards de equipos */
 }
 
 .card {
-    border: 1px solid #000;
-    width: 90vw;
-    height: 42vh;
-    border-radius: 20px;
-    max-width: calc(var(--max-width) + 40px);
+    border: none;
+    width: 100%;
+    max-width: 350px;
+    min-height: 320px;
+    border-radius: var(--radius-2xl);
     display: flex;
     align-items: center;
     justify-content: flex-start;
     flex-direction: column;
-    background-color: color-mix(in srgb, var(--card-bg-color) 70%, black);
-    box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
-    transition: all 0.25s ease;
-    box-shadow:  0 0 20px 0 var(--card-bg-color);
+    background-color: color-mix(in srgb, var(--card-bg-color) 70%, var(--black));
+    box-shadow: var(--shadow-xl);
+    transition: all var(--transition-slow);
+    position: relative;
+    overflow: hidden;
 }
 
 .card:hover {
-    box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-2xl);
     cursor: pointer;
+}
+
+.card:active {
+    transform: translateY(-2px);
+    transition: all var(--transition-fast);
 }
 
 /* Estilos cuando el modal está activo */
 .modal-active .card {
-    opacity: 0.3;
+    opacity: 0.6;
     pointer-events: none;
+    filter: blur(2px);
 }
 
 .modal-active .card:hover {
-    box-shadow: 0 0 30px 0 #df053f;
-    cursor: default;
     transform: none;
-}
-
-.modal-active .card .card_list:hover {
-    scale: 1;
-    box-shadow: 0 0 10px 0 #3c0111;
-    height: 36vh;
-    margin-top: 0;
-    text-shadow: none;
+    box-shadow: var(--shadow-xl);
 }
 
 .card_number {
     position: absolute;
-    width: 90vw;
-    max-width: var(--max-width);
+    top: var(--space-4);
+    right: var(--space-5);
     text-align: right;
-    padding: 10px;
-    box-sizing: border-box;
-    padding-bottom: 0;
-    color: #fff;
-    z-index: 1003;
+    color: rgba(255, 255, 255, 0.9);
+    z-index: 3;
+    font-weight: var(--font-medium);
 }
 
 .card_title {
-    width: 90vw;
-
-    padding: 14px;
-
-    max-width: var(--max-width);
-    box-sizing: border-box;
-    padding-bottom: 10px;
-    z-index: 1001;
-
+    position: absolute;
+    top: var(--space-5);
+    left: var(--space-5);
+    color: var(--white);
+    z-index: 2;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .card_list {
     display: flex;
     flex-direction: column;
-    position: absolute;
-    padding: 14px;
-    width: 78%;
-    height: 36vh;
-    max-width: var(--max-width);
-    padding-bottom: 0;
+    position: relative;
+    padding: var(--space-5);
+    width: 100%;
+    min-height: 280px;
     margin: 0;
     list-style: none;
-    border-radius: 15px;
-    background-color: var(--card-bg-color);
-    font-size: 1.2em;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 20px 0 var(--card-bg-color);
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--card-bg-color), color-mix(in srgb, var(--card-bg-color) 80%, var(--white)));
+    font-size: var(--font-lg);
+    transition: all var(--transition-slow);
+    box-shadow: 
+        0 0 30px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
-
-.card_list:hover {
-    scale: 0.98;
-    box-shadow: 0 0 10px 0 rgba(159, 159, 159, 0.5);
-    height: 38vh;
-    margin-top: 5px;
-    text-shadow: 0 0 2px black;
-}
-
-.card_list:active {
-    scale: 0.90;
-    box-shadow: 0 0 100px 0 var(--card-bg-color);
-}
-
-.card_buttons {
-    display: flex;
-    gap: 2px;
-    padding: 14px;
-}
-
 
 .card__list_item {
-    margin-top: 12vh;
-    margin-left: 2vh;
+    margin-top: auto;
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) 0;
+    color: var(--white);
+    font-size: var(--font-sm);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Estilos para el siguiente paso */
+.card__list_item.siguiente-paso {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-3);
+    margin: var(--space-2) var(--space-3);
+    margin-top: auto;
+    margin-bottom: var(--space-3);
+    font-size: var(--font-xs);
+    font-weight: var(--font-medium);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: var(--shadow);
+    position: relative;
+}
+
+.paso-icon {
+    font-size: var(--font-lg);
+    flex-shrink: 0;
+}
+
+.paso-texto {
+    color: var(--white);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Botones para equipos listos */
+.card-actions-listos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    padding-top: 6rem;
+    margin: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.btn-contactar {
+    background: linear-gradient(135deg, var(--primary-blue), var(--primary-blue-dark));
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--font-xs);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    transition: all var(--transition-slow);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.btn-contactar:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-entregado {
+    background: linear-gradient(135deg, var(--success-green), var(--success-green-dark));
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--font-xs);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    transition: all var(--transition-slow);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.btn-entregado:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-contactar:active,
+.btn-entregado:active {
+    transform: translateY(0);
+}
+
+/* Responsive adjustments */
+@media (min-width: 768px) {
+    .card {
+        max-width: 320px;
+        min-height: 300px;
+    }
+    
+    .card_list {
+        padding: var(--space-6);
+        min-height: 260px;
+        font-size: var(--font-xl);
+    }
+    
+    .card_number {
+        top: var(--space-5);
+        right: var(--space-6);
+    }
+    
+    .card_title {
+        top: var(--space-6);
+        left: var(--space-6);
+    }
+}
+
+/* Touch targets for mobile */
+@media (max-width: 767px) {
+    .card {
+        min-height: 260px;
+    }
+    
+    .card_list {
+        min-height: 220px;
+    }
+}
+
+/* Modal de contacto */
+.contact-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: var(--z-modal);
+}
+
+.contact-modal {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    max-width: 400px;
+    width: 90%;
+    box-shadow: var(--shadow-2xl);
+}
+
+.contact-modal h3 {
+    margin: 0 0 var(--space-2) 0;
+    color: var(--gray-900);
+    font-size: var(--font-xl);
+}
+
+.contact-modal p {
+    margin: 0 0 var(--space-4) 0;
+    color: var(--gray-600);
+    font-size: var(--font-sm);
+}
+
+.contact-modal label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: var(--font-semibold);
+    color: var(--gray-900);
+}
+
+.contact-modal input {
+    width: 100%;
+    padding: var(--space-3);
+    border: 2px solid var(--gray-300);
+    border-radius: var(--radius);
+    font-size: var(--font-base);
+    margin-bottom: var(--space-4);
+    box-sizing: border-box;
+}
+
+.contact-modal input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.contact-modal-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+}
+
+.contact-modal-actions button {
+    padding: var(--space-2) var(--space-5);
+    border: none;
+    border-radius: var(--radius);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.contact-modal-actions button[type="button"] {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.contact-modal-actions button[type="submit"] {
+    background: var(--success-green);
+    color: var(--white);
+}
+
+.contact-modal-actions button:hover {
+    transform: translateY(-1px);
 }

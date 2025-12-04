@@ -1,31 +1,266 @@
-.header {
-    width: 100%;
-    box-sizing: border-box;
-    height: 12vh;
+/* Dashboard Layout - Integrado con MainLayout */
+/* Usa variables globales de index.css */
+.dashboard {
+    min-height: 100%;
+    background: var(--gray-50);
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
-.title {
-    font-weight: 400;
-    font-size: 1.7em;
-    width: 100vw;
+/* Dashboard Tabs - Integrado con MainLayout */
+.dashboard-tabs {
+    display: flex;
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    margin: 0;
+    padding: 0 var(--space-4);
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    box-shadow: var(--shadow-sm);
+}
+
+.dashboard-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.tab-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: var(--space-4) var(--space-3);
+    border: none;
+    background: transparent;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all var(--transition-slow);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    position: relative;
+    font-size: var(--font-sm);
+    font-weight: var(--font-medium);
+}
+
+.tab-btn.active {
+    color: var(--primary-blue);
+    background: var(--secondary-blue);
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--primary-blue);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tab-btn:hover:not(.active) {
+    color: var(--gray-900);
+    background: var(--gray-50);
+}
+
+.tab-icon {
+    font-size: var(--font-xl);
+    margin-bottom: var(--space-1);
+}
+
+.tab-text {
+    font-size: var(--font-xs);
+    font-weight: var(--font-medium);
+    white-space: nowrap;
+}
+
+.tab-count {
+    background: var(--gray-200);
+    color: var(--gray-700);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-xs);
+    font-weight: var(--font-semibold);
+    min-width: 20px;
     text-align: center;
-    color: white;
+    margin-top: var(--space-1);
 }
 
-h1 {
-    color: white;
+.tab-btn.active .tab-count {
+    background: var(--primary-blue);
+    color: var(--white);
 }
 
-.AddEquipoButton {
-    height: 10vh;
-    width: 10vh;
-    border-radius: 50%;
-    background-color: #007bff;
-    color: white;
-    font-size: 2em;
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+    color: var(--gray-600);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.empty-icon {
+    font-size: var(--font-5xl);
+    margin-bottom: var(--space-4);
+    opacity: 0.6;
+}
+
+.empty-state h3 {
+    font-size: var(--font-2xl);
+    font-weight: var(--font-semibold);
+    margin: 0 0 var(--space-2) 0;
+    color: var(--gray-900);
+}
+
+.empty-state p {
+    font-size: var(--font-base);
+    margin: 0;
+    color: var(--gray-600);
+    line-height: 1.5;
+}
+
+/* Main Content */
+.dashboard-content {
+    flex: 1;
+    padding: var(--space-4);
+    padding-bottom: 100px; /* Space for FAB */
+}
+
+.equipos-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    align-items: center;
+}
+
+/* Floating Action Button */
+.add-equipo-fab {
+    position: fixed;
+    bottom: var(--space-5);
+    right: var(--space-5);
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--primary-blue), var(--primary-blue-dark));
+    color: var(--white);
+    font-size: var(--font-4xl);
+    font-weight: 300;
     border: none;
     cursor: pointer;
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
+    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+    transition: all var(--transition-slow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-fixed);
+}
+
+.add-equipo-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 25px rgba(0, 123, 255, 0.6);
+}
+
+.add-equipo-fab:active {
+    transform: scale(0.95);
+}
+
+/* Modal Active State */
+.modal-active .add-equipo-fab {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.modal-active .user-menu-toggle {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+/* Responsive Design */
+@media (min-width: 768px) {
+    .dashboard-tabs {
+        padding: 0 var(--space-8);
+    }
+    
+    .tab-btn {
+        min-width: 140px;
+        padding: var(--space-5) var(--space-4);
+        font-size: var(--font-base);
+        flex-direction: row;
+        gap: var(--space-2);
+    }
+    
+    .tab-icon {
+        font-size: var(--font-lg);
+        margin-bottom: 0;
+    }
+    
+    .tab-text {
+        font-size: var(--font-sm);
+    }
+    
+    .tab-count {
+        margin-top: 0;
+        margin-left: var(--space-1);
+    }
+    
+    .dashboard-content {
+        padding: var(--space-8);
+        padding-bottom: 120px;
+    }
+    
+    .equipos-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: var(--space-6);
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .empty-state {
+        padding: var(--space-16) var(--space-8);
+    }
+    
+    .empty-icon {
+        font-size: 5rem;
+    }
+    
+    .empty-state h3 {
+        font-size: var(--font-3xl);
+    }
+    
+    .empty-state p {
+        font-size: var(--font-lg);
+    }
+    
+    .add-equipo-fab {
+        width: 72px;
+        height: 72px;
+        font-size: var(--font-4xl);
+        bottom: var(--space-8);
+        right: var(--space-8);
+    }
+}
+
+@media (min-width: 1024px) {
+    .equipos-grid {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: var(--space-8);
+    }
+}
+
+/* Safe area for mobile devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .dashboard-content {
+        padding-bottom: calc(100px + env(safe-area-inset-bottom));
+    }
+    
+    .add-equipo-fab {
+        bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+    }
 }
