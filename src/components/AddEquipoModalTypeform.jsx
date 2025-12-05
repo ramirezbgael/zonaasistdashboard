@@ -666,8 +666,38 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   ];
 
   return (
-    <div className="typeform-modal-overlay" onClick={handleClose}>
-      <div className="typeform-modal" onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="typeform-modal-overlay" 
+      onClick={handleClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 1050,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        padding: '1rem'
+      }}
+    >
+      <div 
+        className="typeform-modal" 
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          zIndex: 1060,
+          display: 'flex',
+          flexDirection: 'column',
+          opacity: 1,
+          visibility: 'visible',
+          transform: 'translate(0, 0)'
+        }}
+      >
         <button onClick={handleClose} className="typeform-close-btn">×</button>
         
         {/* Progress Bar */}
