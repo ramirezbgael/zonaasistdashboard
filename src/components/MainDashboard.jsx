@@ -41,7 +41,7 @@ export default function MainDashboard() {
 
             // TODO: Obtener trabajos pendientes (documentos) cuando esté implementado
             const trabajosPendientes = 0;
-            
+
             // TODO: Obtener entregas pendientes (logística) cuando esté implementado
             const entregasPendientes = 0;
             

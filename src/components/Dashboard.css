@@ -17,7 +17,7 @@
     background: radial-gradient(at 80% 20%, rgba(77, 163, 255, 0.1) 0%, transparent 50%),
                 radial-gradient(at 20% 90%, rgba(26, 35, 50, 0.2) 0%, transparent 50%),
                 linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
-}
+    }
 
 /* Dashboard Tabs - Glassmorphism mejorado */
 .dashboard-tabs {
@@ -489,5 +489,5 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.3);
-}
+    }
 }

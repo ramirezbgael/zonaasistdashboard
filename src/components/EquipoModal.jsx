@@ -303,7 +303,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         </button>
         
         <div className="equipo-modal-content-wrapper">
-          {/* Header con información del equipo */}
+        {/* Header con información del equipo */}
           <div className="equipo-modal-header">
           <div className="equipo-header-main">
             <div className="equipo-numero-badge">
@@ -311,19 +311,19 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
               <span className="equipo-numero-value">{equipo.nota}</span>
             </div>
             <div className="equipo-header-info">
-              <h2 className="equipo-title">{equipo.marca} {equipo.modelo}</h2>
-              <div className="equipo-meta">
+          <h2 className="equipo-title">{equipo.marca} {equipo.modelo}</h2>
+          <div className="equipo-meta">
                 <span className="equipo-color-badge">
                   <Icon name="palette" className="meta-icon" />
                   {equipo.color}
                 </span>
-                {estadoEquipo && (
-                  <span className={`estado-badge ${estadoEquipo.estado}`}>
+            {estadoEquipo && (
+              <span className={`estado-badge ${estadoEquipo.estado}`}>
                     <Icon name={estadoEquipo.estado === 'en_proceso' ? 'clock' : estadoEquipo.estado === 'finalizado' ? 'check-circle' : 'hourglass-half'} className="meta-icon" />
-                    {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
-                     estadoEquipo.estado === 'finalizado' ? 'Finalizado' : 'Pendiente'}
-                  </span>
-                )}
+                {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
+                 estadoEquipo.estado === 'finalizado' ? 'Finalizado' : 'Pendiente'}
+              </span>
+            )}
               </div>
             </div>
           </div>
@@ -371,30 +371,30 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
                       {isCompleted ? (
                         <div className="marker-icon completed">
                           <Icon name="check" />
-                        </div>
+            </div>
                       ) : isNext ? (
                         <div className="marker-icon next">
                           <Icon name="arrow-right" />
-                        </div>
+                </div>
                       ) : (
                         <div className="marker-icon pending">
                           <Icon name="circle" />
-                        </div>
-                      )}
+          </div>
+        )}
                       {!isLast && <div className="timeline-line"></div>}
                     </div>
                     <div className="timeline-content">
                       <div className="timeline-content-header">
                         <h4 className="timeline-step-title">{subproceso.nombre}</h4>
                         {isNext && (
-                          <button 
+              <button 
                             className="btn-completar-step"
                             onClick={() => marcarSubprocesoCompletado(subproceso.id)}
                             disabled={loading}
-                          >
+              >
                             <Icon name="check" />
                             Completar
-                          </button>
+              </button>
                         )}
                       </div>
                       {subproceso.descripcion && (

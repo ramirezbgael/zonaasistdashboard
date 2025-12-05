@@ -203,7 +203,7 @@ export default function Dashboard() {
                     // Si está en_proceso, mantenerlo así a menos que realmente haya completado todos los subprocesos
                     // Solo mover a listo si tiene proceso válido, tiene subprocesos, y completó todos
                     if (equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 && !equipo.siguienteSubproceso) {
-                        estado = 'listo';
+                    estado = 'listo';
                     }
                     // Si está en_proceso pero no tiene subprocesos, mantener en_proceso
                 } else if (estado === 'sin_estado' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido && equipo.totalSubprocesos > 0) {
@@ -265,11 +265,11 @@ export default function Dashboard() {
                     <div className="summary-card">
                         <h3 className="summary-card-title">Finalizados</h3>
                         <p className="summary-card-value">{equiposFinalizados.length}</p>
-                    </div>
+                            </div>
                     <div className="summary-card">
                         <h3 className="summary-card-title">Total</h3>
                         <p className="summary-card-value">{equiposPendientes.length + equiposListos.length + equiposFinalizados.length}</p>
-                    </div>
+                        </div>
                 </div>
             </section>
 
