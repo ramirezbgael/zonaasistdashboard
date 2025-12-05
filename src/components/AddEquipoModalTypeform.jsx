@@ -1,80 +1,86 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase.js';
-import Tesseract from 'tesseract.js';
 import './AddEquipoModalTypeform.css';
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color
+  const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_nombre (si no existe), 3: detalle
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
-  const [detecting, setDetecting] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [videoReady, setVideoReady] = useState(false);
   const [startingCamera, setStartingCamera] = useState(false);
-  const [detectedData, setDetectedData] = useState({ marca: '', modelo: '' });
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const opencvCanvasRef = useRef(null);
-  const [opencvReady, setOpencvReady] = useState(false);
+  
+  // Autocompletado
+  const [marcaSuggestions, setMarcaSuggestions] = useState([]);
+  const [modeloSuggestions, setModeloSuggestions] = useState([]);
+  const [showMarcaSuggestions, setShowMarcaSuggestions] = useState(false);
+  const [showModeloSuggestions, setShowModeloSuggestions] = useState(false);
   
   const [formData, setFormData] = useState({
     marca: '',
     modelo: '',
     color: '',
-    nota: '',
     problema: '',
-    proceso_id: ''
+    proceso_id: '',
+    cliente_telefono: '',
+    cliente_nombre: ''
   });
   const [loading, setLoading] = useState(false);
   const [procesos, setProcesos] = useState([]);
-  const [existingData, setExistingData] = useState({ colores: [] });
+  const [clientes, setClientes] = useState([]);
+  const [clienteEncontrado, setClienteEncontrado] = useState(null);
+  const [siguienteNota, setSiguienteNota] = useState(null);
 
-  // Marcas predefinidas para matching
+  // Marcas predefinidas para autocompletado
   const marcasPredefinidas = [
     'Dell', 'HP', 'Lenovo', 'Acer', 'ASUS', 'Toshiba', 'Sony', 'Samsung', 'Apple', 'MSI', 'Epson'
   ];
 
   const modelosPorMarca = {
-    'Dell': ['Inspiron 15 3000', 'Inspiron 15 5000', 'Latitude 3420', 'XPS 13', 'XPS 15'],
-    'HP': ['Pavilion 15', 'EliteBook 840', 'ProBook 450', 'Spectre x360'],
-    'Lenovo': ['ThinkPad E14', 'ThinkPad E15', 'IdeaPad 3', 'Yoga 7i'],
-    'Acer': ['Aspire 3', 'Aspire 5', 'Swift 3', 'Nitro 5'],
-    'ASUS': ['VivoBook 15', 'ZenBook 13', 'ROG Strix G15'],
-    'Epson': ['L3150', 'L3250', 'L4150', 'EcoTank L3110']
+    'Dell': ['Inspiron 15 3000', 'Inspiron 15 5000', 'Latitude 3420', 'XPS 13', 'XPS 15', 'Inspiron 14', 'Latitude 5520'],
+    'HP': ['Pavilion 15', 'EliteBook 840', 'ProBook 450', 'Spectre x360', 'Pavilion 14', 'EliteBook 850'],
+    'Lenovo': ['ThinkPad E14', 'ThinkPad E15', 'IdeaPad 3', 'Yoga 7i', 'ThinkPad X1', 'Legion 5'],
+    'Acer': ['Aspire 3', 'Aspire 5', 'Swift 3', 'Nitro 5', 'Aspire 7', 'Predator'],
+    'ASUS': ['VivoBook 15', 'ZenBook 13', 'ROG Strix G15', 'VivoBook 14', 'ZenBook 14'],
+    'Epson': ['L3150', 'L3250', 'L4150', 'EcoTank L3110', 'L4260', 'L6190'],
+    'Apple': ['MacBook Air', 'MacBook Pro', 'iMac', 'Mac Mini'],
+    'Samsung': ['Galaxy Book', 'Notebook 9']
   };
 
-  // Cargar OpenCV.js desde CDN (opcional, no bloquea)
-  useEffect(() => {
-    const checkOpenCV = () => {
-      if (window.cv && window.cv.Mat) {
-        setOpencvReady(true);
-        return true;
-      }
-      return false;
-    };
+  // Función para filtrar sugerencias de marca
+  const filterMarcaSuggestions = (value) => {
+    if (!value || value.trim() === '') {
+      setMarcaSuggestions([]);
+      setShowMarcaSuggestions(false);
+      return;
+    }
+    
+    const filtered = marcasPredefinidas.filter(marca =>
+      marca.toLowerCase().includes(value.toLowerCase())
+    );
+    setMarcaSuggestions(filtered.slice(0, 5));
+    setShowMarcaSuggestions(filtered.length > 0);
+  };
 
-    // Verificar si ya está cargado
-    if (checkOpenCV()) return;
-
-    // Esperar a que se cargue
-    const interval = setInterval(() => {
-      if (checkOpenCV()) {
-        clearInterval(interval);
-      }
-    }, 100);
-
-    // Timeout - continuar sin OpenCV si no se carga
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      setOpencvReady(true); // Permitir continuar sin OpenCV
-      console.log('OpenCV no disponible, continuando sin preprocesamiento');
-    }, 3000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, []);
+  // Función para filtrar sugerencias de modelo
+  const filterModeloSuggestions = (value, marca) => {
+    if (!value || value.trim() === '' || !marca) {
+      setModeloSuggestions([]);
+      setShowModeloSuggestions(false);
+      return;
+    }
+    
+    const modelos = modelosPorMarca[marca] || [];
+    const filtered = modelos.filter(modelo =>
+      modelo.toLowerCase().includes(value.toLowerCase())
+    );
+    setModeloSuggestions(filtered.slice(0, 5));
+    setShowModeloSuggestions(filtered.length > 0);
+  };
 
   // Verificar disponibilidad de la API de cámara
   const checkCameraAvailability = () => {
@@ -146,6 +152,26 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     }
   }, []);
 
+  // Limpiar sugerencias cuando cambia el sub-paso del formulario
+  useEffect(() => {
+    if (currentStep === 2) {
+      setShowMarcaSuggestions(false);
+      setShowModeloSuggestions(false);
+      setMarcaSuggestions([]);
+      setModeloSuggestions([]);
+    }
+  }, [formSubStep, currentStep]);
+
+  // Resetear sub-pasos cuando cambia el paso principal
+  useEffect(() => {
+    if (currentStep !== 2) {
+      setFormSubStep(0);
+    }
+    if (currentStep !== 3) {
+      setAdditionalSubStep(0);
+    }
+  }, [currentStep]);
+
   // Cargar datos iniciales
   useEffect(() => {
     const loadData = async () => {
@@ -157,24 +183,71 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           .order('id');
         setProcesos(procesosData || []);
 
-        // Cargar colores existentes
+        // Cargar siguiente nota automáticamente (sin mostrarla en el form)
         const { data: equiposData } = await supabase
           .from('equipos')
-          .select('color, nota')
+          .select('nota')
           .order('nota', { ascending: false })
           .limit(1);
 
         if (equiposData && equiposData.length > 0) {
-          const siguienteNota = parseInt(equiposData[0].nota) + 1;
-          setFormData(prev => ({ ...prev, nota: siguienteNota.toString() }));
+          const siguiente = parseInt(equiposData[0].nota) + 1;
+          setSiguienteNota(siguiente);
+        } else {
+          setSiguienteNota(1); // Primera nota
         }
+
+        // Cargar clientes para autocompletado
+        const { data: clientesData } = await supabase
+          .from('clientes')
+          .select('id, nombre, telefono')
+          .order('nombre');
+        setClientes(clientesData || []);
       } catch (error) {
         console.error('Error loading data:', error);
+        // Si la tabla de clientes no existe aún, continuar sin error
+        if (!error.message.includes('clientes')) {
+          console.error('Error loading data:', error);
+        }
       }
     };
 
     loadData();
   }, []);
+
+  // Buscar cliente por teléfono
+  const buscarClientePorTelefono = async (telefono) => {
+    if (!telefono || telefono.trim() === '') {
+      setClienteEncontrado(null);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nombre, telefono')
+        .eq('telefono', telefono.trim())
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error buscando cliente:', error);
+        return;
+      }
+
+      if (data) {
+        setClienteEncontrado(data);
+        setFormData(prev => ({ ...prev, cliente_nombre: data.nombre }));
+      } else {
+        setClienteEncontrado(null);
+        // Limpiar nombre si no se encuentra el cliente
+        if (!formData.cliente_nombre) {
+          setFormData(prev => ({ ...prev, cliente_nombre: '' }));
+        }
+      }
+    } catch (error) {
+      console.error('Error buscando cliente:', error);
+    }
+  };
 
   // Limpiar stream de cámara al desmontar o cerrar
   useEffect(() => {
@@ -272,6 +345,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
       console.log('[Camera] Stream obtenido exitosamente');
       setStream(mediaStream);
       setCurrentStep(1); // Cambiar al paso 1 - el useEffect manejará el video
+      setFormSubStep(0); // Resetear sub-paso del formulario
       console.log('[Camera] Cambiado a paso 1');
     } catch (error) {
       console.error('[Camera] Error accessing camera:', error);
@@ -306,6 +380,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     }
     setVideoReady(false);
     setCameraError(null);
+    setFormSubStep(0); // Iniciar desde el primer campo
     setCurrentStep(2);
   };
 
@@ -339,154 +414,9 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         setStream(null);
       }
       
-      // Procesar imagen
-      detectEquipment(imageData);
-    }
-  };
-
-  // Procesar imagen con OpenCV antes de OCR (opcional)
-  const preprocessImageWithOpenCV = (imageElement) => {
-    return new Promise((resolve) => {
-      if (!window.cv || !window.cv.Mat) {
-        resolve(null);
-        return;
-      }
-
-      try {
-        const src = cv.imread(imageElement);
-        const gray = new cv.Mat();
-        const dst = new cv.Mat();
-
-        // Convertir a escala de grises
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-        // Aplicar threshold para mejorar contraste
-        cv.threshold(gray, dst, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-        
-        // Crear canvas temporal si no existe
-        if (!opencvCanvasRef.current) {
-          opencvCanvasRef.current = document.createElement('canvas');
-        }
-        opencvCanvasRef.current.width = imageElement.width || 640;
-        opencvCanvasRef.current.height = imageElement.height || 480;
-        
-        cv.imshow(opencvCanvasRef.current, dst);
-        const processedImage = opencvCanvasRef.current.toDataURL('image/jpeg');
-
-        // Limpiar memoria
-        src.delete();
-        dst.delete();
-        gray.delete();
-
-        resolve(processedImage);
-      } catch (error) {
-        console.warn('OpenCV processing error (continuando sin preprocesamiento):', error);
-        resolve(null);
-      }
-    });
-  };
-
-  // Detectar marca y modelo con OCR
-  const detectEquipment = async (imageSrc) => {
-    setDetecting(true);
-    
-    try {
-      // Crear elemento imagen para procesamiento
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = imageSrc;
-      
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
-
-      // Preprocesar con OpenCV si está disponible
-      let processedImage = imageSrc;
-      if (window.cv && opencvReady) {
-        const processed = await preprocessImageWithOpenCV(img);
-        if (processed) {
-          processedImage = processed;
-        }
-      }
-
-      // Usar Tesseract para OCR con configuración optimizada
-      const { data: { text } } = await Tesseract.recognize(processedImage, 'eng+spa', {
-        logger: m => {
-          if (m.status === 'recognizing text') {
-            console.log(`Progress: ${Math.round(m.progress * 100)}%`);
-          }
-        },
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789- /',
-        tessedit_pageseg_mode: '6' // Uniform block of text
-      });
-
-      console.log('OCR Text:', text);
-      
-      // Buscar marca en el texto (más flexible)
-      let detectedMarca = '';
-      let detectedModelo = '';
-      const textUpper = text.toUpperCase();
-      
-      // Buscar marca con múltiples variantes
-      for (const marca of marcasPredefinidas) {
-        const marcaUpper = marca.toUpperCase();
-        // Buscar coincidencia exacta o parcial
-        if (textUpper.includes(marcaUpper) || 
-            textUpper.includes(marcaUpper.replace(/\s+/g, '')) ||
-            new RegExp(marcaUpper.split('').join('[\\s-]?'), 'i').test(text)) {
-          detectedMarca = marca;
-          break;
-        }
-      }
-
-      // Buscar modelo (buscar texto que coincida con modelos conocidos)
-      if (detectedMarca && modelosPorMarca[detectedMarca]) {
-        for (const modelo of modelosPorMarca[detectedMarca]) {
-          // Crear regex más flexible para encontrar el modelo
-          const modeloParts = modelo.split(/\s+/);
-          const modeloRegex = new RegExp(
-            modeloParts.map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s-]?'),
-            'i'
-          );
-          
-          if (modeloRegex.test(text)) {
-            detectedModelo = modelo;
-            break;
-          }
-        }
-      }
-
-      // Si no se detectó modelo pero hay marca, buscar patrones comunes
-      if (detectedMarca && !detectedModelo) {
-        const modelPatterns = [
-          /(?:Model|Modelo)[\s:]+([A-Z0-9\s-]+)/i,
-          /([A-Z]{2,}\s*\d+[A-Z]?)/,  // Patrón como "XPS 13" o "ThinkPad E14"
-          /([A-Z]+\s*\d{3,})/          // Patrón como "Latitude 3420"
-        ];
-        
-        for (const pattern of modelPatterns) {
-          const match = text.match(pattern);
-          if (match && match[1]) {
-            detectedModelo = match[1].trim();
-            break;
-          }
-        }
-      }
-
-      setDetectedData({ marca: detectedMarca, modelo: detectedModelo });
-      setFormData(prev => ({
-        ...prev,
-        marca: detectedMarca,
-        modelo: detectedModelo
-      }));
-
+      // Ir directamente al formulario
+      setFormSubStep(0); // Iniciar desde el primer campo
       setCurrentStep(2);
-    } catch (error) {
-      console.error('Error detecting equipment:', error);
-      setCurrentStep(2); // Continuar aunque falle la detección
-    } finally {
-      setDetecting(false);
     }
   };
 
@@ -501,7 +431,76 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      
+      // Filtrar sugerencias cuando cambia la marca o modelo
+      if (name === 'marca') {
+        filterMarcaSuggestions(value);
+        // Limpiar modelo si cambia la marca
+        if (prev.marca !== value) {
+          newData.modelo = '';
+          setModeloSuggestions([]);
+        }
+      } else if (name === 'modelo') {
+        filterModeloSuggestions(value, formData.marca);
+      } else if (name === 'cliente_telefono') {
+        // Buscar cliente cuando se escribe el teléfono
+        buscarClientePorTelefono(value);
+      }
+      
+      return newData;
+    });
+  };
+
+  const handleSuggestionClick = (field, value) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      if (field === 'marca') {
+        setShowMarcaSuggestions(false);
+        setMarcaSuggestions([]);
+        // Limpiar modelo cuando cambia la marca
+        newData.modelo = '';
+        // Avanzar al siguiente paso automáticamente
+        setTimeout(() => setFormSubStep(1), 300);
+      } else if (field === 'modelo') {
+        setShowModeloSuggestions(false);
+        setModeloSuggestions([]);
+        // Avanzar al siguiente paso automáticamente
+        setTimeout(() => setFormSubStep(2), 300);
+      }
+      return newData;
+    });
+  };
+
+  // Avanzar al siguiente campo automáticamente
+  const handleFieldComplete = (field) => {
+    if (field === 'marca' && formData.marca.trim()) {
+      setTimeout(() => setFormSubStep(1), 300);
+    } else if (field === 'modelo' && formData.modelo.trim()) {
+      setTimeout(() => setFormSubStep(2), 300);
+    } else if (field === 'color' && formData.color.trim()) {
+      setTimeout(() => {
+        setAdditionalSubStep(0);
+        setCurrentStep(3);
+      }, 300);
+    }
+  };
+
+  // Avanzar en información adicional
+  const handleAdditionalFieldComplete = (field) => {
+    if (field === 'proceso' && formData.proceso_id) {
+      setTimeout(() => setAdditionalSubStep(1), 300); // Ir a teléfono
+    } else if (field === 'cliente_telefono' && formData.cliente_telefono.trim()) {
+      // Si el cliente no existe, pedir nombre; si existe, ir a detalle
+      if (!clienteEncontrado) {
+        setTimeout(() => setAdditionalSubStep(2), 300); // Pedir nombre
+      } else {
+        setTimeout(() => setAdditionalSubStep(3), 300); // Ir a detalle
+      }
+    } else if (field === 'cliente_nombre' && formData.cliente_nombre.trim()) {
+      setTimeout(() => setAdditionalSubStep(3), 300); // Ir a detalle
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -509,18 +508,79 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     setLoading(true);
 
     try {
-      if (!formData.marca || !formData.modelo || !formData.color || !formData.nota || !formData.proceso_id) {
+      // Validar campos requeridos
+      if (!formData.marca || !formData.modelo || !formData.color || !formData.proceso_id || !formData.cliente_telefono) {
         alert('Por favor completa todos los campos requeridos');
         setLoading(false);
         return;
       }
 
+      // Validar que si no hay cliente encontrado, debe haber nombre
+      if (!clienteEncontrado && !formData.cliente_nombre) {
+        alert('Por favor ingresa el nombre del cliente');
+        setLoading(false);
+        return;
+      }
+
+      let clienteId = null;
+
+      // Buscar o crear cliente
+      if (clienteEncontrado) {
+        clienteId = clienteEncontrado.id;
+      } else {
+        // Crear nuevo cliente
+        const { data: clienteData, error: clienteError } = await supabase
+          .from('clientes')
+          .insert([{
+            nombre: formData.cliente_nombre.trim(),
+            telefono: formData.cliente_telefono.trim()
+          }])
+          .select();
+
+        if (clienteError) {
+          // Si hay error de duplicado, intentar buscar el cliente
+          if (clienteError.code === '23505') {
+            const { data: clienteExistente } = await supabase
+              .from('clientes')
+              .select('id')
+              .eq('telefono', formData.cliente_telefono.trim())
+              .maybeSingle();
+            
+            if (clienteExistente) {
+              clienteId = clienteExistente.id;
+            } else {
+              throw clienteError;
+            }
+          } else {
+            throw clienteError;
+          }
+        } else {
+          clienteId = clienteData[0].id;
+        }
+      }
+
+      // Generar nota automáticamente
+      let notaGenerada = siguienteNota;
+      if (!notaGenerada) {
+        // Si no se calculó antes, calcular ahora
+        const { data: ultimaNota } = await supabase
+          .from('equipos')
+          .select('nota')
+          .order('nota', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        notaGenerada = ultimaNota ? parseInt(ultimaNota.nota) + 1 : 1;
+      }
+
+      // Si no hay problema, usar una cadena vacía en lugar de null para evitar error en pendientes
       const equipoData = {
         marca: formData.marca.trim(),
         modelo: formData.modelo.trim(),
         color: formData.color.trim(),
-        nota: formData.nota.trim(),
-        problema: formData.problema.trim() || null
+        nota: notaGenerada.toString(),
+        problema: formData.problema.trim() || '',
+        cliente_id: clienteId
       };
 
       const { data, error } = await supabase
@@ -566,12 +626,12 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
       description: 'Permite el acceso a la cámara para capturar una foto del equipo'
     },
     {
-      title: '✅ Confirmar información detectada',
-      description: 'Revisa y completa los datos detectados automáticamente'
+      title: '📝 Información del equipo',
+      description: 'Completa los datos del equipo'
     },
     {
-      title: '📝 Información adicional',
-      description: 'Completa los detalles restantes del equipo'
+      title: '⚙️ Proceso y cliente',
+      description: 'Selecciona el proceso y los datos del cliente'
     }
   ];
 
@@ -584,13 +644,32 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         <div className="typeform-progress">
           <div 
             className="typeform-progress-bar" 
-            style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+            style={{ 
+              width: `${(() => {
+                if (currentStep === 2) {
+                  // Paso 2: Formulario (marca, modelo, color) = 3 sub-pasos
+                  return ((currentStep + (formSubStep + 1) / 3) / (steps.length + 1)) * 100;
+                } else if (currentStep === 3) {
+                  // Paso 3: Cliente y proceso
+                  // Máximo 4 sub-pasos: teléfono, nombre (opcional), proceso, detalle
+                  const totalSubSteps = 4;
+                  const currentProgress = additionalSubStep + 1;
+                  return ((currentStep + currentProgress / totalSubSteps) / (steps.length + 1)) * 100;
+                } else {
+                  return ((currentStep + 1) / (steps.length + 1)) * 100;
+                }
+              })()}%` 
+            }}
           ></div>
         </div>
 
         {/* Step Indicator */}
         <div className="typeform-step-indicator">
-          Paso {currentStep + 1} de {steps.length}
+          {currentStep === 2 
+            ? `Paso ${currentStep + 1}.${formSubStep + 1} de ${steps.length + 1}`
+            : currentStep === 3
+            ? `Paso ${currentStep + 1}.${additionalSubStep + 1} de ${steps.length + 1}`
+            : `Paso ${currentStep + 1} de ${steps.length + 1}`}
         </div>
 
         {/* Step 0: Inicio - Activar cámara */}
@@ -654,7 +733,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           <div className="typeform-step">
             <h2>Captura la imagen</h2>
             <p className="typeform-description">
-              Coloca el equipo frente a la cámara y asegúrate de que la marca y modelo sean visibles
+              Coloca el equipo frente a la cámara y captura una foto
             </p>
             {cameraError && (
               <div className="error-message">
@@ -703,12 +782,6 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                   </div>
                 )}
 
-                {detecting && (
-                  <div className="detecting-overlay">
-                    <div className="detecting-spinner"></div>
-                    <p>Detectando marca y modelo...</p>
-                  </div>
-                )}
                 
                 {cameraError && (
                   <div className="typeform-buttons">
@@ -743,147 +816,368 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           </div>
         )}
 
-        {/* Step 2: Confirmar datos detectados */}
+        {/* Step 2: Formulario tipo Typeform - Campos progresivos */}
         {currentStep === 2 && (
-          <div className="typeform-step">
-            <h2>{steps[1].title}</h2>
-            <p className="typeform-description">{steps[1].description}</p>
-            
+          <div className="typeform-step typeform-single-field">
             {capturedImage && (
-              <div className="captured-preview">
+              <div className="captured-preview-small">
                 <img src={capturedImage} alt="Equipment" />
               </div>
             )}
 
-            <div className="typeform-form-group">
-              <label>Marca:</label>
-              <input
-                type="text"
-                name="marca"
-                value={formData.marca}
-                onChange={handleInputChange}
-                placeholder={detectedData.marca ? `Detectado: ${detectedData.marca}` : 'Ingresa la marca'}
-                required
-              />
-              {detectedData.marca && (
-                <span className="detected-badge">✓ Detectado automáticamente</span>
-              )}
-            </div>
+            {/* Campo: Marca */}
+            {formSubStep === 0 && (
+              <>
+                <h2 className="typeform-question">¿Cuál es la marca del equipo?</h2>
+                <div className="typeform-field-wrapper autocomplete-wrapper">
+                  <input
+                    type="text"
+                    name="marca"
+                    value={formData.marca}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && formData.marca.trim()) {
+                        e.preventDefault();
+                        handleFieldComplete('marca');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (formData.marca) {
+                        filterMarcaSuggestions(formData.marca);
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowMarcaSuggestions(false), 200);
+                    }}
+                    placeholder="Escribe la marca..."
+                    required
+                    autoComplete="off"
+                    autoFocus
+                    className="typeform-large-input"
+                  />
+                  {showMarcaSuggestions && marcaSuggestions.length > 0 && (
+                    <div className="suggestions-dropdown-large">
+                      {marcaSuggestions.map((marca, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          className="suggestion-item-large"
+                          onClick={() => handleSuggestionClick('marca', marca)}
+                        >
+                          {marca}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {formData.marca && (
+                  <button
+                    type="button"
+                    onClick={() => handleFieldComplete('marca')}
+                    className="typeform-btn-primary typeform-next-btn"
+                  >
+                    Continuar →
+                  </button>
+                )}
+              </>
+            )}
 
-            <div className="typeform-form-group">
-              <label>Modelo:</label>
-              <input
-                type="text"
-                name="modelo"
-                value={formData.modelo}
-                onChange={handleInputChange}
-                placeholder={detectedData.modelo ? `Detectado: ${detectedData.modelo}` : 'Ingresa el modelo'}
-                required
-              />
-              {detectedData.modelo && (
-                <span className="detected-badge">✓ Detectado automáticamente</span>
-              )}
-            </div>
+            {/* Campo: Modelo */}
+            {formSubStep === 1 && (
+              <>
+                <h2 className="typeform-question">¿Cuál es el modelo del equipo?</h2>
+                <div className="typeform-field-wrapper autocomplete-wrapper">
+                  <input
+                    type="text"
+                    name="modelo"
+                    value={formData.modelo}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && formData.modelo.trim()) {
+                        e.preventDefault();
+                        handleFieldComplete('modelo');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (formData.modelo && formData.marca) {
+                        filterModeloSuggestions(formData.modelo, formData.marca);
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowModeloSuggestions(false), 200);
+                    }}
+                    placeholder={`Escribe el modelo ${formData.marca || ''}...`}
+                    required
+                    autoComplete="off"
+                    autoFocus
+                    className="typeform-large-input"
+                  />
+                  {showModeloSuggestions && modeloSuggestions.length > 0 && (
+                    <div className="suggestions-dropdown-large">
+                      {modeloSuggestions.map((modelo, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          className="suggestion-item-large"
+                          onClick={() => handleSuggestionClick('modelo', modelo)}
+                        >
+                          {modelo}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => setFormSubStep(0)}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  {formData.modelo && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldComplete('modelo')}
+                      className="typeform-btn-primary"
+                    >
+                      Continuar →
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
 
-            <div className="typeform-form-group">
-              <label>Color:</label>
-              <input
-                type="text"
-                name="color"
-                value={formData.color}
-                onChange={handleInputChange}
-                required
-              />
-            </div>
-
-            <div className="typeform-buttons">
-              <button 
-                onClick={() => {
-                  // Volver al paso 0 si no hay stream, al paso 1 si hay stream
-                  if (stream) {
-                    setCurrentStep(1);
-                  } else {
-                    setCurrentStep(0);
-                  }
-                }} 
-                className="typeform-btn-secondary"
-              >
-                ← Volver
-              </button>
-              <button 
-                onClick={() => setCurrentStep(3)} 
-                className="typeform-btn-primary"
-                disabled={!formData.marca || !formData.modelo || !formData.color}
-              >
-                Continuar →
-              </button>
-            </div>
+            {/* Campo: Color */}
+            {formSubStep === 2 && (
+              <>
+                <h2 className="typeform-question">¿De qué color es el equipo?</h2>
+                <div className="typeform-field-wrapper">
+                  <input
+                    type="text"
+                    name="color"
+                    value={formData.color}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && formData.color.trim()) {
+                        e.preventDefault();
+                        handleFieldComplete('color');
+                      }
+                    }}
+                    placeholder="Escribe el color..."
+                    required
+                    autoFocus
+                    className="typeform-large-input"
+                  />
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => setFormSubStep(1)}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  {formData.color && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldComplete('color')}
+                      className="typeform-btn-primary"
+                    >
+                      Continuar →
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* Step 3: Información adicional */}
+        {/* Step 3: Información adicional tipo Typeform */}
         {currentStep === 3 && (
-          <div className="typeform-step">
-            <h2>{steps[2].title}</h2>
-            <p className="typeform-description">{steps[2].description}</p>
+          <div className="typeform-step typeform-single-field">
+            {/* Campo: Proceso */}
+            {additionalSubStep === 0 && (
+              <>
+                <h2 className="typeform-question">¿Qué proceso se va a realizar?</h2>
+                <p className="typeform-description">Selecciona el tipo de servicio a realizar.</p>
+                <div className="typeform-field-wrapper">
+                  <select
+                    name="proceso_id"
+                    value={formData.proceso_id}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      if (e.target.value) {
+                        setTimeout(() => handleAdditionalFieldComplete('proceso'), 300);
+                      }
+                    }}
+                    required
+                    autoFocus
+                    className="typeform-large-input typeform-select"
+                  >
+                    <option value="">Selecciona un proceso...</option>
+                    {procesos.map(proceso => (
+                      <option key={proceso.id} value={proceso.id}>
+                        {proceso.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {formData.proceso_id && (
+                  <button
+                    type="button"
+                    onClick={() => handleAdditionalFieldComplete('proceso')}
+                    className="typeform-btn-primary typeform-next-btn"
+                  >
+                    Continuar →
+                  </button>
+                )}
+              </>
+            )}
 
-            <form onSubmit={handleSubmit}>
-              <div className="typeform-form-group">
-                <label>Nota:</label>
-                <input
-                  type="text"
-                  name="nota"
-                  value={formData.nota}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
+            {/* Campo: Teléfono del cliente */}
+            {additionalSubStep === 1 && (
+              <>
+                <h2 className="typeform-question">¿Cuál es el número del cliente?</h2>
+                <p className="typeform-description">Ingresa el número de teléfono del cliente. Si ya existe en la base de datos, se cargará automáticamente.</p>
+                {clienteEncontrado && (
+                  <div style={{
+                    background: '#d4edda',
+                    color: '#155724',
+                    padding: 'var(--space-4)',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: 'var(--space-4)',
+                    textAlign: 'center'
+                  }}>
+                    ✓ Cliente encontrado: {clienteEncontrado.nombre}
+                  </div>
+                )}
+                <div className="typeform-field-wrapper">
+                  <input
+                    type="tel"
+                    name="cliente_telefono"
+                    value={formData.cliente_telefono}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && formData.cliente_telefono.trim()) {
+                        e.preventDefault();
+                        handleAdditionalFieldComplete('cliente_telefono');
+                      }
+                    }}
+                    placeholder="Ej: 5551234567"
+                    required
+                    autoFocus
+                    className="typeform-large-input"
+                  />
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalSubStep(0)}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  {formData.cliente_telefono && (
+                    <button
+                      type="button"
+                      onClick={() => handleAdditionalFieldComplete('cliente_telefono')}
+                      className="typeform-btn-primary"
+                    >
+                      Continuar →
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
 
-              <div className="typeform-form-group">
-                <label>Proceso a realizar:</label>
-                <select
-                  name="proceso_id"
-                  value={formData.proceso_id}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Seleccionar proceso...</option>
-                  {procesos.map(proceso => (
-                    <option key={proceso.id} value={proceso.id}>
-                      {proceso.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Campo: Nombre del cliente (solo si no existe) */}
+            {additionalSubStep === 2 && !clienteEncontrado && (
+              <>
+                <h2 className="typeform-question">¿Cuál es el nombre del cliente?</h2>
+                <p className="typeform-description">Este cliente no está en la base de datos. Por favor, ingresa su nombre.</p>
+                <div className="typeform-field-wrapper">
+                  <input
+                    type="text"
+                    name="cliente_nombre"
+                    value={formData.cliente_nombre}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && formData.cliente_nombre.trim()) {
+                        e.preventDefault();
+                        handleAdditionalFieldComplete('cliente_nombre');
+                      }
+                    }}
+                    placeholder="Escribe el nombre completo del cliente..."
+                    required
+                    autoFocus
+                    className="typeform-large-input"
+                  />
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalSubStep(1)}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  {formData.cliente_nombre && (
+                    <button
+                      type="button"
+                      onClick={() => handleAdditionalFieldComplete('cliente_nombre')}
+                      className="typeform-btn-primary"
+                    >
+                      Continuar →
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
 
-              <div className="typeform-form-group">
-                <label>Detalle (opcional):</label>
-                <textarea
-                  name="problema"
-                  value={formData.problema}
-                  onChange={handleInputChange}
-                  rows="3"
-                  placeholder="Detalles adicionales sobre el equipo..."
-                />
-              </div>
-
-              <div className="typeform-buttons">
-                <button 
-                  type="button"
-                  onClick={() => setCurrentStep(2)} 
-                  className="typeform-btn-secondary"
-                >
-                  ← Volver
-                </button>
-                <button 
-                  type="submit" 
-                  className="typeform-btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Guardando...' : '✓ Agregar Equipo'}
-                </button>
-              </div>
-            </form>
+            {/* Campo: Detalle (opcional) */}
+            {additionalSubStep === 3 && (
+              <>
+                <h2 className="typeform-question">¿Hay algún detalle adicional? (Opcional)</h2>
+                <p className="typeform-description">Describe cualquier problema o información relevante sobre el equipo.</p>
+                <div className="typeform-field-wrapper">
+                  <textarea
+                    name="problema"
+                    value={formData.problema}
+                    onChange={handleInputChange}
+                    placeholder="Escribe detalles adicionales sobre el equipo..."
+                    autoFocus
+                    className="typeform-large-textarea"
+                    rows="5"
+                  />
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Volver al paso anterior según si existe el cliente
+                      if (clienteEncontrado) {
+                        setAdditionalSubStep(1);
+                      } else {
+                        setAdditionalSubStep(2);
+                      }
+                    }}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  <form onSubmit={handleSubmit} style={{ display: 'inline' }}>
+                    <button
+                      type="submit"
+                      className="typeform-btn-primary"
+                      disabled={loading}
+                    >
+                      {loading ? 'Guardando...' : '✓ Agregar Equipo'}
+                    </button>
+                  </form>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

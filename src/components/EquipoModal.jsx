@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase.js';
+import Icon from './Icon.jsx';
 import './EquipoModal.css';
 
 export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
@@ -280,139 +281,137 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const subprocesosCompletados = getSubprocesosCompletados();
   const procesoInfo = procesos.find(p => p.id === procesoActual);
 
+  // Función para obtener todos los subprocesos con su estado
+  const getAllSubprocesosWithStatus = () => {
+    return subprocesos.map(subproceso => ({
+      ...subproceso,
+      status: getSubprocesoStatus(subproceso.id),
+      isNext: siguienteSubproceso?.id === subproceso.id
+    }));
+  };
+
+  const allSubprocesos = getAllSubprocesosWithStatus();
+  const progressPercentage = subprocesos.length > 0 
+    ? (subprocesosCompletados.length / subprocesos.length) * 100 
+    : 0;
+
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal equipo-modal-simple">
-        <button onClick={onClose} className="close-btn">×</button>
+    <div className="equipo-modal-overlay" onClick={handleOverlayClick}>
+      <div className="equipo-modal" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="equipo-modal-close-btn">
+          <Icon name="times" />
+        </button>
         
-        {/* Header con información del equipo */}
-        <div className="equipo-header">
-          <div className="equipo-numero">#{equipo.nota}</div>
-          <h2 className="equipo-title">{equipo.marca} {equipo.modelo}</h2>
-          <div className="equipo-meta">
-            <span className="equipo-color">{equipo.color}</span>
-            {estadoEquipo && (
-              <span className={`estado-badge ${estadoEquipo.estado}`}>
-                {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
-                 estadoEquipo.estado === 'finalizado' ? 'Finalizado' : 'Pendiente'}
-              </span>
-            )}
+        <div className="equipo-modal-content-wrapper">
+          {/* Header con información del equipo */}
+          <div className="equipo-modal-header">
+          <div className="equipo-header-main">
+            <div className="equipo-numero-badge">
+              <span className="equipo-numero-prefix">#</span>
+              <span className="equipo-numero-value">{equipo.nota}</span>
+            </div>
+            <div className="equipo-header-info">
+              <h2 className="equipo-title">{equipo.marca} {equipo.modelo}</h2>
+              <div className="equipo-meta">
+                <span className="equipo-color-badge">
+                  <Icon name="palette" className="meta-icon" />
+                  {equipo.color}
+                </span>
+                {estadoEquipo && (
+                  <span className={`estado-badge ${estadoEquipo.estado}`}>
+                    <Icon name={estadoEquipo.estado === 'en_proceso' ? 'clock' : estadoEquipo.estado === 'finalizado' ? 'check-circle' : 'hourglass-half'} className="meta-icon" />
+                    {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
+                     estadoEquipo.estado === 'finalizado' ? 'Finalizado' : 'Pendiente'}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           {(procesoInfo || equipo.problema) && (
             <div className="proceso-detalle-info">
-              <strong>{procesoInfo?.nombre || 'Sin proceso'}:</strong> {equipo.problema || 'Sin detalle específico'}
+              <Icon name="info-circle" className="info-icon" />
+              <div>
+                <strong>{procesoInfo?.nombre || 'Sin proceso'}</strong>
+                {equipo.problema && <p>{equipo.problema}</p>}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Siguiente subproceso pendiente */}
-        {siguienteSubproceso && estadoEquipo?.estado !== 'finalizado' && (
-          <div className="siguiente-subproceso">
-            <h3>📋 Siguiente paso</h3>
-            <div className="subproceso-card">
-              <div className="subproceso-info">
-                <h4>{siguienteSubproceso.nombre}</h4>
-                {siguienteSubproceso.descripcion && (
-                  <p>{siguienteSubproceso.descripcion}</p>
-                )}
-              </div>
-              <button 
-                className="btn-completar"
-                onClick={() => marcarSubprocesoCompletado(siguienteSubproceso.id)}
-                disabled={loading}
-              >
-                ✓ Completar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Subprocesos completados */}
-        {subprocesosCompletados.length > 0 && (
-          <div className="subprocesos-completados">
-            <h3>✅ Pasos completados ({subprocesosCompletados.length}/{subprocesos.length})</h3>
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${(subprocesosCompletados.length / subprocesos.length) * 100}%` }}
-              ></div>
-            </div>
-            <div className="completados-list">
-              {subprocesosCompletados.map(subproceso => (
-                <div key={subproceso.id} className="subproceso-completado">
-                  <span className="check-icon">✓</span>
-                  <span>{subproceso.nombre}</span>
+        {/* Línea de tiempo de subprocesos */}
+        {subprocesos.length > 0 && (
+          <div className="timeline-section">
+            <div className="timeline-header">
+              <h3 className="timeline-title">
+                <Icon name="list-check" className="timeline-title-icon" />
+                Proceso: {procesoInfo?.nombre || 'Sin proceso'}
+              </h3>
+              <div className="timeline-progress">
+                <div className="progress-bar-container">
+                  <div 
+                    className="progress-bar-fill" 
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
                 </div>
-              ))}
+                <span className="progress-text">
+                  {subprocesosCompletados.length} / {subprocesos.length} completados
+                </span>
+              </div>
+            </div>
+            
+            <div className="timeline">
+              {allSubprocesos.map((subproceso, index) => {
+                const isCompleted = subproceso.status === 'completado';
+                const isNext = subproceso.isNext;
+                const isLast = index === allSubprocesos.length - 1;
+                
+                return (
+                  <div key={subproceso.id} className={`timeline-item ${isCompleted ? 'completed' : ''} ${isNext ? 'next' : ''}`}>
+                    <div className="timeline-marker">
+                      {isCompleted ? (
+                        <div className="marker-icon completed">
+                          <Icon name="check" />
+                        </div>
+                      ) : isNext ? (
+                        <div className="marker-icon next">
+                          <Icon name="arrow-right" />
+                        </div>
+                      ) : (
+                        <div className="marker-icon pending">
+                          <Icon name="circle" />
+                        </div>
+                      )}
+                      {!isLast && <div className="timeline-line"></div>}
+                    </div>
+                    <div className="timeline-content">
+                      <div className="timeline-content-header">
+                        <h4 className="timeline-step-title">{subproceso.nombre}</h4>
+                        {isNext && (
+                          <button 
+                            className="btn-completar-step"
+                            onClick={() => marcarSubprocesoCompletado(subproceso.id)}
+                            disabled={loading}
+                          >
+                            <Icon name="check" />
+                            Completar
+                          </button>
+                        )}
+                      </div>
+                      {subproceso.descripcion && (
+                        <p className="timeline-step-description">{subproceso.descripcion}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
-
-        {/* Formulario para agregar nota/pendiente */}
-        {showNotaForm && (
-          <div className="nota-form">
-            <h3>{tipoNota === 'pendiente' ? '📌 Agregar pendiente' : '📝 Agregar nota'}</h3>
-            <textarea
-              value={nuevaNota}
-              onChange={(e) => setNuevaNota(e.target.value)}
-              placeholder={tipoNota === 'pendiente' ? 'Describe el pendiente...' : 'Escribe una nota...'}
-              rows="3"
-            />
-            <div className="nota-actions">
-              <button 
-                className="btn-secondary"
-                onClick={() => {
-                  setShowNotaForm(false);
-                  setNuevaNota('');
-                }}
-              >
-                Cancelar
-              </button>
-              <button 
-                className="btn-primary"
-                onClick={() => agregarNota(tipoNota === 'pendiente')}
-                disabled={!nuevaNota.trim()}
-              >
-                Guardar {tipoNota === 'pendiente' ? 'Pendiente' : 'Nota'}
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Acciones principales */}
-        <div className="modal-actions">
-          {/* Primera fila: Agregar pendiente y nota */}
-          <div className="actions-row">
-            <button 
-              className="btn-pendiente"
-              onClick={() => {
-                setTipoNota('pendiente');
-                setShowNotaForm(!showNotaForm);
-                if (showNotaForm && tipoNota === 'pendiente') {
-                  setShowNotaForm(false);
-                  setNuevaNota('');
-                }
-              }}
-            >
-              📌 {showNotaForm && tipoNota === 'pendiente' ? 'Cerrar' : 'Agregar Pendiente'}
-            </button>
-            
-            <button 
-              className="btn-nota"
-              onClick={() => {
-                setTipoNota('nota');
-                setShowNotaForm(!showNotaForm);
-                if (showNotaForm && tipoNota === 'nota') {
-                  setShowNotaForm(false);
-                  setNuevaNota('');
-                }
-              }}
-            >
-              📝 {showNotaForm && tipoNota === 'nota' ? 'Cerrar' : 'Agregar Nota'}
-            </button>
-          </div>
-          
-          {/* Segunda fila: Botón de estado según el equipo */}
+        <div className="equipo-modal-actions">
+          {/* Botón de estado según el equipo */}
           <div className="actions-row">
             {/* Si está en proceso y todos los subprocesos están completados */}
             {estadoEquipo?.estado === 'en_proceso' && subprocesosCompletados.length === subprocesos.length && subprocesos.length > 0 && (
@@ -421,7 +420,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
                 onClick={marcarComoListo}
                 disabled={loading}
               >
-                ✅ Marcar como Listo para Recoger
+                <Icon name="check-circle" />
+                Marcar como Listo para Recoger
               </button>
             )}
             
@@ -432,7 +432,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
                 onClick={marcarComoFinalizado}
                 disabled={loading}
               >
-                🏁 Marcar como Entregado
+                <Icon name="flag-checkered" />
+                Marcar como Entregado
               </button>
             )}
           </div>

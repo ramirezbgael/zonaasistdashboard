@@ -1,4 +1,5 @@
 import PendienteItem from './PendienteItem.jsx';
+import Icon from './Icon.jsx';
 import './EquipoCard.css';
 
 export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
@@ -164,11 +165,9 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
           <span style={{ fontSize: '3em' }}>{nota.slice(-1)}</span>
         </div>
         <div className="card_title">
-          <span style={{ fontSize: '2.6em' }}>{equipo.marca}</span>
-          <br />
-          <span style={{ fontSize: '1em' }}>{equipo.modelo}</span>
-          <br />
-          <span style={{ color: 'var(--primary)', fontSize: '0.9em' }}>{equipo.color}</span>
+          <span style={{ fontSize: '2.6em', display: 'block', lineHeight: '1.1' }}>{equipo.marca}</span>
+          <span style={{ fontSize: '1em', display: 'block', marginTop: '0.2em' }}>{equipo.modelo}</span>
+
         </div>
         
         {/* Mostrar siguiente subproceso o botones según la pestaña */}
@@ -179,27 +178,34 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
               onClick={handleLlamarCliente}
               title="Contactar cliente"
             >
-              📞 Contactar
+              <Icon name="phone" />
+              <span>Contactar</span>
             </button>
             <button 
               className="btn-entregado"
               onClick={handleMarcarEntregado}
               title="Marcar como entregado"
             >
-              ✅ Entregado
+              <Icon name="check-circle" />
+              <span>Entregado</span>
             </button>
           </div>
         ) : (
           <li className="card__list_item siguiente-paso">
             {equipo.siguienteSubproceso ? (
               <>
-                <span className="paso-icon">📋</span>
+                <Icon name="clipboard-list" className="paso-icon" />
                 <span className="paso-texto">{equipo.siguienteSubproceso.nombre}</span>
+              </>
+            ) : equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 ? (
+              <>
+                <Icon name="check-circle" className="paso-icon" />
+                <span className="paso-texto">Proceso completado</span>
               </>
             ) : (
               <>
-                <span className="paso-icon">✅</span>
-                <span className="paso-texto">Proceso completado</span>
+                <Icon name="clock" className="paso-icon" />
+                <span className="paso-texto">En proceso</span>
               </>
             )}
           </li>

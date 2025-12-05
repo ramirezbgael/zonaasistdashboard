@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { supabase } from '../supabase.js';
+import Icon from './Icon.jsx';
+import logo from '../assets/logo.png';
+import Settings from './Settings.jsx';
 import './MainLayout.css';
 
 export default function MainLayout() {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
@@ -16,12 +20,12 @@ export default function MainLayout() {
     };
 
     const menuItems = [
-        { path: '/', icon: '🏠', label: 'Dashboard' },
-        { path: '/equipos', icon: '🔧', label: 'Equipos' },
-        { path: '/documentos', icon: '📄', label: 'Documentos' },
-        { path: '/logistica', icon: '📦', label: 'Logística' },
-        { path: '/clientes', icon: '👥', label: 'Clientes' },
-        { path: '/reportes', icon: '📊', label: 'Reportes' },
+        { path: '/', icon: 'home', label: 'Dashboard' },
+        { path: '/equipos', icon: 'tools', label: 'Equipos' },
+        { path: '/documentos', icon: 'file-alt', label: 'Documentos' },
+        { path: '/logistica', icon: 'shipping-fast', label: 'Logística' },
+        { path: '/clientes', icon: 'users', label: 'Clientes' },
+        { path: '/reportes', icon: 'chart-bar', label: 'Reportes' },
     ];
 
     const isActivePath = (path) => {
@@ -40,7 +44,7 @@ export default function MainLayout() {
                 <div className="navbar-container">
                     {/* Logo */}
                     <a href="#" className="navbar-brand" onClick={(e) => { e.preventDefault(); navigate('/'); }}>
-                        <span className="brand-icon">⚡</span>
+                        <img src={logo} className="brand-logo" alt="Zona Asist" />
                         <span className="brand-text">Zona Asist</span>
                     </a>
 
@@ -56,7 +60,7 @@ export default function MainLayout() {
                                         navigate(item.path);
                                     }}
                                 >
-                                    <span>{item.icon}</span>
+                                    <Icon name={item.icon} />
                                     <span className="nav-label">{item.label}</span>
                                 </a>
                             </div>
@@ -82,12 +86,12 @@ export default function MainLayout() {
                             aria-label="Buscar"
                             style={{ display: 'none' }}
                         >
-                            🔍
+                            <Icon name="search" />
                         </button>
 
                         {/* Notifications */}
                         <button className="action-button" aria-label="Notificaciones">
-                            🔔
+                            <Icon name="bell" />
                             <span className="notification-badge">3</span>
                         </button>
 
@@ -98,7 +102,7 @@ export default function MainLayout() {
                                 onClick={() => setShowUserMenu(!showUserMenu)}
                                 aria-label="Menú de usuario"
                             >
-                                👤
+                                <Icon name="user-circle" />
                             </button>
                             
                             {showUserMenu && (
@@ -117,7 +121,23 @@ export default function MainLayout() {
                                     />
                                     <div className="user-menu-dropdown active">
                                         <a href="#" className="user-menu-item">Mi Perfil</a>
-                                        <a href="#" className="user-menu-item">Configuración</a>
+                                        <button 
+                                            className="user-menu-item"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                setShowSettings(true);
+                                                setShowUserMenu(false);
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                background: 'none',
+                                                border: 'none',
+                                                textAlign: 'left',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Configuración
+                                        </button>
                                         <button 
                                             className="user-menu-item"
                                             onClick={handleLogout}
@@ -190,7 +210,7 @@ export default function MainLayout() {
                                             setShowMobileMenu(false);
                                         }}
                                     >
-                                        <span>{item.icon}</span>
+                                        <Icon name={item.icon} />
                                         <span>{item.label}</span>
                                     </a>
                                 ))}
@@ -204,6 +224,11 @@ export default function MainLayout() {
             <main className="main-content">
                 <Outlet />
             </main>
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <Settings onClose={() => setShowSettings(false)} />
+            )}
         </div>
     );
 }

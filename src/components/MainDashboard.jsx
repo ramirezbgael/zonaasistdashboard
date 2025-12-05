@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
+import Icon from './Icon.jsx';
 import './MainDashboard.css';
 
 export default function MainDashboard() {
@@ -52,7 +53,7 @@ export default function MainDashboard() {
                 {
                     id: 1,
                     tipo: 'equipo',
-                    icono: '🔧',
+                    icono: 'wrench',
                     titulo: 'Equipo #12345 completado',
                     descripcion: 'Laptop HP lista para recoger',
                     tiempo: '5 min ago',
@@ -61,7 +62,7 @@ export default function MainDashboard() {
                 {
                     id: 2,
                     tipo: 'documento',
-                    icono: '📄',
+                    icono: 'file-alt',
                     titulo: 'Transcripción finalizada',
                     descripcion: 'Documento para cliente María González',
                     tiempo: '15 min ago',
@@ -70,7 +71,7 @@ export default function MainDashboard() {
                 {
                     id: 3,
                     tipo: 'logistica',
-                    icono: '📦',
+                    icono: 'box',
                     titulo: 'Pieza recibida',
                     descripcion: 'Disco SSD 500GB llegó al almacén',
                     tiempo: '1 hour ago',
@@ -97,7 +98,7 @@ export default function MainDashboard() {
         {
             id: 'equipos',
             title: 'Gestión de Equipos',
-            icon: '🔧',
+            icon: 'wrench',
             color: '#007bff',
             route: '/equipos',
             stats: { pendientes: stats.equiposPendientes, listos: 0, finalizados: 0 },
@@ -106,7 +107,7 @@ export default function MainDashboard() {
         {
             id: 'documentos',
             title: 'Documentos y Facturación',
-            icon: '📄',
+            icon: 'file-alt',
             color: '#28a745',
             route: '/documentos',
             stats: stats.documentos,
@@ -115,7 +116,7 @@ export default function MainDashboard() {
         {
             id: 'logistica',
             title: 'Logística y Pedidos',
-            icon: '📦',
+            icon: 'box',
             color: '#ffc107',
             route: '/logistica',
             stats: stats.logistica,
@@ -124,7 +125,7 @@ export default function MainDashboard() {
         {
             id: 'clientes',
             title: 'Clientes y Proveedores',
-            icon: '👥',
+            icon: 'users',
             color: '#6f42c1',
             route: '/clientes',
             stats: stats.clientes,
@@ -133,7 +134,7 @@ export default function MainDashboard() {
         {
             id: 'reportes',
             title: 'Reportes y Analytics',
-            icon: '📈',
+            icon: 'chart-bar',
             color: '#dc3545',
             route: '/reportes',
             stats: { total: 12, nuevos: 3 },
@@ -160,34 +161,31 @@ export default function MainDashboard() {
                         className="quick-action-btn"
                         onClick={() => navigate('/equipos?add=true')}
                     >
-                        <span className="action-icon">➕</span>
+                        <Icon name="plus" className="action-icon" />
                         <span className="action-label">Nuevo Equipo</span>
                     </button>
                     
                     <button 
                         className="quick-action-btn"
-                        onClick={() => navigate('/documentos')}
-                        disabled
+                        onClick={() => navigate('/documentos?add=true')}
                     >
-                        <span className="action-icon">📝</span>
-                        <span className="action-label">Nueva Transcripción</span>
+                        <Icon name="file-alt" className="action-icon" />
+                        <span className="action-label">Nuevo Documento</span>
                     </button>
                     
                     <button 
                         className="quick-action-btn"
-                        onClick={() => navigate('/logistica')}
-                        disabled
+                        onClick={() => navigate('/logistica?add=true')}
                     >
-                        <span className="action-icon">🛒</span>
+                        <Icon name="shopping-cart" className="action-icon" />
                         <span className="action-label">Nuevo Pedido</span>
                     </button>
                     
                     <button 
                         className="quick-action-btn"
-                        onClick={() => navigate('/clientes')}
-                        disabled
+                        onClick={() => navigate('/clientes?add=true')}
                     >
-                        <span className="action-icon">👤</span>
+                        <Icon name="user-plus" className="action-icon" />
                         <span className="action-label">Nuevo Cliente</span>
                     </button>
                 </div>
@@ -197,7 +195,7 @@ export default function MainDashboard() {
             <section className="dashboard-overview">
                 <div className="overview-cards">
                     <div className="overview-card equipos-pendientes">
-                        <div className="card-icon">🔧</div>
+                        <div className="card-icon"><Icon name="wrench" /></div>
                         <div className="card-content">
                             <h3>Equipos Pendientes</h3>
                             <p className="card-number">{stats.equiposPendientes}</p>
@@ -205,7 +203,7 @@ export default function MainDashboard() {
                     </div>
                     
                     <div className="overview-card trabajos-pendientes">
-                        <div className="card-icon">📄</div>
+                        <div className="card-icon"><Icon name="file-alt" /></div>
                         <div className="card-content">
                             <h3>Trabajos Pendientes</h3>
                             <p className="card-number">{stats.trabajosPendientes}</p>
@@ -213,7 +211,7 @@ export default function MainDashboard() {
                     </div>
                     
                     <div className="overview-card entregas-pendientes">
-                        <div className="card-icon">📦</div>
+                        <div className="card-icon"><Icon name="box" /></div>
                         <div className="card-content">
                             <h3>Entregas Pendientes</h3>
                             <p className="card-number">{stats.entregasPendientes}</p>
@@ -221,7 +219,7 @@ export default function MainDashboard() {
                     </div>
                     
                     <div className="overview-card total-pendientes">
-                        <div className="card-icon">⚡</div>
+                        <div className="card-icon"><Icon name="bolt" /></div>
                         <div className="card-content">
                             <h3>Total Pendientes</h3>
                             <p className="card-number">{stats.totalPendientes}</p>
@@ -242,7 +240,7 @@ export default function MainDashboard() {
                             style={{ '--module-color': module.color }}
                         >
                             <div className="module-header">
-                                <div className="module-icon">{module.icon}</div>
+                                <div className="module-icon"><Icon name={module.icon} /></div>
                                 <h3 className="module-title">{module.title}</h3>
                             </div>
                             
@@ -268,12 +266,12 @@ export default function MainDashboard() {
                                 
                                 {module.id !== 'equipos' && (
                                     <div className="coming-soon">
-                                        <span>🚧 Próximamente</span>
+                                        <Icon name="hourglass-half" /> <span>Próximamente</span>
                                     </div>
                                 )}
                             </div>
                             
-                            <div className="module-arrow">→</div>
+                            <div className="module-arrow"><Icon name="arrow-right" /></div>
                         </div>
                     ))}
                 </div>
@@ -289,7 +287,7 @@ export default function MainDashboard() {
                                 className="activity-icon"
                                 style={{ backgroundColor: actividad.color }}
                             >
-                                {actividad.icono}
+                                <Icon name={actividad.icono} />
                             </div>
                             <div className="activity-content">
                                 <h4 className="activity-title">{actividad.titulo}</h4>

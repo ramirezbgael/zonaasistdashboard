@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import EquipoCard from './EquipoCard.jsx';
+import Icon from './Icon.jsx';
 import './Dashboard.css';
 import AddEquipoModalTypeform from './AddEquipoModalTypeform.jsx';
 import EquipoModal from './EquipoModal.jsx';
@@ -129,13 +130,25 @@ export default function Dashboard() {
                     if (subprocesos && subprocesos.length > 0) {
                         for (const subproceso of subprocesos) {
                             const registros = historial?.filter(h => h.subproceso_id === subproceso.id) || [];
-                            const completado = registros.length > 0 && registros[registros.length - 1].completado;
+                            // Si no hay registros, el subproceso está pendiente
+                            // Si hay registros, verificar si el último está completado
+                            // Un subproceso está completado solo si explícitamente tiene completado = true
+                            let completado = false;
+                            if (registros.length > 0) {
+                                const ultimoRegistro = registros[registros.length - 1];
+                                completado = ultimoRegistro.completado === true;
+                            }
                             
+                            // Si no está completado (false o null o undefined), este es el siguiente pendiente
                             if (!completado) {
                                 siguienteSubproceso = subproceso;
                                 break;
                             }
                         }
+                    } else {
+                        // Si no hay subprocesos configurados, el siguiente subproceso sigue siendo null
+                        // pero el equipo no debería mostrarse como "completado"
+                        console.log(`⚠️ Equipo #${equipo.nota}: El proceso ${procesoId} no tiene subprocesos configurados`);
                     }
 
                     return { 
@@ -186,11 +199,15 @@ export default function Dashboard() {
                 // IMPORTANTE: No modificar automáticamente el estado si ya está finalizado
                 if (estado === 'finalizado') {
                     // Equipos finalizados se mantienen como están
-                } else if (estado === 'en_proceso' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido) {
-                    // Solo mover a listo si tiene proceso válido y completó todos los subprocesos
-                    estado = 'listo';
-                } else if (estado === 'sin_estado' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido) {
-                    // Solo mover equipos sin estado a listo si tienen proceso válido y lo completaron
+                } else if (estado === 'en_proceso') {
+                    // Si está en_proceso, mantenerlo así a menos que realmente haya completado todos los subprocesos
+                    // Solo mover a listo si tiene proceso válido, tiene subprocesos, y completó todos
+                    if (equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 && !equipo.siguienteSubproceso) {
+                        estado = 'listo';
+                    }
+                    // Si está en_proceso pero no tiene subprocesos, mantener en_proceso
+                } else if (estado === 'sin_estado' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido && equipo.totalSubprocesos > 0) {
+                    // Solo mover equipos sin estado a listo si tienen proceso válido con subprocesos y los completaron todos
                     estado = 'listo';
                 }
                 
@@ -234,13 +251,35 @@ export default function Dashboard() {
 
     return (
         <div className={`dashboard ${equipoSeleccionado || showAddModal ? 'modal-active' : ''}`}>
+            {/* Sección de Resumen */}
+            <section className="dashboard-summary">
+                <div className="summary-cards">
+                    <div className="summary-card">
+                        <h3 className="summary-card-title">Pendientes</h3>
+                        <p className="summary-card-value">{equiposPendientes.length}</p>
+                    </div>
+                    <div className="summary-card">
+                        <h3 className="summary-card-title">Listos</h3>
+                        <p className="summary-card-value">{equiposListos.length}</p>
+                    </div>
+                    <div className="summary-card">
+                        <h3 className="summary-card-title">Finalizados</h3>
+                        <p className="summary-card-value">{equiposFinalizados.length}</p>
+                    </div>
+                    <div className="summary-card">
+                        <h3 className="summary-card-title">Total</h3>
+                        <p className="summary-card-value">{equiposPendientes.length + equiposListos.length + equiposFinalizados.length}</p>
+                    </div>
+                </div>
+            </section>
+
             {/* Tabs de navegación */}
             <nav className="dashboard-tabs">
                 <button 
                     className={`tab-btn ${activeTab === 'pendientes' ? 'active' : ''}`}
                     onClick={() => setActiveTab('pendientes')}
                 >
-                    <span className="tab-icon">⏳</span>
+                    <Icon name="hourglass-half" className="tab-icon" />
                     <span className="tab-text">Pendientes</span>
                     <span className="tab-count">{equiposPendientes.length}</span>
                 </button>
@@ -248,7 +287,7 @@ export default function Dashboard() {
                     className={`tab-btn ${activeTab === 'listos' ? 'active' : ''}`}
                     onClick={() => setActiveTab('listos')}
                 >
-                    <span className="tab-icon">✅</span>
+                    <Icon name="check-circle" className="tab-icon" />
                     <span className="tab-text">Listos</span>
                     <span className="tab-count">{equiposListos.length}</span>
                 </button>
@@ -256,13 +295,14 @@ export default function Dashboard() {
                     className={`tab-btn ${activeTab === 'finalizados' ? 'active' : ''}`}
                     onClick={() => setActiveTab('finalizados')}
                 >
-                    <span className="tab-icon">🏁</span>
+                    <Icon name="flag-checkered" className="tab-icon" />
                     <span className="tab-text">Finalizados</span>
                     <span className="tab-count">{equiposFinalizados.length}</span>
                 </button>
             </nav>
 
             <main className="dashboard-content">
+                <h2 className="dashboard-section-title">{getTituloTab()}</h2>
                 <div className="equipos-grid">
                     {getEquiposActivos().length > 0 ? (
                         getEquiposActivos().map(equipo => (
@@ -277,9 +317,9 @@ export default function Dashboard() {
                     ) : (
                         <div className="empty-state">
                             <div className="empty-icon">
-                                {activeTab === 'pendientes' && '⏳'}
-                                {activeTab === 'listos' && '✅'}
-                                {activeTab === 'finalizados' && '🏁'}
+                                {activeTab === 'pendientes' && <Icon name="hourglass-half" />}
+                                {activeTab === 'listos' && <Icon name="check-circle" />}
+                                {activeTab === 'finalizados' && <Icon name="flag-checkered" />}
                             </div>
                             <h3>No hay equipos {activeTab}</h3>
                             <p>
@@ -297,7 +337,7 @@ export default function Dashboard() {
                 onClick={() => setShowAddModal(true)}
                 title="Agregar nuevo equipo"
             >
-                +
+                <Icon name="plus" />
             </button>
             
             {equipoSeleccionado && (
