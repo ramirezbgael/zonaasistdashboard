@@ -151,23 +151,26 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     const originalPosition = document.body.style.position;
     const originalTop = document.body.style.top;
     const originalWidth = document.body.style.width;
+    const originalHeight = document.body.style.height;
     
     // Obtener la posición actual del scroll
     const scrollY = window.scrollY;
     
-    // Prevenir scroll
+    // Prevenir scroll - método más simple que no afecta el posicionamiento
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
+    document.body.style.position = 'relative';
+    document.body.style.height = '100vh';
     
     // Cleanup: restaurar el scroll cuando el modal se cierre
     return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.position = originalPosition;
-      document.body.style.top = originalTop;
-      document.body.style.width = originalWidth;
-      window.scrollTo(0, scrollY);
+      document.body.style.overflow = originalOverflow || '';
+      document.body.style.position = originalPosition || '';
+      document.body.style.top = originalTop || '';
+      document.body.style.width = originalWidth || '';
+      document.body.style.height = originalHeight || '';
+      if (scrollY > 0) {
+        window.scrollTo(0, scrollY);
+      }
     };
   }, []);
 
