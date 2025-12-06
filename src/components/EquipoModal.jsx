@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabase.js';
+import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
 import Icon from './Icon.jsx';
 import './EquipoModal.css';
 
@@ -13,14 +15,66 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [nuevaNota, setNuevaNota] = useState('');
   const [showNotaForm, setShowNotaForm] = useState(false);
   const [tipoNota, setTipoNota] = useState('nota'); // 'nota' o 'pendiente'
+  const [showEntregaModal, setShowEntregaModal] = useState(false);
+  const [entregaLoading, setEntregaLoading] = useState(false);
+  const [cliente, setCliente] = useState(null);
 
   useEffect(() => {
     if (equipo?.id) {
       loadProcesos();
       loadEstadoEquipo();
       loadHistorial();
+      loadCliente();
     }
   }, [equipo?.id]);
+
+  const loadCliente = async () => {
+    try {
+      if (equipo.clientes) {
+        setCliente(equipo.clientes);
+      } else if (equipo.cliente_id) {
+        const { data, error } = await supabase
+          .from('clientes')
+          .select('id, nombre, telefono, email')
+          .eq('id', equipo.cliente_id)
+          .single();
+        
+        if (!error && data) {
+          setCliente(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar cliente:', error);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const formatRelativeTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Justo ahora';
+    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffHours < 24) return `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+    if (diffDays < 7) return `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+    return formatDate(dateString);
+  };
 
   const loadProcesos = async () => {
     try {
@@ -186,6 +240,14 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       if (estadoError) throw estadoError;
 
+      // Crear notificación de equipo listo
+      try {
+        const clienteNombre = cliente?.nombre || null;
+        await notificarEquipoListo(equipo, clienteNombre);
+      } catch (notifError) {
+        console.error('Error creando notificación (no crítico):', notifError);
+      }
+
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
@@ -209,12 +271,12 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     }
   };
 
-  const marcarComoFinalizado = async () => {
-    if (!confirm('¿Estás seguro de que quieres marcar este equipo como entregado? Esta acción es definitiva.')) {
-      return;
-    }
+  const marcarComoFinalizado = () => {
+    setShowEntregaModal(true);
+  };
 
-    setLoading(true);
+  const confirmarEntrega = async () => {
+    setEntregaLoading(true);
     try {
       const { error: estadoError } = await supabase
         .from('estado_equipos')
@@ -238,14 +300,23 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       if (historialError) throw historialError;
 
-      alert('Equipo marcado como entregado exitosamente');
+      // Crear notificación de equipo finalizado
+      try {
+        const clienteNombre = cliente?.nombre || null;
+        await notificarEquipoFinalizado(equipo, clienteNombre);
+      } catch (notifError) {
+        console.error('Error creando notificación (no crítico):', notifError);
+      }
+
+      setShowEntregaModal(false);
+      setEntregaLoading(false);
       onEquipoUpdated?.();
       onClose();
     } catch (error) {
       console.error('Error al finalizar equipo:', error);
       alert('Error al finalizar el equipo');
-    } finally {
-      setLoading(false);
+      setEntregaLoading(false);
+      setShowEntregaModal(false);
     }
   };
 
@@ -311,29 +382,102 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
               <span className="equipo-numero-value">{equipo.nota}</span>
             </div>
             <div className="equipo-header-info">
-          <h2 className="equipo-title">{equipo.marca} {equipo.modelo}</h2>
-          <div className="equipo-meta">
+              <h2 className="equipo-title">{equipo.marca} {equipo.modelo}</h2>
+              <div className="equipo-meta">
                 <span className="equipo-color-badge">
                   <Icon name="palette" className="meta-icon" />
                   {equipo.color}
                 </span>
-            {estadoEquipo && (
-              <span className={`estado-badge ${estadoEquipo.estado}`}>
-                    <Icon name={estadoEquipo.estado === 'en_proceso' ? 'clock' : estadoEquipo.estado === 'finalizado' ? 'check-circle' : 'hourglass-half'} className="meta-icon" />
-                {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
-                 estadoEquipo.estado === 'finalizado' ? 'Finalizado' : 'Pendiente'}
-              </span>
-            )}
+                {estadoEquipo && (
+                  <span className={`estado-badge ${estadoEquipo.estado}`}>
+                    <Icon name={estadoEquipo.estado === 'en_proceso' ? 'clock' : estadoEquipo.estado === 'finalizado' ? 'check-circle' : estadoEquipo.estado === 'listo' ? 'check-circle' : 'hourglass-half'} className="meta-icon" />
+                    {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
+                     estadoEquipo.estado === 'finalizado' ? 'Finalizado' :
+                     estadoEquipo.estado === 'listo' ? 'Listo' : 'Pendiente'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
-          {(procesoInfo || equipo.problema) && (
-            <div className="proceso-detalle-info">
-              <Icon name="info-circle" className="info-icon" />
-              <div>
-                <strong>{procesoInfo?.nombre || 'Sin proceso'}</strong>
-                {equipo.problema && <p>{equipo.problema}</p>}
+          
+          {/* Información adicional en grid */}
+          <div className="equipo-info-grid">
+            {/* Información del Cliente */}
+            {cliente && (
+              <div className="info-card cliente-card">
+                <div className="info-card-header">
+                  <Icon name="user" className="info-card-icon" />
+                  <h3 className="info-card-title">Cliente</h3>
+                </div>
+                <div className="info-card-content">
+                  <p className="info-card-value">{cliente.nombre || 'Sin nombre'}</p>
+                  {cliente.telefono && (
+                    <div className="info-card-meta">
+                      <Icon name="phone" className="meta-icon-small" />
+                      <span>{cliente.telefono}</span>
+                    </div>
+                  )}
+                  {cliente.email && (
+                    <div className="info-card-meta">
+                      <Icon name="envelope" className="meta-icon-small" />
+                      <span>{cliente.email}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* Información del Proceso */}
+            {procesoInfo && (
+              <div className="info-card proceso-card">
+                <div className="info-card-header">
+                  <Icon name="cog" className="info-card-icon" />
+                  <h3 className="info-card-title">Proceso</h3>
+                </div>
+                <div className="info-card-content">
+                  <p className="info-card-value">{procesoInfo.nombre}</p>
+                  {procesoInfo.descripcion && (
+                    <p className="info-card-description">{procesoInfo.descripcion}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Fechas */}
+            <div className="info-card fechas-card">
+              <div className="info-card-header">
+                <Icon name="calendar-alt" className="info-card-icon" />
+                <h3 className="info-card-title">Fechas</h3>
+              </div>
+              <div className="info-card-content">
+                <div className="info-card-meta">
+                  <Icon name="plus-circle" className="meta-icon-small" />
+                  <div>
+                    <span className="info-card-label">Creado:</span>
+                    <span className="info-card-value-small">{formatDate(equipo.created_at)}</span>
+                  </div>
+                </div>
+                {estadoEquipo?.updated_at && (
+                  <div className="info-card-meta">
+                    <Icon name="sync-alt" className="meta-icon-small" />
+                    <div>
+                      <span className="info-card-label">Actualizado:</span>
+                      <span className="info-card-value-small">{formatRelativeTime(estadoEquipo.updated_at)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Problema reportado */}
+          {equipo.problema && (
+            <div className="problema-card">
+              <div className="problema-card-header">
+                <Icon name="exclamation-triangle" className="problema-icon" />
+                <h3 className="problema-title">Problema Reportado</h3>
+              </div>
+              <p className="problema-text">{equipo.problema}</p>
             </div>
           )}
         </div>
@@ -438,6 +582,100 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
             )}
           </div>
         </div>
+
+        {/* Modal de Confirmación de Entrega */}
+        {showEntregaModal && createPortal(
+          <div className="equipo-modal-overlay" onClick={() => !entregaLoading && setShowEntregaModal(false)}>
+            <div className="equipo-modal entrega-confirmation-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <button 
+                className="equipo-modal-close-btn" 
+                onClick={() => !entregaLoading && setShowEntregaModal(false)}
+                disabled={entregaLoading}
+              >
+                <Icon name="times" />
+              </button>
+              
+              <div style={{ padding: 'var(--space-6)' }}>
+                <div style={{ 
+                  width: '80px', 
+                  height: '80px', 
+                  margin: '0 auto var(--space-4)',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.15))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 'var(--font-3xl)',
+                  color: 'rgba(34, 197, 94, 0.9)'
+                }}>
+                  <Icon name="check-circle" />
+                </div>
+                <h2 style={{ 
+                  fontSize: 'var(--font-2xl)', 
+                  fontWeight: 'var(--font-bold)',
+                  textAlign: 'center',
+                  marginBottom: 'var(--space-2)',
+                  color: 'var(--gray-900)'
+                }}>
+                  Confirmar Entrega
+                </h2>
+                <p style={{ 
+                  fontSize: 'var(--font-base)', 
+                  color: 'var(--gray-600)',
+                  textAlign: 'center',
+                  marginBottom: 'var(--space-6)',
+                  lineHeight: 1.6
+                }}>
+                  ¿Estás seguro de que quieres marcar el equipo <strong>#{equipo.nota}</strong> como entregado?
+                  <br />
+                  <span style={{ fontSize: 'var(--font-sm)', opacity: 0.8, display: 'block', marginTop: 'var(--space-2)' }}>
+                    Esta acción es definitiva.
+                  </span>
+                </p>
+                
+                <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                  <button 
+                    className="btn-finalizar"
+                    style={{ flex: 1 }}
+                    onClick={() => setShowEntregaModal(false)}
+                    disabled={entregaLoading}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    className="btn-finalizar"
+                    style={{ 
+                      flex: 1,
+                      background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))',
+                      boxShadow: '0 4px 12px rgba(34, 197, 94, 0.4)'
+                    }}
+                    onClick={confirmarEntrega}
+                    disabled={entregaLoading}
+                  >
+                    {entregaLoading ? (
+                      <>
+                        <span style={{ 
+                          display: 'inline-block',
+                          animation: 'spin 1s linear infinite',
+                          transformOrigin: 'center'
+                        }}>
+                          <Icon name="sync" />
+                        </span>
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="check" />
+                        Confirmar Entrega
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </div>
   );

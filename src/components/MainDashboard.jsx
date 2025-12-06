@@ -7,6 +7,8 @@ import './MainDashboard.css';
 export default function MainDashboard() {
     const [stats, setStats] = useState({
         equiposPendientes: 0,
+        equiposListos: 0,
+        equiposFinalizados: 0,
         trabajosPendientes: 0,
         entregasPendientes: 0,
         totalPendientes: 0
@@ -22,28 +24,78 @@ export default function MainDashboard() {
 
     const fetchDashboardData = async () => {
         try {
-            // Obtener estadísticas de equipos
-            const { data: equipos } = await supabase
+            // Obtener todos los equipos
+            const { data: equipos, error: equiposError } = await supabase
                 .from('equipos')
-                .select(`
-                    id,
-                    estado_equipos (estado)
-                `);
+                .select('id');
 
-            // Procesar estadísticas de equipos pendientes
+            if (equiposError) {
+                console.error('❌ Error fetching equipos:', equiposError);
+            }
+
+            // Procesar estadísticas de equipos
             let equiposPendientes = 0;
-            equipos?.forEach(equipo => {
-                const estado = equipo.estado_equipos?.[0]?.estado || 'pendiente';
-                if (estado === 'en_proceso' || estado === 'sin_estado') {
-                    equiposPendientes++;
-                }
-            });
+            let equiposListos = 0;
+            let equiposFinalizados = 0;
+            
+            if (equipos && equipos.length > 0) {
+                console.log(`📊 Total equipos encontrados: ${equipos.length}`);
+                
+                // Obtener el estado más reciente de cada equipo
+                const estadosPromesas = equipos.map(async (equipo) => {
+                    const { data: estadoActual, error: estadoError } = await supabase
+                        .from('estado_equipos')
+                        .select('estado')
+                        .eq('equipo_id', equipo.id)
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    
+                    if (estadoError && estadoError.code !== 'PGRST116') {
+                        console.warn(`⚠️ Error al obtener estado para equipo ${equipo.id}:`, estadoError);
+                    }
+                    
+                    const estado = estadoActual?.estado || 'sin_estado';
+                    return { equipoId: equipo.id, estado };
+                });
 
-            // TODO: Obtener trabajos pendientes (documentos) cuando esté implementado
-            const trabajosPendientes = 0;
+                const estados = await Promise.all(estadosPromesas);
+                
+                estados.forEach(({ equipoId, estado }) => {
+                    if (estado === 'en_proceso' || estado === 'sin_estado') {
+                        equiposPendientes++;
+                        console.log(`✅ Equipo ${equipoId} contado como pendiente (estado: ${estado})`);
+                    } else if (estado === 'listo') {
+                        equiposListos++;
+                        console.log(`✅ Equipo ${equipoId} contado como listo`);
+                    } else if (estado === 'finalizado') {
+                        equiposFinalizados++;
+                        console.log(`✅ Equipo ${equipoId} contado como finalizado`);
+                    } else {
+                        console.log(`⏭️ Equipo ${equipoId} estado desconocido: ${estado}`);
+                    }
+                });
+                
+                console.log(`📊 Equipos - Pendientes: ${equiposPendientes}, Listos: ${equiposListos}, Finalizados: ${equiposFinalizados}`);
+            } else {
+                console.log('⚠️ No se encontraron equipos en la base de datos');
+            }
 
-            // TODO: Obtener entregas pendientes (logística) cuando esté implementado
-            const entregasPendientes = 0;
+            // Obtener trabajos pendientes (documentos)
+            const { data: documentos, error: documentosError } = await supabase
+                .from('servicios_documentos')
+                .select('id, estado')
+                .eq('estado', 'pendiente');
+
+            const trabajosPendientes = documentos?.length || 0;
+
+            // Obtener entregas pendientes (logística)
+            const { data: pedidos, error: pedidosError } = await supabase
+                .from('pedidos_piezas')
+                .select('id, estado')
+                .eq('estado', 'pendiente');
+
+            const entregasPendientes = pedidos?.length || 0;
             
             // Calcular total de pendientes
             const totalPendientes = equiposPendientes + trabajosPendientes + entregasPendientes;
@@ -81,6 +133,8 @@ export default function MainDashboard() {
 
             setStats({
                 equiposPendientes,
+                equiposListos,
+                equiposFinalizados,
                 trabajosPendientes,
                 entregasPendientes,
                 totalPendientes
@@ -101,7 +155,7 @@ export default function MainDashboard() {
             icon: 'wrench',
             color: '#10b981',
             route: '/equipos',
-            stats: { pendientes: stats.equiposPendientes, listos: 0, finalizados: 0 },
+            stats: { pendientes: stats.equiposPendientes, listos: stats.equiposListos, finalizados: stats.equiposFinalizados },
             description: 'Reparaciones y mantenimiento'
         },
         {

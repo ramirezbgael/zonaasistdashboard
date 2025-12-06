@@ -63,8 +63,12 @@ export default function Dashboard() {
             const timestamp = new Date().getTime();
             console.log(`Cache bust timestamp: ${timestamp}`);
             
-            // Obtener equipos con su estado más reciente y datos del cliente
-            const { data: equipos, error } = await supabase
+            // Obtener equipos con su estado más reciente (intentar con clientes primero, si falla sin clientes)
+            let equipos = null;
+            let error = null;
+            
+            // Intentar primero con la relación de clientes
+            const { data: equiposConClientes, error: errorConClientes } = await supabase
                 .from('equipos')
                 .select(`
                     id,
@@ -90,10 +94,62 @@ export default function Dashboard() {
                         )
                     )
                 `)
-                .order('nota', { ascending: true }); // Ordenar por número de nota (PEPS)
+                .order('nota', { ascending: true });
 
-            if (error) {
-                console.error('Error fetching data:', error);
+            if (errorConClientes) {
+                console.warn('⚠️ Error al cargar con relación clientes, intentando sin ella:', errorConClientes);
+                // Si falla, intentar sin la relación de clientes
+                const { data: equiposSinClientes, error: errorSinClientes } = await supabase
+                    .from('equipos')
+                    .select(`
+                        id,
+                        marca,
+                        modelo,
+                        color,
+                        nota,
+                        problema,
+                        created_at,
+                        cliente_id,
+                        estado_equipos (
+                            estado,
+                            proceso_actual_id,
+                            updated_at,
+                            procesos (
+                                id,
+                                nombre
+                            )
+                        )
+                    `)
+                    .order('nota', { ascending: true });
+
+                if (errorSinClientes) {
+                    console.error('❌ Error fetching equipos:', errorSinClientes);
+                    return;
+                }
+
+                // Cargar clientes por separado si tienen cliente_id
+                equipos = await Promise.all((equiposSinClientes || []).map(async (equipo) => {
+                    if (equipo.cliente_id) {
+                        try {
+                            const { data: clienteData } = await supabase
+                                .from('clientes')
+                                .select('id, nombre, telefono')
+                                .eq('id', equipo.cliente_id)
+                                .single();
+                            return { ...equipo, clientes: clienteData || null };
+                        } catch (err) {
+                            console.warn(`⚠️ No se pudo cargar cliente para equipo #${equipo.nota}:`, err);
+                            return { ...equipo, clientes: null };
+                        }
+                    }
+                    return { ...equipo, clientes: null };
+                }));
+            } else {
+                equipos = equiposConClientes;
+            }
+
+            if (!equipos) {
+                console.error('❌ No se pudieron cargar los equipos');
                 return;
             }
 

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import logo from '../assets/logo.png';
 import Settings from './Settings.jsx';
 import Profile from './Profile.jsx';
+import Notifications from './Notifications.jsx';
 import './MainLayout.css';
 
 export default function MainLayout() {
@@ -12,6 +13,8 @@ export default function MainLayout() {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [notificationsCount, setNotificationsCount] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
@@ -38,7 +41,64 @@ export default function MainLayout() {
     const closeMenus = () => {
         setShowMobileMenu(false);
         setShowUserMenu(false);
+        setShowNotifications(false);
     };
+
+    // Cargar contador de notificaciones
+    useEffect(() => {
+        const loadNotificationsCount = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    setNotificationsCount(0);
+                    return;
+                }
+
+                const { count, error } = await supabase
+                    .from('notificaciones')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('usuario_id', user.id)
+                    .eq('leida', false);
+
+                if (error) {
+                    console.error('Error cargando contador de notificaciones:', error);
+                    setNotificationsCount(0);
+                    return;
+                }
+                setNotificationsCount(count || 0);
+            } catch (error) {
+                console.error('Error cargando contador de notificaciones:', error);
+                setNotificationsCount(0);
+            }
+        };
+
+        // Cargar inmediatamente
+        loadNotificationsCount();
+
+        // Suscribirse a cambios en notificaciones
+        const channel = supabase
+            .channel('notifications-count')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'notificaciones' },
+                (payload) => {
+                    // Recargar el contador cuando haya cambios
+                    setTimeout(() => {
+                        loadNotificationsCount();
+                    }, 300); // Pequeño delay para asegurar que la BD se actualizó
+                }
+            )
+            .subscribe();
+
+        // También recargar periódicamente como backup
+        const interval = setInterval(() => {
+            loadNotificationsCount();
+        }, 30000); // Cada 30 segundos
+
+        return () => {
+            supabase.removeChannel(channel);
+            clearInterval(interval);
+        };
+    }, []);
 
     return (
         <div className="main-layout">
@@ -92,9 +152,29 @@ export default function MainLayout() {
                         </button>
 
                         {/* Notifications */}
-                        <button className="action-button" aria-label="Notificaciones">
+                        <button 
+                            className="action-button" 
+                            aria-label="Notificaciones"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowNotifications(!showNotifications);
+                                setShowUserMenu(false);
+                            }}
+                            style={{ position: 'relative' }}
+                        >
                             <Icon name="bell" />
-                            <span className="notification-badge">3</span>
+                            {notificationsCount > 0 && (
+                                <span 
+                                    className={`notification-badge ${notificationsCount > 9 ? 'multi-digit' : ''}`}
+                                    style={{ 
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}
+                                >
+                                    {notificationsCount > 99 ? '99+' : notificationsCount}
+                                </span>
+                            )}
                         </button>
 
                         {/* User Menu */}
@@ -242,6 +322,14 @@ export default function MainLayout() {
             {/* Profile Modal */}
             {showProfile && (
                 <Profile onClose={() => setShowProfile(false)} />
+            )}
+
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+                <Notifications 
+                    onClose={() => setShowNotifications(false)}
+                    onCountChange={(count) => setNotificationsCount(count)}
+                />
             )}
         </div>
     );

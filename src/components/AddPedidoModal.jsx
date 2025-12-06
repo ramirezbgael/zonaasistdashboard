@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../supabase.js';
+import { notificarPedidoNuevo } from '../utils/notifications.js';
 import './AddEquipoModalTypeform.css';
 import Icon from './Icon.jsx';
 
@@ -36,11 +37,63 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     setLoading(true);
 
     try {
-      // TODO: Implementar lógica de inserción cuando esté la tabla lista
-      console.log('Datos del pedido:', formData);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Buscar o crear proveedor
+      let proveedorId = null;
+      if (formData.proveedor) {
+        const { data: proveedorExistente } = await supabase
+          .from('proveedores')
+          .select('id')
+          .eq('nombre', formData.proveedor.trim())
+          .single();
+
+        if (proveedorExistente) {
+          proveedorId = proveedorExistente.id;
+        } else {
+          // Crear nuevo proveedor
+          const { data: nuevoProveedor, error: proveedorError } = await supabase
+            .from('proveedores')
+            .insert({
+              nombre: formData.proveedor.trim()
+            })
+            .select()
+            .single();
+
+          if (proveedorError) {
+            throw new Error(`Error al crear proveedor: ${proveedorError.message}`);
+          }
+          proveedorId = nuevoProveedor.id;
+        }
+      }
+
+      // Insertar pedido
+      const pedidoData = {
+        proveedor_id: proveedorId,
+        nombre_pieza: formData.producto,
+        cantidad: parseInt(formData.cantidad) || 1,
+        estado: 'pendiente',
+        fecha_pedido: new Date().toISOString(),
+        fecha_estimada_llegada: formData.fecha_esperada || null
+      };
+
+      const { data, error } = await supabase
+        .from('pedidos_piezas')
+        .insert([pedidoData])
+        .select();
+
+      if (error) {
+        throw new Error(`Error al guardar pedido: ${error.message}`);
+      }
+
+      // Crear notificación
+      if (data && data[0]) {
+        try {
+          await notificarPedidoNuevo(data[0], formData.proveedor);
+        } catch (notifError) {
+          console.error('Error creando notificación (no crítico):', notifError);
+        }
+      }
+
+      console.log('Pedido guardado:', data);
       onPedidoAdded();
       onClose();
     } catch (error) {

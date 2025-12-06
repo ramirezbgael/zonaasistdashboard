@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase.js';
+import useClienteSearch from '../hooks/useClienteSearch.js';
+import { notificarEquipoNuevo } from '../utils/notifications.js';
 import './AddEquipoModalTypeform.css';
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color
-  const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_nombre (si no existe), 3: detalle
+  const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_datos (nombre/email), 3: detalle
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [cameraError, setCameraError] = useState(null);
@@ -27,12 +29,13 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     problema: '',
     proceso_id: '',
     cliente_telefono: '',
-    cliente_nombre: ''
+    cliente_nombre: '',
+    cliente_email: ''
   });
   const [loading, setLoading] = useState(false);
   const [procesos, setProcesos] = useState([]);
-  const [clientes, setClientes] = useState([]);
-  const [clienteEncontrado, setClienteEncontrado] = useState(null);
+  const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
+  const [datosFaltantes, setDatosFaltantes] = useState([]);
   const [siguienteNota, setSiguienteNota] = useState(null);
 
   // Marcas predefinidas para autocompletado
@@ -227,57 +230,13 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           setSiguienteNota(1); // Primera nota
         }
 
-        // Cargar clientes para autocompletado
-        const { data: clientesData } = await supabase
-          .from('clientes')
-          .select('id, nombre, telefono')
-          .order('nombre');
-        setClientes(clientesData || []);
       } catch (error) {
         console.error('Error loading data:', error);
-        // Si la tabla de clientes no existe aún, continuar sin error
-        if (!error.message.includes('clientes')) {
-          console.error('Error loading data:', error);
-        }
       }
     };
 
     loadData();
   }, []);
-
-  // Buscar cliente por teléfono
-  const buscarClientePorTelefono = async (telefono) => {
-    if (!telefono || telefono.trim() === '') {
-      setClienteEncontrado(null);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('id, nombre, telefono')
-        .eq('telefono', telefono.trim())
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error buscando cliente:', error);
-        return;
-      }
-
-      if (data) {
-        setClienteEncontrado(data);
-        setFormData(prev => ({ ...prev, cliente_nombre: data.nombre }));
-      } else {
-        setClienteEncontrado(null);
-        // Limpiar nombre si no se encuentra el cliente
-        if (!formData.cliente_nombre) {
-          setFormData(prev => ({ ...prev, cliente_nombre: '' }));
-        }
-      }
-    } catch (error) {
-      console.error('Error buscando cliente:', error);
-    }
-  };
 
   // Limpiar stream de cámara al desmontar o cerrar
   useEffect(() => {
@@ -459,28 +418,47 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     };
   }, [stream]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = async (e) => {
     const { name, value } = e.target;
-    setFormData(prev => {
-      const newData = { ...prev, [name]: value };
-      
-      // Filtrar sugerencias cuando cambia la marca o modelo
-      if (name === 'marca') {
-        filterMarcaSuggestions(value);
-        // Limpiar modelo si cambia la marca
-        if (prev.marca !== value) {
-          newData.modelo = '';
-          setModeloSuggestions([]);
-        }
-      } else if (name === 'modelo') {
-        filterModeloSuggestions(value, formData.marca);
-      } else if (name === 'cliente_telefono') {
-        // Buscar cliente cuando se escribe el teléfono
-        buscarClientePorTelefono(value);
+    
+    // Si es teléfono, manejar de forma asíncrona
+    if (name === 'cliente_telefono') {
+      setFormData(prev => ({ ...prev, [name]: value }));
+      // Buscar cliente cuando se escribe el teléfono
+      const cliente = await buscarCliente(value);
+      if (cliente) {
+        // Si se encuentra, verificar qué datos faltan
+        const verificacion = verificarDatosCompletos(cliente);
+        setDatosFaltantes(verificacion.faltantes);
+        setFormData(prev => ({ 
+          ...prev, 
+          cliente_nombre: cliente.nombre || '',
+          cliente_email: cliente.email || ''
+        }));
+      } else {
+        setDatosFaltantes(['nombre', 'email']);
+        setFormData(prev => ({ ...prev, cliente_nombre: '', cliente_email: '' }));
       }
-      
-      return newData;
-    });
+    } else {
+      // Para otros campos, manejo normal
+      setFormData(prev => {
+        const newData = { ...prev, [name]: value };
+        
+        // Filtrar sugerencias cuando cambia la marca o modelo
+        if (name === 'marca') {
+          filterMarcaSuggestions(value);
+          // Limpiar modelo si cambia la marca
+          if (prev.marca !== value) {
+            newData.modelo = '';
+            setModeloSuggestions([]);
+          }
+        } else if (name === 'modelo') {
+          filterModeloSuggestions(value, formData.marca);
+        }
+        
+        return newData;
+      });
+    }
   };
 
   const handleSuggestionClick = (field, value) => {
@@ -518,17 +496,41 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   };
 
   // Avanzar en información adicional
-  const handleAdditionalFieldComplete = (field) => {
+  const handleAdditionalFieldComplete = async (field) => {
     if (field === 'proceso' && formData.proceso_id) {
       setTimeout(() => setAdditionalSubStep(1), 300); // Ir a teléfono
     } else if (field === 'cliente_telefono' && formData.cliente_telefono.trim()) {
-      // Si el cliente no existe, pedir nombre; si existe, ir a detalle
-      if (!clienteEncontrado) {
-        setTimeout(() => setAdditionalSubStep(2), 300); // Pedir nombre
+      // Buscar cliente y determinar qué falta
+      const cliente = await buscarCliente(formData.cliente_telefono);
+      if (!cliente) {
+        // Cliente no existe, pedir nombre y email
+        setDatosFaltantes(['nombre', 'email']);
+        setTimeout(() => setAdditionalSubStep(2), 300);
       } else {
-        setTimeout(() => setAdditionalSubStep(3), 300); // Ir a detalle
+        // Cliente existe, verificar qué datos faltan
+        const verificacion = verificarDatosCompletos(cliente);
+        setDatosFaltantes(verificacion.faltantes);
+        if (verificacion.faltantes.length > 0) {
+          // Faltan datos, pedir completarlos
+          setTimeout(() => setAdditionalSubStep(2), 300);
+        } else {
+          // Todo completo, ir a detalle
+          setTimeout(() => setAdditionalSubStep(3), 300);
+        }
       }
-    } else if (field === 'cliente_nombre' && formData.cliente_nombre.trim()) {
+    } else if (field === 'cliente_datos') {
+      // Verificar que se completaron todos los datos requeridos
+      const tieneNombre = formData.cliente_nombre && formData.cliente_nombre.trim() !== '';
+      const tieneEmail = formData.cliente_email && formData.cliente_email.trim() !== '';
+      
+      // Validar formato de email básico
+      const emailValido = tieneEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.cliente_email);
+      
+      if (!tieneNombre || !emailValido) {
+        alert('Por favor completa correctamente el nombre y el correo electrónico');
+        return;
+      }
+      
       setTimeout(() => setAdditionalSubStep(3), 300); // Ir a detalle
     }
   };
@@ -545,49 +547,51 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         return;
       }
 
-      // Validar que si no hay cliente encontrado, debe haber nombre
-      if (!clienteEncontrado && !formData.cliente_nombre) {
-        alert('Por favor ingresa el nombre del cliente');
+      // Validar datos del cliente
+      if (!formData.cliente_nombre || !formData.cliente_email) {
+        alert('Por favor completa el nombre y correo del cliente');
         setLoading(false);
         return;
       }
 
-      let clienteId = null;
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.cliente_email)) {
+        alert('Por favor ingresa un correo electrónico válido');
+        setLoading(false);
+        return;
+      }
 
-      // Buscar o crear cliente
-      if (clienteEncontrado) {
-        clienteId = clienteEncontrado.id;
-      } else {
-        // Crear nuevo cliente
-        const { data: clienteData, error: clienteError } = await supabase
-          .from('clientes')
-          .insert([{
-            nombre: formData.cliente_nombre.trim(),
-            telefono: formData.cliente_telefono.trim()
-          }])
-          .select();
+      // Obtener o crear/actualizar cliente
+      let cliente = await obtenerOCrearCliente(
+        formData.cliente_telefono.trim(),
+        formData.cliente_nombre.trim(),
+        formData.cliente_email.trim()
+      );
 
-        if (clienteError) {
-          // Si hay error de duplicado, intentar buscar el cliente
-          if (clienteError.code === '23505') {
-            const { data: clienteExistente } = await supabase
-              .from('clientes')
-              .select('id')
-              .eq('telefono', formData.cliente_telefono.trim())
-              .maybeSingle();
-            
-            if (clienteExistente) {
-              clienteId = clienteExistente.id;
-            } else {
-              throw clienteError;
-            }
-          } else {
-            throw clienteError;
+      // Si el cliente existe pero faltan datos, actualizarlos
+      if (cliente && cliente.id) {
+        const verificacion = verificarDatosCompletos(cliente);
+        if (verificacion.faltantes.length > 0) {
+          const updateData = {};
+          if (verificacion.faltantes.includes('nombre') && formData.cliente_nombre) {
+            updateData.nombre = formData.cliente_nombre.trim();
           }
-        } else {
-          clienteId = clienteData[0].id;
+          if (verificacion.faltantes.includes('email') && formData.cliente_email) {
+            updateData.email = formData.cliente_email.trim();
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            cliente = await actualizarCliente(cliente.id, updateData);
+          }
         }
       }
+
+      if (!cliente || !cliente.id) {
+        throw new Error('No se pudo obtener o crear el cliente');
+      }
+
+      const clienteId = cliente.id;
 
       // Generar nota automáticamente
       let notaGenerada = siguienteNota;
@@ -638,6 +642,37 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
           fecha_inicio: new Date().toISOString()
         });
+
+        // Enviar email de confirmación si el cliente tiene email
+        if (cliente.email) {
+          try {
+            await supabase.functions.invoke('send-receipt-email', {
+              body: {
+                equipo_id: data[0].id,
+                cliente_email: cliente.email,
+                cliente_nombre: cliente.nombre,
+                equipo_info: {
+                  nota: data[0].nota,
+                  marca: data[0].marca,
+                  modelo: data[0].modelo,
+                  color: data[0].color,
+                  problema: data[0].problema || null
+                }
+              }
+            });
+            console.log('Email de confirmación enviado');
+          } catch (emailError) {
+            console.error('Error al enviar email (no crítico):', emailError);
+            // No bloquear la creación del equipo si falla el email
+          }
+        }
+
+        // Crear notificación
+        try {
+          await notificarEquipoNuevo(data[0], cliente.nombre);
+        } catch (notifError) {
+          console.error('Error creando notificación (no crítico):', notifError);
+        }
       }
 
       onEquipoAdded();
@@ -1151,29 +1186,54 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
               </>
             )}
 
-            {/* Campo: Nombre del cliente (solo si no existe) */}
-            {additionalSubStep === 2 && !clienteEncontrado && (
+            {/* Campo: Datos del cliente (nombre y email si no existe o faltan datos) */}
+            {additionalSubStep === 2 && (
               <>
-                <h2 className="typeform-question">¿Cuál es el nombre del cliente?</h2>
-                <p className="typeform-description">Este cliente no está en la base de datos. Por favor, ingresa su nombre.</p>
-                <div className="typeform-field-wrapper">
-                  <input
-                    type="text"
-                    name="cliente_nombre"
-                    value={formData.cliente_nombre}
-                    onChange={handleInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && formData.cliente_nombre.trim()) {
-                        e.preventDefault();
-                        handleAdditionalFieldComplete('cliente_nombre');
-                      }
-                    }}
-                    placeholder="Escribe el nombre completo del cliente..."
-                    required
-                    autoFocus
-                    className="typeform-large-input"
-                  />
-                </div>
+                <h2 className="typeform-question">
+                  {!clienteEncontrado 
+                    ? 'Información del cliente' 
+                    : 'Completa la información del cliente'}
+                </h2>
+                <p className="typeform-description">
+                  {!clienteEncontrado
+                    ? 'Este cliente no está registrado. Por favor, ingresa su nombre y correo electrónico.'
+                    : datosFaltantes.includes('nombre') && datosFaltantes.includes('email')
+                      ? 'Faltan el nombre y el correo electrónico del cliente.'
+                      : datosFaltantes.includes('nombre')
+                        ? 'Falta el nombre del cliente.'
+                        : 'Falta el correo electrónico del cliente.'}
+                </p>
+                
+                {datosFaltantes.includes('nombre') && (
+                  <div className="typeform-field-wrapper">
+                    <input
+                      type="text"
+                      name="cliente_nombre"
+                      value={formData.cliente_nombre}
+                      onChange={handleInputChange}
+                      placeholder="Nombre completo del cliente"
+                      required={datosFaltantes.includes('nombre')}
+                      autoFocus={datosFaltantes.includes('nombre')}
+                      className="typeform-large-input"
+                    />
+                  </div>
+                )}
+                
+                {datosFaltantes.includes('email') && (
+                  <div className="typeform-field-wrapper">
+                    <input
+                      type="email"
+                      name="cliente_email"
+                      value={formData.cliente_email}
+                      onChange={handleInputChange}
+                      placeholder="correo@ejemplo.com"
+                      required={datosFaltantes.includes('email')}
+                      autoFocus={!datosFaltantes.includes('nombre')}
+                      className="typeform-large-input"
+                    />
+                  </div>
+                )}
+                
                 <div className="typeform-buttons-horizontal">
                   <button
                     type="button"
@@ -1182,10 +1242,11 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                   >
                     ← Volver
                   </button>
-                  {formData.cliente_nombre && (
+                  {(formData.cliente_nombre || !datosFaltantes.includes('nombre')) && 
+                   (formData.cliente_email || !datosFaltantes.includes('email')) && (
                     <button
                       type="button"
-                      onClick={() => handleAdditionalFieldComplete('cliente_nombre')}
+                      onClick={() => handleAdditionalFieldComplete('cliente_datos')}
                       className="typeform-btn-primary"
                     >
                       Continuar →

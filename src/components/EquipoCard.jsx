@@ -8,6 +8,8 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
   const nota = equipo.nota.toString();
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
+  const [showEntregaModal, setShowEntregaModal] = useState(false);
+  const [entregaLoading, setEntregaLoading] = useState(false);
   
   // Función para convertir nombre de color a valor hexadecimal
   const getColorFromName = (colorName) => {
@@ -126,11 +128,11 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
 
   const handleMarcarEntregado = async (e) => {
     e.stopPropagation(); // Evitar que abra el modal
-    
-    if (!confirm(`¿Confirmas que el cliente ya recogió el equipo #${equipo.nota}?`)) {
-      return;
-    }
+    setShowEntregaModal(true);
+  };
 
+  const confirmarEntrega = async () => {
+    setEntregaLoading(true);
     try {
       // Importar supabase
       const { supabase } = await import('../supabase.js');
@@ -181,6 +183,8 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
       if (updateResult.error) {
         console.error('Error al actualizar/crear estado:', updateResult.error);
         alert('Error al marcar el equipo como entregado: ' + updateResult.error.message);
+        setEntregaLoading(false);
+        setShowEntregaModal(false);
         return;
       }
 
@@ -201,12 +205,24 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
         console.error('Error al crear historial:', historialError);
       }
 
-      alert(`✅ Equipo #${equipo.nota} marcado como entregado`);
+      // Crear notificación de entrega
+      try {
+        const { notificarEquipoFinalizado } = await import('../utils/notifications.js');
+        const clienteNombre = equipo.clientes?.nombre || null;
+        await notificarEquipoFinalizado(equipo, clienteNombre);
+      } catch (notifError) {
+        console.error('Error creando notificación (no crítico):', notifError);
+      }
+
       console.log('Recargando datos...');
+      setShowEntregaModal(false);
+      setEntregaLoading(false);
       reload(); // Recargar la lista
     } catch (error) {
       console.error('Error inesperado:', error);
       alert('Error al procesar la entrega: ' + error.message);
+      setEntregaLoading(false);
+      setShowEntregaModal(false);
     }
   };
 
@@ -224,51 +240,53 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
           <span className="card-number-prefix">{nota.slice(0, -1)}</span>
           <span className="card-number-suffix">{nota.slice(-1)}</span>
         </div>
-        <div className="card_title">
-          <span className="card-marca">{equipo.marca}</span>
-          <span className="card-modelo">{equipo.modelo}</span>
-        </div>
-        
-        {/* Mostrar siguiente subproceso o botones según la pestaña */}
-        {activeTab === 'listos' ? (
-          <div className="card-actions-listos">
-            <button 
-              className="btn-contactar"
-              onClick={handleLlamarCliente}
-              title="Contactar cliente"
-            >
-              <Icon name="phone" />
-              <span>Contactar</span>
-            </button>
-            <button 
-              className="btn-entregado"
-              onClick={handleMarcarEntregado}
-              title="Marcar como entregado"
-            >
-              <Icon name="check-circle" />
-              <span>Entregado</span>
-            </button>
+        <div className="card-content-row">
+          <div className="card_title">
+            <span className="card-marca">{equipo.marca}</span>
+            <span className="card-modelo">{equipo.modelo}</span>
           </div>
-        ) : (
-          <li className="card__list_item siguiente-paso">
-            {equipo.siguienteSubproceso ? (
-              <>
-                <Icon name="clipboard-list" className="paso-icon" />
-                <span className="paso-texto">{equipo.siguienteSubproceso.nombre}</span>
-              </>
-            ) : equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 ? (
-              <>
-                <Icon name="check-circle" className="paso-icon" />
-                <span className="paso-texto">Proceso completado</span>
-              </>
-            ) : (
-              <>
-                <Icon name="clock" className="paso-icon" />
-                <span className="paso-texto">En proceso</span>
-              </>
-            )}
-          </li>
-        )}
+          
+          {/* Mostrar siguiente subproceso o botones según la pestaña */}
+          {activeTab === 'listos' ? (
+            <div className="card-actions-listos">
+              <button 
+                className="btn-contactar"
+                onClick={handleLlamarCliente}
+                title="Contactar cliente"
+              >
+                <Icon name="phone" />
+                <span>Contactar</span>
+              </button>
+              <button 
+                className="btn-entregado"
+                onClick={handleMarcarEntregado}
+                title="Marcar como entregado"
+              >
+                <Icon name="check-circle" />
+                <span>Entregado</span>
+              </button>
+            </div>
+          ) : (
+            <div className="card__list_item siguiente-paso">
+              {equipo.siguienteSubproceso ? (
+                <>
+                  <Icon name="clipboard-list" className="paso-icon" />
+                  <span className="paso-texto">{equipo.siguienteSubproceso.nombre}</span>
+                </>
+              ) : equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 ? (
+                <>
+                  <Icon name="check-circle" className="paso-icon" />
+                  <span className="paso-texto">Proceso completado</span>
+                </>
+              ) : (
+                <>
+                  <Icon name="clock" className="paso-icon" />
+                  <span className="paso-texto">En proceso</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </ul>
 
       {/* Modal de Contacto - Renderizado fuera del card usando Portal */}
@@ -381,6 +399,69 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
                 </button>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Confirmación de Entrega - Renderizado fuera del card usando Portal */}
+      {showEntregaModal && createPortal(
+        <div className="contact-modal-overlay" onClick={() => !entregaLoading && setShowEntregaModal(false)}>
+          <div className="contact-modal entrega-modal" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="contact-modal-close" 
+              onClick={() => !entregaLoading && setShowEntregaModal(false)}
+              disabled={entregaLoading}
+            >
+              <Icon name="times" />
+            </button>
+            
+            <div className="contact-modal-content">
+              <div className="contact-modal-icon entrega-modal-icon">
+                <Icon name="check-circle" />
+              </div>
+              <h2 className="contact-modal-title">Confirmar Entrega</h2>
+              <p className="contact-modal-description">
+                ¿Confirmas que el cliente ya recogió el equipo <strong>#{equipo.nota}</strong>?
+                <br />
+                <span style={{ fontSize: 'var(--font-sm)', opacity: 0.8, marginTop: 'var(--space-2)', display: 'block' }}>
+                  Esta acción marcará el equipo como finalizado.
+                </span>
+              </p>
+              
+              <div className="contact-modal-actions">
+                <button 
+                  className="contact-btn contact-btn-secondary"
+                  onClick={() => setShowEntregaModal(false)}
+                  disabled={entregaLoading}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="contact-btn contact-btn-primary entrega-confirm-btn"
+                  onClick={confirmarEntrega}
+                  disabled={entregaLoading}
+                >
+                  {entregaLoading ? (
+                    <>
+                      <span style={{ 
+                        display: 'inline-block',
+                        animation: 'spin 1s linear infinite',
+                        transformOrigin: 'center'
+                      }}>
+                        <Icon name="sync" />
+                      </span>
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="check" />
+                      Confirmar Entrega
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>,
         document.body
