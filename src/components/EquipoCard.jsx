@@ -1,9 +1,13 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import PendienteItem from './PendienteItem.jsx';
 import Icon from './Icon.jsx';
 import './EquipoCard.css';
 
 export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
   const nota = equipo.nota.toString();
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
   
   // Función para convertir nombre de color a valor hexadecimal
   const getColorFromName = (colorName) => {
@@ -41,27 +45,83 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
   const cardColor = getColorFromName(equipo.color);
 
   // Funciones para botones de equipos listos
-  const handleLlamarCliente = (e) => {
+  const handleLlamarCliente = async (e) => {
     e.stopPropagation(); // Evitar que abra el modal
     
-    // Solicitar número de teléfono si no está guardado
-    const telefono = prompt(`Ingresa el número de teléfono del cliente (Equipo #${equipo.nota}):`);
+    let telefono = null;
+    let nombreCliente = 'el cliente';
     
-    if (!telefono) return;
+    // Intentar obtener el teléfono del cliente desde la base de datos
+    if (equipo.clientes && equipo.clientes.telefono) {
+      telefono = equipo.clientes.telefono;
+      nombreCliente = equipo.clientes.nombre || nombreCliente;
+    } else if (equipo.cliente_id) {
+      // Si hay cliente_id pero no se cargó la relación, obtenerlo
+      try {
+        const { supabase } = await import('../supabase.js');
+        const { data: clienteData, error: clienteError } = await supabase
+          .from('clientes')
+          .select('nombre, telefono')
+          .eq('id', equipo.cliente_id)
+          .single();
+        
+        if (!clienteError && clienteData) {
+          telefono = clienteData.telefono;
+          nombreCliente = clienteData.nombre || nombreCliente;
+        }
+      } catch (error) {
+        console.error('Error obteniendo datos del cliente:', error);
+      }
+    }
+    
+    // Si no hay teléfono en la base de datos, mostrar modal para pedirlo
+    if (!telefono) {
+      setContactData({ telefono: null, nombreCliente, necesitaTelefono: true });
+      setShowContactModal(true);
+      return;
+    }
     
     // Limpiar el número (solo dígitos)
     const numeroLimpio = telefono.replace(/\D/g, '');
     
-    const opcion = window.confirm('¿Cómo deseas contactar al cliente?\n\nOK = Llamar por teléfono\nCancelar = Enviar WhatsApp');
-    
-    if (opcion) {
-      // Abrir marcador de teléfono
-      window.open(`tel:${numeroLimpio}`, '_self');
-    } else {
-      // Abrir WhatsApp con mensaje predefinido
-      const mensaje = encodeURIComponent(`Hola! Te escribo de Zona Asist. Tu equipo #${equipo.nota} (${equipo.marca} ${equipo.modelo}) ya está listo para recoger. ¡Saludos!`);
-      window.open(`https://wa.me/52${numeroLimpio}?text=${mensaje}`, '_blank');
+    if (!numeroLimpio) {
+      setContactData({ telefono: null, nombreCliente, error: 'Número de teléfono inválido' });
+      setShowContactModal(true);
+      return;
     }
+    
+    // Mostrar modal para elegir método de contacto
+    setContactData({ telefono: numeroLimpio, nombreCliente });
+    setShowContactModal(true);
+  };
+
+  const handleContactarTelefono = () => {
+    if (!contactData.telefono) return;
+    window.open(`tel:${contactData.telefono}`, '_self');
+    setShowContactModal(false);
+  };
+
+  const handleContactarWhatsApp = () => {
+    if (!contactData.telefono) return;
+    const mensaje = encodeURIComponent(`Hola ${contactData.nombreCliente}! Te escribo de Zona Asist. Tu equipo #${equipo.nota} (${equipo.marca} ${equipo.modelo}) ya está listo para recoger. ¡Saludos!`);
+    window.open(`https://wa.me/52${contactData.telefono}?text=${mensaje}`, '_blank');
+    setShowContactModal(false);
+  };
+
+  const handleGuardarTelefono = () => {
+    const telefonoInput = document.getElementById('telefono-input');
+    if (!telefonoInput || !telefonoInput.value.trim()) {
+      setContactData(prev => ({ ...prev, error: 'Por favor ingresa un número de teléfono' }));
+      return;
+    }
+    
+    const numeroLimpio = telefonoInput.value.replace(/\D/g, '');
+    if (!numeroLimpio) {
+      setContactData(prev => ({ ...prev, error: 'Número de teléfono inválido' }));
+      return;
+    }
+    
+    setContactData(prev => ({ ...prev, telefono: numeroLimpio, necesitaTelefono: false, error: null }));
   };
 
   const handleMarcarEntregado = async (e) => {
@@ -161,13 +221,12 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
     >
       <ul className="card_list">
         <div className="card_number">
-          #<span style={{ fontSize: '.4em' }}>{nota.slice(0, -1)}</span>
-          <span style={{ fontSize: '3em' }}>{nota.slice(-1)}</span>
+          <span className="card-number-prefix">{nota.slice(0, -1)}</span>
+          <span className="card-number-suffix">{nota.slice(-1)}</span>
         </div>
         <div className="card_title">
-          <span style={{ fontSize: '2.6em', display: 'block', lineHeight: '1.1' }}>{equipo.marca}</span>
-          <span style={{ fontSize: '1em', display: 'block', marginTop: '0.2em' }}>{equipo.modelo}</span>
-
+          <span className="card-marca">{equipo.marca}</span>
+          <span className="card-modelo">{equipo.modelo}</span>
         </div>
         
         {/* Mostrar siguiente subproceso o botones según la pestaña */}
@@ -211,6 +270,121 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
           </li>
         )}
       </ul>
+
+      {/* Modal de Contacto - Renderizado fuera del card usando Portal */}
+      {showContactModal && createPortal(
+        <div className="contact-modal-overlay" onClick={() => setShowContactModal(false)}>
+          <div className="contact-modal" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="contact-modal-close" 
+              onClick={() => setShowContactModal(false)}
+            >
+              <Icon name="times" />
+            </button>
+            
+            {contactData.necesitaTelefono ? (
+              <div className="contact-modal-content">
+                <div className="contact-modal-icon">
+                  <Icon name="phone" />
+                </div>
+                <h2 className="contact-modal-title">Número de Teléfono</h2>
+                <p className="contact-modal-description">
+                  No se encontró el número de teléfono del cliente para el equipo #{equipo.nota}.
+                  <br />
+                  Por favor ingresa el número:
+                </p>
+                
+                {contactData.error && (
+                  <div className="contact-modal-error">
+                    <Icon name="exclamation-circle" />
+                    <span>{contactData.error}</span>
+                  </div>
+                )}
+                
+                <div className="contact-modal-input-wrapper">
+                  <Icon name="phone" className="contact-input-icon" />
+                  <input
+                    id="telefono-input"
+                    type="tel"
+                    className="contact-modal-input"
+                    placeholder="Número de teléfono"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleGuardarTelefono();
+                      }
+                    }}
+                  />
+                </div>
+                
+                <div className="contact-modal-actions">
+                  <button 
+                    className="contact-btn contact-btn-secondary"
+                    onClick={() => setShowContactModal(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    className="contact-btn contact-btn-primary"
+                    onClick={handleGuardarTelefono}
+                  >
+                    <Icon name="check" />
+                    Continuar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="contact-modal-content">
+                <div className="contact-modal-icon">
+                  <Icon name="user-circle" />
+                </div>
+                <h2 className="contact-modal-title">
+                  ¿Cómo deseas contactar a {contactData.nombreCliente}?
+                </h2>
+                <p className="contact-modal-description">
+                  Elige el método de contacto preferido
+                </p>
+                
+                <div className="contact-modal-options">
+                  <button 
+                    className="contact-option-btn"
+                    onClick={handleContactarTelefono}
+                  >
+                    <div className="contact-option-icon phone">
+                      <Icon name="phone" />
+                    </div>
+                    <div className="contact-option-content">
+                      <h3>Llamar por teléfono</h3>
+                      <p>{contactData.telefono}</p>
+                    </div>
+                  </button>
+                  
+                  <button 
+                    className="contact-option-btn"
+                    onClick={handleContactarWhatsApp}
+                  >
+                    <div className="contact-option-icon whatsapp">
+                      <Icon name="comment" />
+                    </div>
+                    <div className="contact-option-content">
+                      <h3>Enviar WhatsApp</h3>
+                      <p>{contactData.telefono}</p>
+                    </div>
+                  </button>
+                </div>
+                
+                <button 
+                  className="contact-btn contact-btn-secondary contact-btn-full"
+                  onClick={() => setShowContactModal(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

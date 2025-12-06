@@ -255,34 +255,53 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
   z-index: 999;
   opacity: 0;
   visibility: hidden;
   transition: all var(--transition-normal);
+  pointer-events: none;
 }
 
 .mobile-menu.active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
+}
+
+.mobile-menu-overlay {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 998;
 }
 
 .mobile-menu-content {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  bottom: 0;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   width: 280px;
-  height: 100%;
+  height: calc(100vh - 72px);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
   border-right: 1px solid rgba(255, 255, 255, 0.3);
   transform: translateX(-100%);
   transition: transform var(--transition-normal);
   overflow-y: auto;
+  z-index: 999;
 }
 
 .dark-mode .mobile-menu-content {
   background: rgba(26, 26, 26, 0.95);
   border-right-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
 }
 
 .mobile-menu.active .mobile-menu-content {
@@ -294,8 +313,19 @@
   border-bottom: 1px solid var(--gray-200);
 }
 
+.dark-mode .mobile-search {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
 .mobile-search .search-input {
   background: var(--gray-50);
+  color: var(--gray-900);
+}
+
+.dark-mode .mobile-search .search-input {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .mobile-nav {
@@ -303,16 +333,15 @@
 }
 
 .mobile-nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   color: var(--gray-700);
   text-decoration: none;
   padding: var(--spacing-md) var(--spacing-lg);
   font-weight: 500;
   border-bottom: 1px solid var(--gray-100);
   transition: all var(--transition-fast);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
 }
 
 .mobile-nav-item:hover {

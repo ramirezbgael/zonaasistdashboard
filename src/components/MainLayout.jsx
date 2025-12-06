@@ -4,12 +4,14 @@ import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import logo from '../assets/logo.png';
 import Settings from './Settings.jsx';
+import Profile from './Profile.jsx';
 import './MainLayout.css';
 
 export default function MainLayout() {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
@@ -120,7 +122,23 @@ export default function MainLayout() {
                                         }}
                                     />
                                     <div className="user-menu-dropdown active">
-                                        <a href="#" className="user-menu-item">Mi Perfil</a>
+                                        <button 
+                                            className="user-menu-item"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                setShowProfile(true);
+                                                setShowUserMenu(false);
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                background: 'none',
+                                                border: 'none',
+                                                textAlign: 'left',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Mi Perfil
+                                        </button>
                                         <button 
                                             className="user-menu-item"
                                             onClick={(e) => {
@@ -175,15 +193,6 @@ export default function MainLayout() {
                         <div 
                             className="mobile-menu-overlay"
                             onClick={() => setShowMobileMenu(false)}
-                            style={{
-                                position: 'fixed',
-                                top: 64,
-                                left: 280,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0,0,0,0.5)',
-                                zIndex: 998
-                            }}
                         />
                         <div className="mobile-menu-content">
                             {/* Mobile Search */}
@@ -228,6 +237,11 @@ export default function MainLayout() {
             {/* Settings Modal */}
             {showSettings && (
                 <Settings onClose={() => setShowSettings(false)} />
+            )}
+
+            {/* Profile Modal */}
+            {showProfile && (
+                <Profile onClose={() => setShowProfile(false)} />
             )}
         </div>
     );

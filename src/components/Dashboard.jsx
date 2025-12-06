@@ -63,7 +63,7 @@ export default function Dashboard() {
             const timestamp = new Date().getTime();
             console.log(`Cache bust timestamp: ${timestamp}`);
             
-            // Obtener equipos con su estado más reciente
+            // Obtener equipos con su estado más reciente y datos del cliente
             const { data: equipos, error } = await supabase
                 .from('equipos')
                 .select(`
@@ -74,6 +74,12 @@ export default function Dashboard() {
                     nota,
                     problema,
                     created_at,
+                    cliente_id,
+                    clientes (
+                        id,
+                        nombre,
+                        telefono
+                    ),
                     estado_equipos (
                         estado,
                         proceso_actual_id,
