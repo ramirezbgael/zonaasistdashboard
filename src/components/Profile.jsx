@@ -8,6 +8,7 @@ export default function Profile({ onClose }) {
   const [profile, setProfile] = useState(null);
   const [nombre, setNombre] = useState('');
   const [apodo, setApodo] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [fotoUrl, setFotoUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,7 @@ export default function Profile({ onClose }) {
         setProfile(profileData);
         setNombre(profileData.nombre || '');
         setApodo(profileData.apodo || '');
+        setTelefono(profileData.telefono || '');
         setFotoUrl(profileData.foto_url || null);
         setIsFirstTime(false);
       } else {
@@ -57,6 +59,7 @@ export default function Profile({ onClose }) {
         setIsFirstTime(true);
         setNombre(currentUser.email?.split('@')[0] || '');
         setApodo('');
+        setTelefono('');
         setFotoUrl(null);
       }
     } catch (err) {
@@ -133,6 +136,7 @@ export default function Profile({ onClose }) {
             id: user.id,
             nombre: nombre || user.email?.split('@')[0] || 'Usuario',
             apodo: apodo || null,
+            telefono: telefono || null,
             foto_url: fotoUrl || null,
             ...updates
           })
@@ -149,6 +153,7 @@ export default function Profile({ onClose }) {
           .update({
             nombre: nombre || profile.nombre,
             apodo: apodo || null,
+            telefono: telefono || null,
             foto_url: fotoUrl || profile.foto_url,
             ...updates,
             updated_at: new Date().toISOString()
@@ -309,6 +314,27 @@ export default function Profile({ onClose }) {
             </div>
             <p className="profile-input-hint">
               Puedes cambiar tu apodo cuando quieras
+            </p>
+          </div>
+
+          {/* Teléfono */}
+          <div className="profile-section">
+            <label className="profile-label">
+              <Icon name="phone" />
+              Teléfono (WhatsApp)
+            </label>
+            <div className="profile-input-wrapper">
+              <input
+                type="tel"
+                className="profile-input"
+                placeholder="+521234567890"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                disabled={saving}
+              />
+            </div>
+            <p className="profile-input-hint">
+              Formato internacional (ej: +521234567890). Se usa para enviar notificaciones por WhatsApp.
             </p>
           </div>
 

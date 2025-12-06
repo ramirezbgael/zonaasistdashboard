@@ -23,6 +23,28 @@ export default function DocumentosPage() {
         }
     }, [searchParams, setSearchParams]);
 
+    // Detectar si hay un documento_id en la URL (desde notificación)
+    useEffect(() => {
+        const documentoId = searchParams.get('documento');
+        if (documentoId && documentos.length > 0) {
+            // Buscar el documento
+            const allDocumentos = [...documentos, ...documentosCompletados];
+            const documento = allDocumentos.find(d => d.id === documentoId);
+            
+            if (documento) {
+                // Cambiar a la pestaña correcta según el estado
+                if (documento.estado === 'pendiente') {
+                    setActiveTab('pendientes');
+                } else {
+                    setActiveTab('completados');
+                }
+                // Scroll al documento (si implementas scroll)
+                // Limpiar el parámetro de la URL
+                setSearchParams({}, { replace: true });
+            }
+        }
+    }, [searchParams, documentos, documentosCompletados, setSearchParams]);
+
     useEffect(() => {
         fetchDocumentos();
     }, [activeTab]);

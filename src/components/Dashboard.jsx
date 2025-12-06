@@ -30,6 +30,30 @@ export default function Dashboard() {
         }
     }, [searchParams, setSearchParams]);
 
+    // Detectar si hay un equipo_id en la URL (desde notificación)
+    useEffect(() => {
+        const equipoId = searchParams.get('equipo');
+        if (equipoId && (equiposPendientes.length > 0 || equiposListos.length > 0 || equiposFinalizados.length > 0)) {
+            // Buscar el equipo en todos los arrays
+            const allEquipos = [...equiposPendientes, ...equiposListos, ...equiposFinalizados];
+            const equipo = allEquipos.find(e => e.id === equipoId);
+            
+            if (equipo) {
+                setEquipoSeleccionado(equipo);
+                // Cambiar a la pestaña correcta según el estado
+                if (equiposPendientes.some(e => e.id === equipoId)) {
+                    setActiveTab('pendientes');
+                } else if (equiposListos.some(e => e.id === equipoId)) {
+                    setActiveTab('listos');
+                } else if (equiposFinalizados.some(e => e.id === equipoId)) {
+                    setActiveTab('finalizados');
+                }
+                // Limpiar el parámetro de la URL
+                setSearchParams({}, { replace: true });
+            }
+        }
+    }, [searchParams, equiposPendientes, equiposListos, equiposFinalizados, setSearchParams]);
+
     const getEquiposActivos = () => {
         switch (activeTab) {
             case 'pendientes':

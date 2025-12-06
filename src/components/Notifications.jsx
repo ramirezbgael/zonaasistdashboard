@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import './Notifications.css';
@@ -8,6 +9,7 @@ export default function Notifications({ onClose, onCountChange }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadNotifications();
@@ -171,6 +173,56 @@ export default function Notifications({ onClose, onCountChange }) {
     return colorMap[tipo] || '#10b981';
   };
 
+  // Determinar la ruta según el tipo de notificación
+  const getNotificationRoute = (notification) => {
+    const { tipo, datos } = notification;
+    
+    if (!datos) return null;
+
+    // Notificaciones de equipos
+    if (tipo === 'equipo_nuevo' || tipo === 'equipo_listo' || tipo === 'equipo_finalizado') {
+      if (datos.equipo_id) {
+        return `/equipos?equipo=${datos.equipo_id}`;
+      }
+      return '/equipos';
+    }
+
+    // Notificaciones de documentos
+    if (tipo === 'documento_nuevo' || tipo === 'documento_completado') {
+      if (datos.documento_id) {
+        return `/documentos?documento=${datos.documento_id}`;
+      }
+      return '/documentos';
+    }
+
+    // Notificaciones de pedidos
+    if (tipo === 'pedido_nuevo' || tipo === 'pedido_recibido') {
+      if (datos.pedido_id) {
+        return `/logistica?pedido=${datos.pedido_id}`;
+      }
+      return '/logistica';
+    }
+
+    return null;
+  };
+
+  // Manejar click en notificación
+  const handleNotificationClick = async (notification) => {
+    // Marcar como leída si no lo está
+    if (!notification.leida) {
+      await markAsRead(notification.id);
+    }
+
+    // Obtener la ruta
+    const route = getNotificationRoute(notification);
+    
+    if (route) {
+      // Cerrar el modal y navegar
+      onClose();
+      navigate(route);
+    }
+  };
+
   return createPortal(
     <div className="notifications-overlay" onClick={onClose}>
       <div className="notifications-dropdown" onClick={(e) => e.stopPropagation()}>
@@ -214,11 +266,14 @@ export default function Notifications({ onClose, onCountChange }) {
             </div>
           ) : (
             <div className="notifications-list">
-              {notifications.map(notification => (
+              {notifications.map(notification => {
+                const hasRoute = getNotificationRoute(notification) !== null;
+                return (
                 <div 
                   key={notification.id} 
-                  className={`notification-item ${!notification.leida ? 'unread' : ''}`}
-                  onClick={() => !notification.leida && markAsRead(notification.id)}
+                  className={`notification-item ${!notification.leida ? 'unread' : ''} ${hasRoute ? 'clickable' : ''}`}
+                  onClick={() => hasRoute && handleNotificationClick(notification)}
+                  style={{ cursor: hasRoute ? 'pointer' : 'default' }}
                 >
                   <div 
                     className="notification-icon-wrapper"
@@ -245,7 +300,8 @@ export default function Notifications({ onClose, onCountChange }) {
                     <span className="notification-time">{formatTime(notification.created_at)}</span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
