@@ -544,14 +544,14 @@
 }
 
 .btn-view-all:hover {
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
   color: var(--white);
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(-2px);
   box-shadow: 
-    0 6px 20px rgba(0, 123, 255, 0.4),
+    0 6px 20px rgba(16, 185, 129, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
@@ -655,13 +655,13 @@
 .quick-action-btn:not(:disabled):hover,
 .quick-action-btn:not(:disabled):active {
   color: var(--white);
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-color: rgba(255, 255, 255, 0.4);
   transform: scale(1.05) translateY(-2px);
   box-shadow: 
-    0 8px 32px rgba(0, 123, 255, 0.4),
+    0 8px 32px rgba(16, 185, 129, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
   z-index: 1;
 }
@@ -811,8 +811,8 @@
 
 /* === DARK MODE STYLES === */
 .dark-mode .main-dashboard {
-  background: radial-gradient(at 80% 20%, rgba(77, 163, 255, 0.1) 0%, transparent 50%),
-              radial-gradient(at 20% 90%, rgba(26, 35, 50, 0.2) 0%, transparent 50%),
+  background: radial-gradient(at 80% 20%, rgba(52, 211, 153, 0.1) 0%, transparent 50%),
+              radial-gradient(at 20% 90%, rgba(6, 78, 59, 0.2) 0%, transparent 50%),
               linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
 }
 
@@ -873,7 +873,7 @@
 }
 
 .dark-mode .quick-action-btn:not(:disabled):hover {
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   color: var(--white);
   border-color: rgba(255, 255, 255, 0.3);
 }
@@ -928,7 +928,7 @@
 }
 
 .dark-mode .btn-view-all:hover {
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   color: var(--white);
 }
 
@@ -949,7 +949,7 @@
 }
 
 .dark-mode .quick-action-btn:not(:disabled):hover {
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   color: var(--white);
   border-color: rgba(255, 255, 255, 0.3);
 }
@@ -1004,7 +1004,7 @@
 }
 
 .dark-mode .btn-view-all:hover {
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   color: var(--white);
 }
 

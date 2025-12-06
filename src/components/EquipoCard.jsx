@@ -12,7 +12,7 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
       'negro': '#2c2c2c',
       'blanco': '#f8f9fa',
       'gris': '#6c757d',
-      'azul': '#007bff',
+      'azul': '#10b981',
       'rojo': '#dc3545',
       'verde': '#28a745',
       'amarillo': '#ffc107',

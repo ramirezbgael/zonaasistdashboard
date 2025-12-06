@@ -57,7 +57,7 @@ export default function MainDashboard() {
                     titulo: 'Equipo #12345 completado',
                     descripcion: 'Laptop HP lista para recoger',
                     tiempo: '5 min ago',
-                    color: '#007bff'
+                    color: '#10b981'
                 },
                 {
                     id: 2,
@@ -99,7 +99,7 @@ export default function MainDashboard() {
             id: 'equipos',
             title: 'Gestión de Equipos',
             icon: 'wrench',
-            color: '#007bff',
+            color: '#10b981',
             route: '/equipos',
             stats: { pendientes: stats.equiposPendientes, listos: 0, finalizados: 0 },
             description: 'Reparaciones y mantenimiento'

@@ -25,10 +25,10 @@ body {
 /* === VARIABLES CSS GLOBALES === */
 :root {
   /* Colores Principales */
-  --primary-blue: #007bff;
-  --primary-blue-dark: #0056b3;
-  --primary-blue-light: #4da3ff;
-  --secondary-blue: #e3f2fd;
+  --primary-blue: #10b981;
+  --primary-blue-dark: #059669;
+  --primary-blue-light: #34d399;
+  --secondary-blue: #d1fae5;
   
   /* Colores de Estado */
   --success-green: #28a745;
@@ -135,8 +135,8 @@ body {
   --black: #ffffff;
   
   /* Colores ajustados para dark mode */
-  --secondary-blue: #1a2332;
-  --primary-blue-light: #2a4a6a;
+  --secondary-blue: #064e3b;
+  --primary-blue-light: #065f46;
   
   /* Sombras más intensas para dark mode */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);

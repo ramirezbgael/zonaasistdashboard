@@ -2,8 +2,8 @@
 
 /* Variables CSS para consistencia */
 :root {
-  --primary-blue: #007bff;
-  --secondary-blue: #e3f2fd;
+  --primary-blue: #10b981;
+  --secondary-blue: #d1fae5;
   --success-green: #28a745;
   --warning-orange: #ffa726;
   --error-red: #ef5350;
@@ -120,7 +120,7 @@
 }
 
 .overview-card.total .card-icon {
-  background: linear-gradient(135deg, var(--primary-blue), #0056b3);
+  background: linear-gradient(135deg, var(--primary-blue), #059669);
   color: var(--white);
 }
 

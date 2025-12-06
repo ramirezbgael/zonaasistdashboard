@@ -142,10 +142,10 @@
 .equipo-numero-badge {
   display: flex;
   align-items: baseline;
-  background: rgba(0, 123, 255, 0.2);
+  background: rgba(16, 185, 129, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(0, 123, 255, 0.3);
+  border: 1px solid rgba(16, 185, 129, 0.3);
   border-radius: var(--radius-lg);
   padding: var(--space-3) var(--space-5);
   font-weight: 700;
@@ -153,8 +153,8 @@
 }
 
 .dark-mode .equipo-numero-badge {
-  background: rgba(0, 123, 255, 0.3);
-  border-color: rgba(0, 123, 255, 0.4);
+  background: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.4);
   color: rgba(255, 255, 255, 0.95);
 }
 
@@ -286,7 +286,7 @@
 }
 
 .dark-mode .info-icon {
-  color: rgba(0, 123, 255, 0.8);
+  color: rgba(16, 185, 129, 0.8);
 }
 
 /* Timeline Section */
@@ -329,7 +329,7 @@
 }
 
 .dark-mode .timeline-title-icon {
-  color: rgba(0, 123, 255, 0.8);
+  color: rgba(16, 185, 129, 0.8);
 }
 
 .timeline-progress {
@@ -359,7 +359,7 @@
   background: linear-gradient(90deg, var(--primary-blue), var(--primary-blue-dark));
   border-radius: var(--radius-full);
   transition: width 0.4s ease-out;
-  box-shadow: 0 0 20px rgba(0, 123, 255, 0.4);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
 }
 
 .progress-text {
@@ -434,18 +434,18 @@
 }
 
 .marker-icon.next {
-  background: rgba(0, 123, 255, 0.3);
-  border-color: rgba(0, 123, 255, 0.5);
-  color: rgba(0, 123, 255, 0.9);
+  background: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: rgba(16, 185, 129, 0.9);
   box-shadow: 
-    0 4px 16px rgba(0, 123, 255, 0.3),
-    0 0 0 4px rgba(0, 123, 255, 0.1),
+    0 4px 16px rgba(16, 185, 129, 0.3),
+    0 0 0 4px rgba(16, 185, 129, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   animation: pulse 2s infinite;
 }
 
 .dark-mode .marker-icon.next {
-  background: rgba(0, 123, 255, 0.4);
+  background: rgba(16, 185, 129, 0.4);
   color: rgba(255, 255, 255, 0.95);
 }
 
@@ -464,14 +464,14 @@
 @keyframes pulse {
   0%, 100% {
     box-shadow: 
-      0 4px 16px rgba(0, 123, 255, 0.3),
-      0 0 0 4px rgba(0, 123, 255, 0.1),
+      0 4px 16px rgba(16, 185, 129, 0.3),
+      0 0 0 4px rgba(16, 185, 129, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
   50% {
     box-shadow: 
-      0 4px 16px rgba(0, 123, 255, 0.4),
-      0 0 0 6px rgba(0, 123, 255, 0.15),
+      0 4px 16px rgba(16, 185, 129, 0.4),
+      0 0 0 6px rgba(16, 185, 129, 0.15),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 }
@@ -482,8 +482,8 @@
   min-height: 40px;
   background: linear-gradient(
     180deg,
-    rgba(0, 123, 255, 0.3) 0%,
-    rgba(0, 123, 255, 0.1) 100%
+    rgba(16, 185, 129, 0.3) 0%,
+    rgba(16, 185, 129, 0.1) 100%
   );
   margin: var(--space-2) 0;
   border-radius: var(--radius-full);
@@ -514,16 +514,16 @@
 }
 
 .timeline-item.next .timeline-content {
-  background: rgba(0, 123, 255, 0.15);
-  border-color: rgba(0, 123, 255, 0.3);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
   box-shadow: 
-    0 4px 16px rgba(0, 123, 255, 0.2),
+    0 4px 16px rgba(16, 185, 129, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .dark-mode .timeline-item.next .timeline-content {
-  background: rgba(0, 123, 255, 0.2);
-  border-color: rgba(0, 123, 255, 0.4);
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
 }
 
 .timeline-item.completed .timeline-content {
@@ -641,7 +641,7 @@
 }
 
 .dark-mode .nota-form-icon {
-  color: rgba(0, 123, 255, 0.8);
+  color: rgba(16, 185, 129, 0.8);
 }
 
 .nota-textarea {
@@ -675,17 +675,17 @@
 
 .nota-textarea:focus {
   outline: none;
-  border-color: rgba(0, 123, 255, 0.5);
+  border-color: rgba(16, 185, 129, 0.5);
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 
-    0 6px 24px rgba(0, 123, 255, 0.2),
-    0 0 0 4px rgba(0, 123, 255, 0.1),
+    0 6px 24px rgba(16, 185, 129, 0.2),
+    0 0 0 4px rgba(16, 185, 129, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .dark-mode .nota-textarea:focus {
   background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(0, 123, 255, 0.6);
+  border-color: rgba(16, 185, 129, 0.6);
 }
 
 .nota-textarea::placeholder {
@@ -832,15 +832,15 @@
 }
 
 .btn-primary {
-  background: rgba(0, 123, 255, 0.8);
+  background: rgba(16, 185, 129, 0.8);
   color: var(--white);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: rgba(0, 123, 255, 0.95);
+  background: rgba(16, 185, 129, 0.95);
   transform: translateY(-2px);
   box-shadow: 
-    0 6px 24px rgba(0, 123, 255, 0.4),
+    0 6px 24px rgba(16, 185, 129, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 

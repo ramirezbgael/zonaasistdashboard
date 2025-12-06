@@ -44,8 +44,8 @@ input, textarea, select {
 
 /* Variables globales compartidas */
 :root {
-  --primary-blue: #007bff;
-  --secondary-blue: #e3f2fd;
+  --primary-blue: #10b981;
+  --secondary-blue: #d1fae5;
   --success-green: #28a745;
   --warning-orange: #ffa726;
   --error-red: #ef5350;
