@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
@@ -16,6 +17,9 @@ export default function MainLayout() {
     const [showNotifications, setShowNotifications] = useState(false);
     const [notificationsCount, setNotificationsCount] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
+    const [profilePhotoUrl, setProfilePhotoUrl] = useState(null);
+    const [userMenuPosition, setUserMenuPosition] = useState({ top: 0, right: 0 });
+    const userMenuButtonRef = useRef(null);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -42,6 +46,81 @@ export default function MainLayout() {
         setShowMobileMenu(false);
         setShowUserMenu(false);
         setShowNotifications(false);
+    };
+
+    // Cargar foto de perfil
+    useEffect(() => {
+        const loadProfilePhoto = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    setProfilePhotoUrl(null);
+                    return;
+                }
+
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('foto_url')
+                    .eq('id', user.id)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Error cargando foto de perfil:', error);
+                    return;
+                }
+
+                if (profile?.foto_url) {
+                    // Agregar timestamp para forzar actualización si cambió
+                    setProfilePhotoUrl(`${profile.foto_url}?t=${Date.now()}`);
+                } else {
+                    setProfilePhotoUrl(null);
+                }
+            } catch (error) {
+                console.error('Error cargando foto de perfil:', error);
+                setProfilePhotoUrl(null);
+            }
+        };
+
+        loadProfilePhoto();
+
+        // Escuchar cambios en el perfil
+        const channel = supabase
+            .channel('profile-photo')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'profiles' },
+                (payload) => {
+                    setTimeout(() => {
+                        loadProfilePhoto();
+                    }, 500);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
+    // Función para recargar foto (se puede llamar desde fuera)
+    const reloadProfilePhoto = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('foto_url')
+                .eq('id', user.id)
+                .single();
+
+            if (!error && profile?.foto_url) {
+                setProfilePhotoUrl(`${profile.foto_url}?t=${Date.now()}`);
+            } else {
+                setProfilePhotoUrl(null);
+            }
+        } catch (error) {
+            console.error('Error recargando foto:', error);
+        }
     };
 
     // Cargar contador de notificaciones
@@ -180,14 +259,38 @@ export default function MainLayout() {
                         {/* User Menu */}
                         <div className="user-menu">
                             <button
-                                className="action-button"
-                                onClick={() => setShowUserMenu(!showUserMenu)}
+                                ref={userMenuButtonRef}
+                                className="action-button user-profile-button"
+                                onClick={() => {
+                                    if (userMenuButtonRef.current) {
+                                        const rect = userMenuButtonRef.current.getBoundingClientRect();
+                                        setUserMenuPosition({
+                                            top: rect.bottom + 8,
+                                            right: window.innerWidth - rect.right
+                                        });
+                                    }
+                                    setShowUserMenu(!showUserMenu);
+                                }}
                                 aria-label="Menú de usuario"
                             >
-                                <Icon name="user-circle" />
+                                {profilePhotoUrl ? (
+                                    <img 
+                                        src={profilePhotoUrl} 
+                                        alt="Perfil" 
+                                        className="user-profile-image"
+                                        onError={() => {
+                                            setProfilePhotoUrl(null);
+                                        }}
+                                    />
+                                ) : (
+                                    <Icon 
+                                        name="user-circle" 
+                                        className="user-profile-fallback"
+                                    />
+                                )}
                             </button>
                             
-                            {showUserMenu && (
+                            {showUserMenu && createPortal(
                                 <>
                                     <div 
                                         className="user-menu-overlay"
@@ -198,10 +301,17 @@ export default function MainLayout() {
                                             left: 0,
                                             right: 0,
                                             bottom: 0,
-                                            zIndex: 999
+                                            zIndex: 1099
                                         }}
                                     />
-                                    <div className="user-menu-dropdown active">
+                                    <div 
+                                        className="user-menu-dropdown active"
+                                        style={{
+                                            top: `${userMenuPosition.top}px`,
+                                            right: `${userMenuPosition.right}px`,
+                                            zIndex: 1100
+                                        }}
+                                    >
                                         <button 
                                             className="user-menu-item"
                                             onClick={(e) => {
@@ -250,7 +360,8 @@ export default function MainLayout() {
                                             Cerrar Sesión
                                         </button>
                                     </div>
-                                </>
+                                </>,
+                                document.body
                             )}
                         </div>
 
@@ -268,7 +379,7 @@ export default function MainLayout() {
                 </div>
 
                 {/* Mobile Menu Sidebar */}
-                {showMobileMenu && (
+                {showMobileMenu && createPortal(
                     <div className="mobile-menu active">
                         <div 
                             className="mobile-menu-overlay"
@@ -305,7 +416,8 @@ export default function MainLayout() {
                                 ))}
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </nav>
 
@@ -321,7 +433,15 @@ export default function MainLayout() {
 
             {/* Profile Modal */}
             {showProfile && (
-                <Profile onClose={() => setShowProfile(false)} />
+                <Profile 
+                    onClose={() => {
+                        setShowProfile(false);
+                        // Recargar la foto después de cerrar el modal
+                        setTimeout(() => {
+                            reloadProfilePhoto();
+                        }, 500);
+                    }}
+                />
             )}
 
             {/* Notifications Dropdown */}

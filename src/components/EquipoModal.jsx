@@ -18,6 +18,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [showEntregaModal, setShowEntregaModal] = useState(false);
   const [entregaLoading, setEntregaLoading] = useState(false);
   const [cliente, setCliente] = useState(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
 
   useEffect(() => {
     if (equipo?.id) {
@@ -348,6 +350,78 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     }
   };
 
+  // Funciones para contacto del cliente
+  const handleContactarCliente = async (e) => {
+    e?.stopPropagation();
+    
+    let telefono = null;
+    let nombreCliente = 'el cliente';
+    
+    if (cliente?.telefono) {
+      telefono = cliente.telefono;
+      nombreCliente = cliente.nombre || nombreCliente;
+    }
+    
+    if (!telefono) {
+      setContactData({ telefono: null, nombreCliente, necesitaTelefono: true });
+      setShowContactModal(true);
+      return;
+    }
+    
+    const numeroLimpio = telefono.replace(/\D/g, '');
+    
+    if (!numeroLimpio) {
+      setContactData({ telefono: null, nombreCliente, error: 'Número de teléfono inválido' });
+      setShowContactModal(true);
+      return;
+    }
+    
+    setContactData({ telefono: numeroLimpio, nombreCliente });
+    setShowContactModal(true);
+  };
+
+  const handleContactarTelefono = () => {
+    if (!contactData.telefono) return;
+    window.open(`tel:${contactData.telefono}`, '_self');
+    setShowContactModal(false);
+  };
+
+  const handleContactarWhatsApp = () => {
+    if (!contactData.telefono) return;
+    
+    let mensajeTexto = `Hola ${contactData.nombreCliente}! Te escribo de Zona Asist sobre tu equipo #${equipo.nota} (${equipo.marca} ${equipo.modelo}).`;
+    
+    if (estadoEquipo?.estado === 'listo') {
+      mensajeTexto += ' Tu equipo ya está listo para recoger. ¡Saludos!';
+    } else if (estadoEquipo?.estado === 'finalizado') {
+      mensajeTexto += ' Ya fue entregado. ¡Gracias!';
+    } else if (siguienteSubproceso) {
+      mensajeTexto += ` Actualmente está en: ${siguienteSubproceso.nombre}. ¡Saludos!`;
+    } else {
+      mensajeTexto += ' ¡Saludos!';
+    }
+    
+    const mensaje = encodeURIComponent(mensajeTexto);
+    window.open(`https://wa.me/52${contactData.telefono}?text=${mensaje}`, '_blank');
+    setShowContactModal(false);
+  };
+
+  const handleGuardarTelefono = () => {
+    const telefonoInput = document.getElementById('telefono-input-modal');
+    if (!telefonoInput || !telefonoInput.value.trim()) {
+      setContactData(prev => ({ ...prev, error: 'Por favor ingresa un número de teléfono' }));
+      return;
+    }
+    
+    const numeroLimpio = telefonoInput.value.replace(/\D/g, '');
+    if (!numeroLimpio) {
+      setContactData(prev => ({ ...prev, error: 'Número de teléfono inválido' }));
+      return;
+    }
+    
+    setContactData(prev => ({ ...prev, telefono: numeroLimpio, necesitaTelefono: false, error: null }));
+  };
+
   const siguienteSubproceso = getSiguienteSubproceso();
   const subprocesosCompletados = getSubprocesosCompletados();
   const procesoInfo = procesos.find(p => p.id === procesoActual);
@@ -373,8 +447,21 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           <Icon name="times" />
         </button>
         
+        {/* Paso actual - LO MÁS IMPORTANTE, PRIMERO EN MÓVIL */}
+          {siguienteSubproceso && (
+            <div className="paso-actual-mobile">
+              <div className="paso-actual-icon">
+                <Icon name="clipboard-list" />
+              </div>
+              <div className="paso-actual-content">
+                <span className="paso-actual-label">Paso actual</span>
+                <h2 className="paso-actual-nombre">{siguienteSubproceso.nombre}</h2>
+              </div>
+            </div>
+          )}
+
         <div className="equipo-modal-content-wrapper">
-        {/* Header con información del equipo */}
+        {/* Header con información del equipo - Simplificado, sin background */}
           <div className="equipo-modal-header">
           <div className="equipo-header-main">
             <div className="equipo-numero-badge">
@@ -400,29 +487,50 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
             </div>
           </div>
           
-          {/* Información adicional en grid */}
-          <div className="equipo-info-grid">
-            {/* Información del Cliente */}
-            {cliente && (
-              <div className="info-card cliente-card">
-                <div className="info-card-header">
-                  <Icon name="user" className="info-card-icon" />
-                  <h3 className="info-card-title">Cliente</h3>
+          {/* Cliente - Justo después del header, bien visible */}
+          {cliente && (
+            <div className="cliente-card-mobile">
+              <div className="cliente-mobile-info">
+                <Icon name="user" className="cliente-mobile-icon" />
+                <div className="cliente-mobile-details">
+                  <p className="cliente-mobile-nombre">{cliente.nombre || 'Sin nombre'}</p>
+                  <span className="cliente-mobile-telefono">{cliente.telefono || 'Sin teléfono'}</span>
                 </div>
-                <div className="info-card-content">
-                  <p className="info-card-value">{cliente.nombre || 'Sin nombre'}</p>
-                  {cliente.telefono && (
-                    <div className="info-card-meta">
-                      <Icon name="phone" className="meta-icon-small" />
-                      <span>{cliente.telefono}</span>
+              </div>
+              <button 
+                className="btn-contactar-cliente-mobile"
+                onClick={handleContactarCliente}
+                title="Contactar cliente"
+              >
+                <Icon name="phone" />
+                <span>Contactar</span>
+              </button>
+            </div>
+          )}
+
+          {/* Información adicional en grid - Solo desktop */}
+          <div className="equipo-info-grid">
+            {/* Información del Cliente - Desktop */}
+            {cliente && (
+              <div className="info-card cliente-card desktop-only">
+                <div className="info-card-header cliente-header-compact">
+                  <div className="cliente-header-left">
+                    <Icon name="user" className="info-card-icon" />
+                    <div className="cliente-info-compact">
+                      <p className="info-card-value">{cliente.nombre || 'Sin nombre'}</p>
+                      {cliente.telefono && (
+                        <span className="cliente-telefono-compact">{cliente.telefono}</span>
+                      )}
                     </div>
-                  )}
-                  {cliente.email && (
-                    <div className="info-card-meta">
-                      <Icon name="envelope" className="meta-icon-small" />
-                      <span>{cliente.email}</span>
-                    </div>
-                  )}
+                  </div>
+                  <button 
+                    className="btn-contactar-cliente"
+                    onClick={handleContactarCliente}
+                    title="Contactar cliente"
+                  >
+                    <Icon name="phone" />
+                    <span>Contactar</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -582,6 +690,121 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
             )}
           </div>
         </div>
+
+        {/* Modal de Contacto */}
+        {showContactModal && createPortal(
+          <div className="contact-modal-overlay" onClick={() => setShowContactModal(false)}>
+            <div className="contact-modal" onClick={(e) => e.stopPropagation()}>
+              <button 
+                className="contact-modal-close" 
+                onClick={() => setShowContactModal(false)}
+              >
+                <Icon name="times" />
+              </button>
+              
+              {contactData.necesitaTelefono ? (
+                <div className="contact-modal-content">
+                  <div className="contact-modal-icon">
+                    <Icon name="phone" />
+                  </div>
+                  <h2 className="contact-modal-title">Número de Teléfono</h2>
+                  <p className="contact-modal-description">
+                    No se encontró el número de teléfono del cliente para el equipo #{equipo.nota}.
+                    <br />
+                    Por favor ingresa el número:
+                  </p>
+                  
+                  {contactData.error && (
+                    <div className="contact-modal-error">
+                      <Icon name="exclamation-circle" />
+                      <span>{contactData.error}</span>
+                    </div>
+                  )}
+                  
+                  <div className="contact-modal-input-wrapper">
+                    <Icon name="phone" className="contact-input-icon" />
+                    <input
+                      id="telefono-input-modal"
+                      type="tel"
+                      className="contact-modal-input"
+                      placeholder="Número de teléfono"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleGuardarTelefono();
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="contact-modal-actions">
+                    <button 
+                      className="contact-btn contact-btn-secondary"
+                      onClick={() => setShowContactModal(false)}
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      className="contact-btn contact-btn-primary"
+                      onClick={handleGuardarTelefono}
+                    >
+                      <Icon name="check" />
+                      Continuar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="contact-modal-content">
+                  <div className="contact-modal-icon">
+                    <Icon name="user-circle" />
+                  </div>
+                  <h2 className="contact-modal-title">
+                    ¿Cómo deseas contactar a {contactData.nombreCliente}?
+                  </h2>
+                  <p className="contact-modal-description">
+                    Elige el método de contacto preferido
+                  </p>
+                  
+                  <div className="contact-modal-options">
+                    <button 
+                      className="contact-option-btn"
+                      onClick={handleContactarTelefono}
+                    >
+                      <div className="contact-option-icon phone">
+                        <Icon name="phone" />
+                      </div>
+                      <div className="contact-option-content">
+                        <h3>Llamar por teléfono</h3>
+                        <p>{contactData.telefono}</p>
+                      </div>
+                    </button>
+                    
+                    <button 
+                      className="contact-option-btn"
+                      onClick={handleContactarWhatsApp}
+                    >
+                      <div className="contact-option-icon whatsapp">
+                        <Icon name="comment" />
+                      </div>
+                      <div className="contact-option-content">
+                        <h3>Enviar WhatsApp</h3>
+                        <p>{contactData.telefono}</p>
+                      </div>
+                    </button>
+                  </div>
+                  
+                  <button 
+                    className="contact-btn contact-btn-secondary contact-btn-full"
+                    onClick={() => setShowContactModal(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* Modal de Confirmación de Entrega */}
         {showEntregaModal && createPortal(

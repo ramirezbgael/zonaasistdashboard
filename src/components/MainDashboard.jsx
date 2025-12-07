@@ -214,6 +214,8 @@ export default function MainDashboard() {
                     <button 
                         className="quick-action-btn"
                         onClick={() => navigate('/equipos?add=true')}
+                        title="Nuevo Equipo"
+                        aria-label="Nuevo Equipo"
                     >
                         <Icon name="plus" className="action-icon" />
                         <span className="action-label">Nuevo Equipo</span>
@@ -222,6 +224,8 @@ export default function MainDashboard() {
                     <button 
                         className="quick-action-btn"
                         onClick={() => navigate('/documentos?add=true')}
+                        title="Nuevo Documento"
+                        aria-label="Nuevo Documento"
                     >
                         <Icon name="file-alt" className="action-icon" />
                         <span className="action-label">Nuevo Documento</span>
@@ -230,6 +234,8 @@ export default function MainDashboard() {
                     <button 
                         className="quick-action-btn"
                         onClick={() => navigate('/logistica?add=true')}
+                        title="Nuevo Pedido"
+                        aria-label="Nuevo Pedido"
                     >
                         <Icon name="shopping-cart" className="action-icon" />
                         <span className="action-label">Nuevo Pedido</span>
@@ -238,6 +244,8 @@ export default function MainDashboard() {
                     <button 
                         className="quick-action-btn"
                         onClick={() => navigate('/clientes?add=true')}
+                        title="Nuevo Cliente"
+                        aria-label="Nuevo Cliente"
                     >
                         <Icon name="user-plus" className="action-icon" />
                         <span className="action-label">Nuevo Cliente</span>
@@ -248,7 +256,17 @@ export default function MainDashboard() {
             {/* Resumen General */}
             <section className="dashboard-overview">
                 <div className="overview-cards">
-                    <div className="overview-card equipos-pendientes">
+                    <div 
+                        className="overview-card equipos-pendientes"
+                        onClick={() => navigate('/equipos?tab=pendientes')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                navigate('/equipos?tab=pendientes');
+                            }
+                        }}
+                    >
                         <div className="card-icon"><Icon name="wrench" /></div>
                         <div className="card-content">
                             <h3>Equipos Pendientes</h3>
@@ -256,7 +274,17 @@ export default function MainDashboard() {
                         </div>
                     </div>
                     
-                    <div className="overview-card trabajos-pendientes">
+                    <div 
+                        className="overview-card trabajos-pendientes"
+                        onClick={() => navigate('/documentos?tab=pendientes')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                navigate('/documentos?tab=pendientes');
+                            }
+                        }}
+                    >
                         <div className="card-icon"><Icon name="file-alt" /></div>
                         <div className="card-content">
                             <h3>Trabajos Pendientes</h3>
@@ -264,7 +292,17 @@ export default function MainDashboard() {
                         </div>
                     </div>
                     
-                    <div className="overview-card entregas-pendientes">
+                    <div 
+                        className="overview-card entregas-pendientes"
+                        onClick={() => navigate('/logistica?tab=pendientes')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                navigate('/logistica?tab=pendientes');
+                            }
+                        }}
+                    >
                         <div className="card-icon"><Icon name="box" /></div>
                         <div className="card-content">
                             <h3>Entregas Pendientes</h3>
