@@ -77,22 +77,56 @@ export async function crearNotificacionGlobal(tipo, titulo, mensaje, datos = nul
 
 /**
  * Crea notificación cuando se crea un nuevo equipo
+ * Esta notificación es para enviar la nota de recepción por correo al cliente
  */
-export async function notificarEquipoNuevo(equipo, clienteNombre = null) {
+export async function notificarEquipoNuevo(equipo, cliente = null) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const titulo = 'Nuevo Equipo Recibido';
-    const mensaje = `Se recibió un nuevo equipo: ${equipo.marca} ${equipo.modelo}${equipo.nota ? ' (#' + equipo.nota + ')' : ''}${clienteNombre ? ' - Cliente: ' + clienteNombre : ''}`;
+    // Si no se pasó el cliente pero hay cliente_id, obtenerlo
+    let clienteInfo = cliente;
+    if (!clienteInfo && equipo.cliente_id) {
+      const { data: clienteData, error: clienteError } = await supabase
+        .from('clientes')
+        .select('id, nombre, telefono, email')
+        .eq('id', equipo.cliente_id)
+        .single();
+      
+      if (!clienteError && clienteData) {
+        clienteInfo = clienteData;
+      }
+    }
+
+    const titulo = 'Nota de Recepción - Equipo Recibido';
+    const mensaje = `Se recibió un nuevo equipo: ${equipo.marca} ${equipo.modelo}${equipo.nota ? ' (#' + equipo.nota + ')' : ''}${clienteInfo?.nombre ? ' - Cliente: ' + clienteInfo.nombre : ''}`;
+
+    // Preparar datos para el otro proyecto (nota de recepción por correo)
+    const datos = {
+      equipo_id: equipo.id,
+      cliente_id: equipo.cliente_id || null,
+      tipo_notificacion: 'recepcion', // Para identificar que es nota de recepción
+      equipo_info: {
+        marca: equipo.marca,
+        modelo: equipo.modelo,
+        color: equipo.color,
+        nota: equipo.nota,
+        problema: equipo.problema || null
+      },
+      cliente_info: clienteInfo ? {
+        nombre: clienteInfo.nombre,
+        telefono: clienteInfo.telefono || null,
+        email: clienteInfo.email || null
+      } : null
+    };
 
     // Notificar al usuario actual (el que creó el equipo)
     await crearNotificacion(
       user.id,
-      'equipo_nuevo',
+      'equipo_recepcion', // Tipo específico para nota de recepción
       titulo,
       mensaje,
-      { equipo_id: equipo.id, cliente_id: equipo.cliente_id }
+      datos
     );
   } catch (error) {
     console.error('Error notificando equipo nuevo:', error);
@@ -101,21 +135,55 @@ export async function notificarEquipoNuevo(equipo, clienteNombre = null) {
 
 /**
  * Crea notificación cuando un equipo está listo
+ * Esta notificación es para enviar WhatsApp al cliente
  */
-export async function notificarEquipoListo(equipo, clienteNombre = null) {
+export async function notificarEquipoListo(equipo, cliente = null) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const titulo = 'Equipo Listo';
-    const mensaje = `El equipo ${equipo.marca} ${equipo.modelo}${equipo.nota ? ' (#' + equipo.nota + ')' : ''} está listo para entrega${clienteNombre ? ' - Cliente: ' + clienteNombre : ''}`;
+    // Si no se pasó el cliente pero hay cliente_id, obtenerlo
+    let clienteInfo = cliente;
+    if (!clienteInfo && equipo.cliente_id) {
+      const { data: clienteData, error: clienteError } = await supabase
+        .from('clientes')
+        .select('id, nombre, telefono, email')
+        .eq('id', equipo.cliente_id)
+        .single();
+      
+      if (!clienteError && clienteData) {
+        clienteInfo = clienteData;
+      }
+    }
+
+    const titulo = 'Equipo Listo para Entrega';
+    const mensaje = `El equipo ${equipo.marca} ${equipo.modelo}${equipo.nota ? ' (#' + equipo.nota + ')' : ''} está listo para entrega${clienteInfo?.nombre ? ' - Cliente: ' + clienteInfo.nombre : ''}`;
+
+    // Preparar datos para el otro proyecto (WhatsApp)
+    const datos = {
+      equipo_id: equipo.id,
+      cliente_id: equipo.cliente_id || null,
+      tipo_notificacion: 'equipo_listo', // Para identificar que es notificación de equipo listo
+      equipo_info: {
+        marca: equipo.marca,
+        modelo: equipo.modelo,
+        color: equipo.color,
+        nota: equipo.nota,
+        problema: equipo.problema || null
+      },
+      cliente_info: clienteInfo ? {
+        nombre: clienteInfo.nombre,
+        telefono: clienteInfo.telefono || null,
+        email: clienteInfo.email || null
+      } : null
+    };
 
     await crearNotificacion(
       user.id,
       'equipo_listo',
       titulo,
       mensaje,
-      { equipo_id: equipo.id, cliente_id: equipo.cliente_id }
+      datos
     );
   } catch (error) {
     console.error('Error notificando equipo listo:', error);
@@ -125,20 +193,42 @@ export async function notificarEquipoListo(equipo, clienteNombre = null) {
 /**
  * Crea notificación cuando un equipo es finalizado/entregado
  */
-export async function notificarEquipoFinalizado(equipo, clienteNombre = null) {
+export async function notificarEquipoFinalizado(equipo, cliente = null) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Si no se pasó el cliente pero hay cliente_id, obtenerlo
+    let clienteInfo = cliente;
+    if (!clienteInfo && equipo.cliente_id) {
+      const { data: clienteData, error: clienteError } = await supabase
+        .from('clientes')
+        .select('id, nombre, telefono, email')
+        .eq('id', equipo.cliente_id)
+        .single();
+      
+      if (!clienteError && clienteData) {
+        clienteInfo = clienteData;
+      }
+    }
+
     const titulo = 'Equipo Entregado';
-    const mensaje = `El equipo ${equipo.marca} ${equipo.modelo}${equipo.nota ? ' (#' + equipo.nota + ')' : ''} fue entregado${clienteNombre ? ' - Cliente: ' + clienteNombre : ''}`;
+    const mensaje = `El equipo ${equipo.marca} ${equipo.modelo}${equipo.nota ? ' (#' + equipo.nota + ')' : ''} fue entregado${clienteInfo?.nombre ? ' - Cliente: ' + clienteInfo.nombre : ''}`;
 
     await crearNotificacion(
       user.id,
       'equipo_finalizado',
       titulo,
       mensaje,
-      { equipo_id: equipo.id, cliente_id: equipo.cliente_id }
+      { 
+        equipo_id: equipo.id, 
+        cliente_id: equipo.cliente_id,
+        cliente_info: clienteInfo ? {
+          nombre: clienteInfo.nombre,
+          telefono: clienteInfo.telefono || null,
+          email: clienteInfo.email || null
+        } : null
+      }
     );
   } catch (error) {
     console.error('Error notificando equipo finalizado:', error);

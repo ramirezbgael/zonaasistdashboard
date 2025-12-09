@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase.js';
+import { notificarEquipoNuevo } from '../utils/notifications.js';
 import './AddEquipoModal.css';
 
 export default function AddEquipoModal({ onClose, onEquipoAdded }) {
@@ -271,6 +272,27 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
           if (historialError) {
             console.error('Error al crear historial:', historialError);
           }
+
+          // Crear notificación de recepción (para enviar nota de recepción por correo)
+          try {
+            // Obtener información del cliente si existe
+            let clienteInfo = null;
+            if (data[0].cliente_id) {
+              const { data: clienteData, error: clienteError } = await supabase
+                .from('clientes')
+                .select('id, nombre, telefono, email')
+                .eq('id', data[0].cliente_id)
+                .single();
+              
+              if (!clienteError && clienteData) {
+                clienteInfo = clienteData;
+              }
+            }
+
+            await notificarEquipoNuevo(data[0], clienteInfo);
+          } catch (notifError) {
+            console.error('Error creando notificación de recepción (no crítico):', notifError);
+          }
         }
         
         onEquipoAdded(); // Recargar la lista
@@ -338,7 +360,43 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
 
           <div className="form-group">
             <label htmlFor="color">Color:</label>
-            <div className="input-container">
+            <div className="color-selector-container">
+              <div className="color-options-grid">
+                {[
+                  { name: 'Negro', value: '#2c2c2c' },
+                  { name: 'Blanco', value: '#f8f9fa' },
+                  { name: 'Gris', value: '#6c757d' },
+                  { name: 'Rojo', value: '#dc3545' },
+                  { name: 'Verde', value: '#28a745' },
+                  { name: 'Azul', value: '#0d6efd' },
+                  { name: 'Amarillo', value: '#ffc107' },
+                  { name: 'Naranja', value: '#fd7e14' },
+                  { name: 'Morado', value: '#6f42c1' },
+                  { name: 'Rosa', value: '#e83e8c' },
+                  { name: 'Celeste', value: '#17a2b8' },
+                  { name: 'Plata', value: '#c0c0c0' },
+                  { name: 'Dorado', value: '#ffd700' },
+                  { name: 'Azul marino', value: '#001f3f' },
+                  { name: 'Verde claro', value: '#90ee90' },
+                  { name: 'Gris oscuro', value: '#495057' }
+                ].map((colorOption) => (
+                  <button
+                    key={colorOption.name}
+                    type="button"
+                    className={`color-option-circle ${formData.color.toLowerCase() === colorOption.name.toLowerCase() ? 'selected' : ''}`}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, color: colorOption.name }));
+                      setSuggestions(prev => ({ ...prev, color: [] }));
+                    }}
+                    title={colorOption.name}
+                    style={{ backgroundColor: colorOption.value }}
+                  >
+                    {formData.color.toLowerCase() === colorOption.name.toLowerCase() && (
+                      <span className="color-check">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
               <input
                 type="text"
                 id="color"
@@ -347,6 +405,8 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
                 onChange={handleInputChange}
                 required
                 autoComplete="off"
+                placeholder="O escribe un color personalizado..."
+                className="color-text-input"
               />
               {suggestions.color.length > 0 && (
                 <div className="suggestions">

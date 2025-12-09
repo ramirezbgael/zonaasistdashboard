@@ -40,7 +40,7 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
     };
     
     const normalizedColor = colorName.toLowerCase().trim();
-    return colorMap[normalizedColor] || '#3498db'; // Color por defecto si no se encuentra
+    return colorMap[normalizedColor] || '#10b981'; // Color por defecto verde esmeralda
   };
 
   // Usar el color del equipo
@@ -208,8 +208,8 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
       // Crear notificación de entrega
       try {
         const { notificarEquipoFinalizado } = await import('../utils/notifications.js');
-        const clienteNombre = equipo.clientes?.nombre || null;
-        await notificarEquipoFinalizado(equipo, clienteNombre);
+        const clienteInfo = equipo.clientes || null;
+        await notificarEquipoFinalizado(equipo, clienteInfo);
       } catch (notifError) {
         console.error('Error creando notificación (no crítico):', notifError);
       }
@@ -226,68 +226,83 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
     }
   };
 
+  const getInitials = (marca) => {
+    if (!marca) return '?';
+    return marca.substring(0, 2).toUpperCase();
+  };
+
   return (
     <div 
-      className="card" 
+      className="card equipo-card" 
       onClick={onClick} 
       style={{ 
         cursor: 'pointer',
         '--card-bg-color': cardColor
       }}
     >
-      <ul className="card_list">
-        <div className="card_number">
-          <span className="card-number-prefix">{nota.slice(0, -1)}</span>
-          <span className="card-number-suffix">{nota.slice(-1)}</span>
+      <div className="equipo-card-header">
+        <div className="equipo-avatar" style={{ background: `linear-gradient(135deg, ${cardColor}, ${cardColor}80)` }}>
+          {getInitials(equipo.marca)}
         </div>
-        <div className="card-content-row">
-          <div className="card_title">
-            <span className="card-marca">{equipo.marca}</span>
-            <span className="card-modelo">{equipo.modelo}</span>
+        <div className="equipo-info">
+          <div className="equipo-title-row">
+            <h3 className="equipo-marca">{equipo.marca}</h3>
+            <span className="equipo-nota-badge">#{equipo.nota}</span>
           </div>
-          
-          {/* Mostrar siguiente subproceso o botones según la pestaña */}
-          {activeTab === 'listos' ? (
-            <div className="card-actions-listos">
-              <button 
-                className="btn-contactar"
-                onClick={handleLlamarCliente}
-                title="Contactar cliente"
-              >
-                <Icon name="phone" />
-                <span>Contactar</span>
-              </button>
-              <button 
-                className="btn-entregado"
-                onClick={handleMarcarEntregado}
-                title="Marcar como entregado"
-              >
-                <Icon name="check-circle" />
-                <span>Entregado</span>
-              </button>
-            </div>
-          ) : (
-            <div className="card__list_item siguiente-paso">
-              {equipo.siguienteSubproceso ? (
-                <>
-                  <Icon name="clipboard-list" className="paso-icon" />
-                  <span className="paso-texto">{equipo.siguienteSubproceso.nombre}</span>
-                </>
-              ) : equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 ? (
-                <>
-                  <Icon name="check-circle" className="paso-icon" />
-                  <span className="paso-texto">Proceso completado</span>
-                </>
-              ) : (
-                <>
-                  <Icon name="clock" className="paso-icon" />
-                  <span className="paso-texto">En proceso</span>
-                </>
-              )}
+          <p className="equipo-modelo">{equipo.modelo}</p>
+          {equipo.color && (
+            <div className="equipo-color-info">
+              <span 
+                className="equipo-color-dot"
+                style={{ backgroundColor: cardColor }}
+              />
+              <span>{equipo.color}</span>
             </div>
           )}
         </div>
-      </ul>
+      </div>
+
+      <div className="equipo-card-content">
+        {activeTab === 'listos' ? (
+          <div className="equipo-actions" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="equipo-action-btn contactar"
+              onClick={handleLlamarCliente}
+              title="Contactar cliente"
+            >
+              <Icon name="phone" />
+              <span>Contactar</span>
+            </button>
+            <button 
+              className="equipo-action-btn entregado"
+              onClick={handleMarcarEntregado}
+              title="Marcar como entregado"
+            >
+              <Icon name="check-circle" />
+              <span>Entregado</span>
+            </button>
+          </div>
+        ) : (
+          <div className="equipo-paso-info">
+            {equipo.siguienteSubproceso ? (
+              <>
+                <Icon name="clipboard-list" className="paso-icon" />
+                <span className="paso-texto">{equipo.siguienteSubproceso.nombre}</span>
+              </>
+            ) : equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 ? (
+              <>
+                <Icon name="check-circle" className="paso-icon" />
+                <span className="paso-texto">Proceso completado</span>
+              </>
+            ) : (
+              <>
+                <Icon name="clock" className="paso-icon" />
+                <span className="paso-texto">En proceso</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Modal de Contacto - Renderizado fuera del card usando Portal */}
       {showContactModal && createPortal(

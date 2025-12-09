@@ -28,7 +28,7 @@
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--radius-xl);
-  max-width: 600px;
+  max-width: 1200px;
   width: 100%;
   max-height: 90vh;
   position: relative;
@@ -121,6 +121,72 @@
   transform: rotate(90deg);
   border-color: rgba(255, 255, 255, 0.4);
   box-shadow: 0 6px 20px rgba(239, 83, 80, 0.4);
+}
+
+.settings-tabs {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.dark-mode .settings-tabs {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  background: transparent;
+  color: var(--gray-600);
+  font-size: var(--font-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all var(--transition);
+  position: relative;
+}
+
+.dark-mode .settings-tab {
+  color: var(--gray-400);
+}
+
+.settings-tab:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--gray-900);
+}
+
+.dark-mode .settings-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--white);
+}
+
+.settings-tab.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--primary-blue);
+  font-weight: var(--font-semibold);
+}
+
+.dark-mode .settings-tab.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--primary-blue);
+}
+
+.settings-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: calc(-1 * var(--space-4) - 1px);
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary-blue);
+  border-radius: 2px 2px 0 0;
 }
 
 .settings-content {
@@ -266,6 +332,23 @@
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
 }
 
+.settings-procesos-section {
+  padding: 0;
+}
+
+.settings-procesos-section .procesos-page {
+  padding: 0;
+  min-height: auto;
+}
+
+.settings-procesos-section .procesos-header {
+  margin-bottom: 1.5rem;
+}
+
+.settings-procesos-section .procesos-header h1 {
+  font-size: 1.5rem;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .settings-modal-overlay {
@@ -282,8 +365,23 @@
     padding: var(--space-4);
   }
 
+  .settings-tabs {
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+  }
+
+  .settings-tab {
+    white-space: nowrap;
+    font-size: var(--font-xs);
+    padding: var(--space-2) var(--space-3);
+  }
+
   .settings-content {
     padding: var(--space-4);
+  }
+
+  .settings-procesos-section .procesos-page {
+    padding: 0;
   }
 }
 

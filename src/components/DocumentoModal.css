@@ -1,0 +1,674 @@
+/* Estilos para DocumentoModal - Similar a PedidoModal */
+
+.documento-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.documento-modal {
+  background: var(--card-bg, rgba(20, 20, 20, 0.95));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 12px);
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.documento-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+}
+
+.documento-modal-header-info h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 0.25rem 0;
+}
+
+.documento-modal-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0;
+}
+
+.documento-modal-close-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.documento-modal-close-btn:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+  color: var(--text-primary, #ffffff);
+}
+
+.documento-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.documento-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.documento-info-card {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  padding: 1.25rem;
+}
+
+.documento-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.documento-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.documento-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.documento-info-icon {
+  font-size: 1.125rem;
+  color: var(--primary-color, #10b981);
+  flex-shrink: 0;
+}
+
+.documento-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.documento-info-label {
+  font-size: 0.6875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.documento-info-value {
+  font-size: 0.9375rem;
+  color: var(--text-primary, #ffffff);
+  font-weight: 500;
+}
+
+.documento-descripcion-detalle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--card-bg, rgba(255, 255, 255, 0.03));
+  border-radius: var(--radius-md, 8px);
+  margin-top: 1rem;
+}
+
+.documento-descripcion-icon {
+  font-size: 1rem;
+  color: var(--primary-color, #10b981);
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.documento-descripcion-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.documento-descripcion-label {
+  font-size: 0.6875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.documento-descripcion-text {
+  font-size: 0.875rem;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.documento-cliente-details {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.documento-cliente-icon {
+  font-size: 1.5rem;
+  color: var(--primary-color, #10b981);
+  flex-shrink: 0;
+}
+
+.documento-cliente-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.documento-cliente-nombre {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+.documento-cliente-contacto,
+.documento-cliente-email {
+  font-size: 0.875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.documento-fechas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.documento-fecha-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--card-bg, rgba(255, 255, 255, 0.03));
+  border-radius: var(--radius-md, 8px);
+}
+
+.documento-fecha-icon {
+  font-size: 1rem;
+  color: var(--primary-color, #10b981);
+  flex-shrink: 0;
+}
+
+.documento-fecha-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+}
+
+.documento-fecha-label {
+  font-size: 0.6875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.documento-fecha-value {
+  font-size: 0.875rem;
+  color: var(--text-primary, #ffffff);
+  font-weight: 500;
+}
+
+.documento-archivos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.documento-archivo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--card-bg, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  text-decoration: none;
+  color: var(--text-primary, #ffffff);
+  transition: all 0.2s ease;
+}
+
+.documento-archivo-item:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.08));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+  transform: translateY(-1px);
+}
+
+.documento-archivo-icon {
+  font-size: 1rem;
+  color: var(--primary-color, #10b981);
+  flex-shrink: 0;
+}
+
+.documento-archivo-name {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documento-archivo-link-icon {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  flex-shrink: 0;
+}
+
+.documento-historial-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+}
+
+.documento-historial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.documento-historial-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+}
+
+.documento-historial-icon {
+  font-size: 1rem;
+  color: var(--primary-color, #10b981);
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.documento-historial-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.documento-historial-mensaje {
+  font-size: 0.875rem;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 0.25rem 0;
+  line-height: 1.4;
+}
+
+.documento-historial-fecha {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.documento-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-top: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  background: var(--card-bg, rgba(255, 255, 255, 0.02));
+  gap: 1rem;
+}
+
+.documento-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.documento-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.documento-action-btn.completado {
+  background: rgba(59, 130, 246, 0.3);
+  color: #ffffff;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.documento-action-btn.completado:hover {
+  background: rgba(59, 130, 246, 0.4);
+  border-color: rgba(59, 130, 246, 0.6);
+  transform: translateY(-1px);
+}
+
+.documento-action-btn.contactar {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #ffffff);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+}
+
+.documento-action-btn.contactar:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.08));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+}
+
+.documento-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary, #ffffff);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.08));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+}
+
+/* Modal de Contacto - Reutilizar estilos de PedidoModal */
+.contact-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 1rem;
+}
+
+.contact-modal {
+  background: var(--card-bg, rgba(20, 20, 20, 0.95));
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 12px);
+  max-width: 500px;
+  width: 100%;
+  padding: 2rem;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.contact-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.contact-modal-close:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+  color: var(--text-primary, #ffffff);
+}
+
+.contact-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.contact-modal-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--primary-color, rgba(16, 185, 129, 0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color, #10b981);
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.contact-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 0.5rem 0;
+}
+
+.contact-modal-description {
+  font-size: 0.9375rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0 0 1.5rem 0;
+}
+
+.contact-modal-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.contact-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.contact-option-btn:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.08));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+  transform: translateY(-1px);
+}
+
+.contact-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.contact-option-icon.phone {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.contact-option-icon.whatsapp {
+  background: rgba(37, 211, 102, 0.2);
+  color: #25d366;
+}
+
+.contact-option-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-option-content h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 0.25rem 0;
+}
+
+.contact-option-content p {
+  font-size: 0.875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0;
+}
+
+.contact-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.contact-btn-secondary {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #ffffff);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+}
+
+.contact-btn-secondary:hover {
+  background: var(--card-bg, rgba(255, 255, 255, 0.08));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.2));
+}
+
+.contact-btn-full {
+  width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .documento-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .documento-modal-header,
+  .documento-modal-content,
+  .documento-modal-footer {
+    padding: 1rem;
+  }
+
+  .documento-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .documento-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .documento-modal-actions {
+    flex-direction: column;
+  }
+
+  .documento-action-btn {
+    width: 100%;
+  }
+}
+
+/* Dark mode adjustments */
+.dark-mode .documento-modal {
+  background: rgba(15, 15, 15, 0.98);
+}
+
+.dark-mode .documento-info-card {
+  background: rgba(30, 30, 30, 0.8);
+}
+

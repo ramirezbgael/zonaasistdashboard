@@ -181,22 +181,73 @@ Notificaciones automáticas enviadas 3 veces al día (9am, 2pm, 6pm).
 }
 ```
 
-### `equipo_nuevo`
-Cuando se crea un nuevo equipo.
+### `equipo_recepcion`
+Cuando se recibe un nuevo equipo. Esta notificación es para enviar la **nota de recepción por correo** al cliente.
 
 **Estructura de `datos`:**
 ```json
 {
   "equipo_id": "uuid",
-  "cliente_id": "uuid"
+  "cliente_id": "uuid o null",
+  "tipo_notificacion": "recepcion",
+  "equipo_info": {
+    "marca": "Dell",
+    "modelo": "Inspiron 15",
+    "color": "Negro",
+    "nota": "123",
+    "problema": "No enciende"
+  },
+  "cliente_info": {
+    "nombre": "Juan Pérez",
+    "telefono": "+521234567890",
+    "email": "juan@example.com"
+  }
 }
 ```
 
+**Nota:** Si `cliente_info` es `null`, significa que el equipo no tiene cliente asignado. En ese caso, no se debe enviar la nota de recepción.
+
 ### `equipo_listo`
-Cuando un equipo está listo para entrega.
+Cuando un equipo está listo para entrega. Esta notificación es para enviar **WhatsApp** al cliente.
+
+**Estructura de `datos`:**
+```json
+{
+  "equipo_id": "uuid",
+  "cliente_id": "uuid o null",
+  "tipo_notificacion": "equipo_listo",
+  "equipo_info": {
+    "marca": "Dell",
+    "modelo": "Inspiron 15",
+    "color": "Negro",
+    "nota": "123",
+    "problema": "No enciende"
+  },
+  "cliente_info": {
+    "nombre": "Juan Pérez",
+    "telefono": "+521234567890",
+    "email": "juan@example.com"
+  }
+}
+```
+
+**Nota:** Si `cliente_info` es `null` o `cliente_info.telefono` es `null`, significa que no se puede enviar WhatsApp. En ese caso, se debe omitir esta notificación.
 
 ### `equipo_finalizado`
 Cuando un equipo es entregado.
+
+**Estructura de `datos`:**
+```json
+{
+  "equipo_id": "uuid",
+  "cliente_id": "uuid o null",
+  "cliente_info": {
+    "nombre": "Juan Pérez",
+    "telefono": "+521234567890",
+    "email": "juan@example.com"
+  }
+}
+```
 
 ### `documento_nuevo`
 Cuando se crea un nuevo documento.
@@ -226,11 +277,21 @@ AND leida = false
 ORDER BY created_at DESC;
 ```
 
-### Obtener notificaciones con teléfono
+### Obtener notificaciones de recepción (para enviar correo)
 ```sql
 SELECT * FROM notificaciones
 WHERE leida = false
-AND datos->>'telefono' IS NOT NULL
+AND tipo = 'equipo_recepcion'
+AND datos->'cliente_info'->>'email' IS NOT NULL
+ORDER BY created_at DESC;
+```
+
+### Obtener notificaciones de equipo listo (para enviar WhatsApp)
+```sql
+SELECT * FROM notificaciones
+WHERE leida = false
+AND tipo = 'equipo_listo'
+AND datos->'cliente_info'->>'telefono' IS NOT NULL
 ORDER BY created_at DESC;
 ```
 
@@ -268,10 +329,15 @@ VALUES (
 
 - [ ] Configurar Supabase Client en tu proyecto local
 - [ ] Implementar función de consumo (polling o realtime)
-- [ ] Integrar con tu servicio de WhatsApp
+- [ ] Filtrar notificaciones por tipo:
+  - [ ] `equipo_recepcion` → Enviar nota de recepción por correo
+  - [ ] `equipo_listo` → Enviar WhatsApp
+- [ ] Integrar con tu servicio de correo (para notas de recepción)
+- [ ] Integrar con tu servicio de WhatsApp (para equipos listos)
 - [ ] Marcar notificaciones como leídas después de enviar
 - [ ] Manejar errores y reintentos
 - [ ] Agregar logging para debugging
+- [ ] Validar que exista `cliente_info` y los datos necesarios antes de enviar
 
 ## 🆘 Solución de Problemas
 
@@ -284,7 +350,47 @@ VALUES (
 - Verifica permisos RLS en la tabla `notificaciones`
 - Asegúrate de usar `service_role_key` o que el usuario tenga permisos UPDATE
 
-### No tienen teléfono
-- Verifica que los usuarios tengan `telefono` en su perfil
-- Revisa que la Edge Function esté obteniendo el teléfono correctamente
+### No tienen teléfono o email
+- Verifica que el equipo tenga un `cliente_id` asignado
+- Verifica que el cliente tenga `telefono` (para WhatsApp) o `email` (para correo) en la tabla `clientes`
+- Revisa que las funciones de notificación estén obteniendo correctamente la información del cliente
+
+## 📧 Ejemplo de Mensaje para Nota de Recepción
+
+Cuando recibas una notificación de tipo `equipo_recepcion`, puedes generar un mensaje como:
+
+```
+Estimado/a [cliente_info.nombre],
+
+Hemos recibido su equipo en nuestro taller:
+
+Equipo: [equipo_info.marca] [equipo_info.modelo]
+Color: [equipo_info.color]
+Número de Nota: #[equipo_info.nota]
+Problema Reportado: [equipo_info.problema]
+
+Su equipo está ahora en proceso de revisión y reparación.
+Le mantendremos informado sobre el avance.
+
+Saludos,
+[Tu nombre/Taller]
+```
+
+## 📱 Ejemplo de Mensaje para WhatsApp (Equipo Listo)
+
+Cuando recibas una notificación de tipo `equipo_listo`, puedes generar un mensaje como:
+
+```
+¡Hola [cliente_info.nombre]! 👋
+
+Tenemos buenas noticias: tu equipo está listo para recoger.
+
+Equipo: [equipo_info.marca] [equipo_info.modelo]
+Número de Nota: #[equipo_info.nota]
+
+Puedes pasar a recogerlo en nuestro taller.
+Horario: [tu horario]
+
+¡Te esperamos! 🎉
+```
 

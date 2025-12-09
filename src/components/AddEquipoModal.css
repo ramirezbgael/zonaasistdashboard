@@ -560,4 +560,173 @@
 
 .suggestions::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #2980b9, #1f4e79);
+}
+
+/* Selector de Colores con Círculos */
+.color-selector-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.color-options-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.dark-mode .color-options-grid {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(16, 185, 129, 0.2);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(16, 185, 129, 0.1);
+}
+
+.color-option-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.color-option-circle:hover {
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  z-index: 2;
+}
+
+.color-option-circle.selected {
+  border-color: var(--primary-blue);
+  border-width: 4px;
+  transform: scale(1.2);
+  box-shadow: 
+    0 0 0 4px rgba(16, 185, 129, 0.2),
+    0 4px 16px rgba(16, 185, 129, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.dark-mode .color-option-circle.selected {
+  border-color: rgba(16, 185, 129, 0.9);
+  box-shadow: 
+    0 0 0 4px rgba(16, 185, 129, 0.3),
+    0 4px 16px rgba(16, 185, 129, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.color-check {
+  color: var(--white);
+  font-size: var(--font-lg);
+  font-weight: 700;
+  text-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(0, 0, 0, 0.3);
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.8));
+}
+
+.color-text-input {
+  width: 100%;
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-base);
+  color: var(--gray-900);
+  font-family: inherit;
+  transition: all var(--transition);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  margin-top: var(--space-2);
+}
+
+.dark-mode .color-text-input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(16, 185, 129, 0.1);
+}
+
+.color-text-input:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    0 0 0 3px rgba(16, 185, 129, 0.1),
+    0 6px 24px rgba(16, 185, 129, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.dark-mode .color-text-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 
+    0 0 0 3px rgba(16, 185, 129, 0.3),
+    0 6px 24px rgba(16, 185, 129, 0.25),
+    inset 0 1px 0 rgba(16, 185, 129, 0.2);
+}
+
+.color-text-input::placeholder {
+  color: var(--gray-500);
+}
+
+.dark-mode .color-text-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Responsive para selector de colores */
+@media (max-width: 768px) {
+  .color-options-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .color-option-circle {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .color-options-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .color-option-circle {
+    width: 32px;
+    height: 32px;
+  }
+
+  .color-check {
+    font-size: var(--font-base);
+  }
 } 

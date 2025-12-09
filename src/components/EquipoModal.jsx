@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabase.js';
 import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
@@ -20,6 +20,9 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [cliente, setCliente] = useState(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
+  const [respuestaPaso, setRespuestaPaso] = useState('');
+  const [completandoPaso, setCompletandoPaso] = useState(false);
+  const ruletaWrapperRef = useRef(null);
 
   useEffect(() => {
     if (equipo?.id) {
@@ -178,9 +181,18 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     }
   };
 
-  const marcarSubprocesoCompletado = async (subprocesoId) => {
+  const marcarSubprocesoCompletado = async (subprocesoId, respuesta = '') => {
+    if (completandoPaso) return;
+    
+    setCompletandoPaso(true);
     try {
       const subproceso = subprocesos.find(s => s.id === subprocesoId);
+      
+      // Construir el mensaje de notas con la respuesta si existe
+      let notas = `Completado: ${subproceso?.nombre}`;
+      if (respuesta.trim()) {
+        notas = `${notas}\nRespuesta: ${respuesta.trim()}`;
+      }
       
       const { error } = await supabase
         .from('historial_procesos')
@@ -189,14 +201,21 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           proceso_id: procesoActual,
           subproceso_id: subprocesoId,
           completado: true,
-          notas: `Completado: ${subproceso?.nombre}`,
+          notas: notas,
           fecha_completado: new Date().toISOString()
         });
 
       if (error) throw error;
+      
+      // Limpiar respuesta y recargar
+      setRespuestaPaso('');
       loadHistorial();
+      loadEstadoEquipo(); // Recargar para actualizar el siguiente paso
     } catch (error) {
       console.error('Error al completar subproceso:', error);
+      alert('Error al completar el paso. Por favor intenta de nuevo.');
+    } finally {
+      setCompletandoPaso(false);
     }
   };
 
@@ -242,10 +261,9 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       if (estadoError) throw estadoError;
 
-      // Crear notificación de equipo listo
+      // Crear notificación de equipo listo (para enviar WhatsApp)
       try {
-        const clienteNombre = cliente?.nombre || null;
-        await notificarEquipoListo(equipo, clienteNombre);
+        await notificarEquipoListo(equipo, cliente);
       } catch (notifError) {
         console.error('Error creando notificación (no crítico):', notifError);
       }
@@ -304,8 +322,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       // Crear notificación de equipo finalizado
       try {
-        const clienteNombre = cliente?.nombre || null;
-        await notificarEquipoFinalizado(equipo, clienteNombre);
+        await notificarEquipoFinalizado(equipo, cliente);
       } catch (notifError) {
         console.error('Error creando notificación (no crítico):', notifError);
       }
@@ -386,6 +403,12 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     setShowContactModal(false);
   };
 
+
+  // Calcular valores derivados ANTES de usarlos en funciones
+  const siguienteSubproceso = getSiguienteSubproceso();
+  const subprocesosCompletados = getSubprocesosCompletados();
+  const procesoInfo = procesos.find(p => p.id === procesoActual);
+
   const handleContactarWhatsApp = () => {
     if (!contactData.telefono) return;
     
@@ -422,10 +445,6 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     setContactData(prev => ({ ...prev, telefono: numeroLimpio, necesitaTelefono: false, error: null }));
   };
 
-  const siguienteSubproceso = getSiguienteSubproceso();
-  const subprocesosCompletados = getSubprocesosCompletados();
-  const procesoInfo = procesos.find(p => p.id === procesoActual);
-
   // Función para obtener todos los subprocesos con su estado
   const getAllSubprocesosWithStatus = () => {
     return subprocesos.map(subproceso => ({
@@ -439,6 +458,25 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const progressPercentage = subprocesos.length > 0 
     ? (subprocesosCompletados.length / subprocesos.length) * 100 
     : 0;
+
+  // Efecto para centrar el paso actual en la ruleta
+  useEffect(() => {
+    if (siguienteSubproceso && ruletaWrapperRef.current && allSubprocesos.length > 0) {
+      const activeIndex = allSubprocesos.findIndex(s => s.isNext);
+      if (activeIndex !== -1) {
+        const stepHeight = 200; // altura de cada paso
+        const windowHeight = 200; // altura de la ventana visible
+        const scrollPosition = activeIndex * stepHeight - (windowHeight / 2) + (stepHeight / 2);
+        
+        // Scroll suave al paso activo
+        setTimeout(() => {
+          if (ruletaWrapperRef.current) {
+            ruletaWrapperRef.current.style.transform = `translateY(-${scrollPosition}px)`;
+          }
+        }, 100);
+      }
+    }
+  }, [siguienteSubproceso, allSubprocesos]);
 
   return (
     <div className="equipo-modal-overlay" onClick={handleOverlayClick}>
@@ -590,72 +628,84 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           )}
         </div>
 
-        {/* Línea de tiempo de subprocesos */}
-        {subprocesos.length > 0 && (
-          <div className="timeline-section">
-            <div className="timeline-header">
-              <h3 className="timeline-title">
-                <Icon name="list-check" className="timeline-title-icon" />
-                Proceso: {procesoInfo?.nombre || 'Sin proceso'}
-              </h3>
-              <div className="timeline-progress">
+        {/* Paso Actual Simplificado - UI Clara */}
+        {siguienteSubproceso && (
+          <div className="paso-actual-simple-section">
+            <div className="paso-actual-simple-header">
+              <div className="paso-actual-simple-progress">
+                <span className="paso-actual-simple-progress-text">
+                  Paso {subprocesosCompletados.length + 1} de {subprocesos.length}
+                </span>
                 <div className="progress-bar-container">
                   <div 
                     className="progress-bar-fill" 
                     style={{ width: `${progressPercentage}%` }}
                   ></div>
                 </div>
-                <span className="progress-text">
-                  {subprocesosCompletados.length} / {subprocesos.length} completados
-                </span>
               </div>
             </div>
             
-            <div className="timeline">
-              {allSubprocesos.map((subproceso, index) => {
-                const isCompleted = subproceso.status === 'completado';
-                const isNext = subproceso.isNext;
-                const isLast = index === allSubprocesos.length - 1;
-                
-                return (
-                  <div key={subproceso.id} className={`timeline-item ${isCompleted ? 'completed' : ''} ${isNext ? 'next' : ''}`}>
-                    <div className="timeline-marker">
-                      {isCompleted ? (
-                        <div className="marker-icon completed">
-                          <Icon name="check" />
+            {/* Paso Actual Destacado */}
+            <div className="paso-actual-simple-card">
+              <div className="paso-actual-simple-icon-wrapper">
+                <Icon name="clipboard-list" className="paso-actual-simple-icon" />
+              </div>
+              <div className="paso-actual-simple-content">
+                <h3 className="paso-actual-simple-title">{siguienteSubproceso.nombre}</h3>
+                {siguienteSubproceso.descripcion && (
+                  <p className="paso-actual-simple-description">{siguienteSubproceso.descripcion}</p>
+                )}
+              </div>
             </div>
-                      ) : isNext ? (
-                        <div className="marker-icon next">
-                          <Icon name="arrow-right" />
-                </div>
-                      ) : (
-                        <div className="marker-icon pending">
-                          <Icon name="circle" />
-          </div>
-        )}
-                      {!isLast && <div className="timeline-line"></div>}
-                    </div>
-                    <div className="timeline-content">
-                      <div className="timeline-content-header">
-                        <h4 className="timeline-step-title">{subproceso.nombre}</h4>
-                        {isNext && (
+            
+            {/* Input Grande y Claro */}
+            <div className="paso-actual-simple-input-section">
+              <label className="paso-actual-simple-input-label">
+                <Icon name="edit" className="input-label-icon" />
+                {siguienteSubproceso.nombre.includes('Verificar') || siguienteSubproceso.nombre.includes('Preguntar') 
+                  ? '¿Qué resultado obtuviste?'
+                  : 'Ingresa el resultado o comentario'
+                }
+              </label>
+              <input
+                type="text"
+                className="paso-actual-simple-input"
+                placeholder={siguienteSubproceso.nombre.includes('disco') 
+                  ? 'Ej: SSD 500GB, HDD 1TB, NVMe 256GB...' 
+                  : siguienteSubproceso.nombre.includes('respaldo') 
+                  ? 'Ej: Sí, necesita respaldo / No, no necesita respaldo'
+                  : siguienteSubproceso.nombre.includes('espacio')
+                  ? 'Ej: 500GB, 1TB, 2TB...'
+                  : 'Escribe aquí el resultado...'
+                }
+                value={respuestaPaso}
+                onChange={(e) => setRespuestaPaso(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && respuestaPaso.trim()) {
+                    e.preventDefault();
+                    marcarSubprocesoCompletado(siguienteSubproceso.id, respuestaPaso);
+                  }
+                }}
+                disabled={completandoPaso}
+                autoFocus
+              />
               <button 
-                            className="btn-completar-step"
-                            onClick={() => marcarSubprocesoCompletado(subproceso.id)}
-                            disabled={loading}
+                className="btn-completar-paso-simple"
+                onClick={() => marcarSubprocesoCompletado(siguienteSubproceso.id, respuestaPaso)}
+                disabled={completandoPaso || loading || !respuestaPaso.trim()}
               >
-                            <Icon name="check" />
-                            Completar
+                {completandoPaso ? (
+                  <>
+                    <Icon name="sync" className="spinning" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="check-circle" />
+                    Completar este paso
+                  </>
+                )}
               </button>
-                        )}
-                      </div>
-                      {subproceso.descripcion && (
-                        <p className="timeline-step-description">{subproceso.descripcion}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
