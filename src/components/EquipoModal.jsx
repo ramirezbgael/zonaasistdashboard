@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../supabase.js';
 import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
 import Icon from './Icon.jsx';
+import NotaPDF from './NotaPDF.jsx';
 import './EquipoModal.css';
 
 export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
@@ -22,6 +23,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
   const [respuestaPaso, setRespuestaPaso] = useState('');
   const [completandoPaso, setCompletandoPaso] = useState(false);
+  const [showNotaPDFModal, setShowNotaPDFModal] = useState(false);
+  const [tipoNotaPDF, setTipoNotaPDF] = useState(null); // 'recepcion' o 'entrega'
   const ruletaWrapperRef = useRef(null);
 
   useEffect(() => {
@@ -282,6 +285,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       alert('Equipo marcado como listo exitosamente');
       onEquipoUpdated?.();
+      // Disparar evento para actualizar el dashboard
+      window.dispatchEvent(new Event('equipoUpdated'));
       onClose();
     } catch (error) {
       console.error('Error al marcar equipo como listo:', error);
@@ -330,6 +335,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
       setShowEntregaModal(false);
       setEntregaLoading(false);
       onEquipoUpdated?.();
+      // Disparar evento para actualizar el dashboard
+      window.dispatchEvent(new Event('equipoUpdated'));
       onClose();
     } catch (error) {
       console.error('Error al finalizar equipo:', error);
@@ -713,6 +720,35 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
         {/* Acciones principales */}
         <div className="equipo-modal-actions">
+          {/* Botones de Notas PDF */}
+          <div className="actions-row">
+            <button 
+              className="btn-nota-pdf full-width"
+              onClick={() => {
+                setTipoNotaPDF('recepcion');
+                setShowNotaPDFModal(true);
+              }}
+              title="Generar nota de recepción"
+            >
+              <Icon name="file-alt" />
+              Nota de Recepción
+            </button>
+            
+            {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+              <button 
+                className="btn-nota-pdf full-width"
+                onClick={() => {
+                  setTipoNotaPDF('entrega');
+                  setShowNotaPDFModal(true);
+                }}
+                title="Generar nota de entrega"
+              >
+                <Icon name="file-alt" />
+                Nota de Entrega
+              </button>
+            )}
+          </div>
+
           {/* Botón de estado según el equipo */}
           <div className="actions-row">
             {/* Si está en proceso y todos los subprocesos están completados */}
@@ -948,6 +984,22 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
             </div>
           </div>,
           document.body
+        )}
+
+        {/* Modal de Nota PDF */}
+        {showNotaPDFModal && tipoNotaPDF && (
+          <NotaPDF
+            equipo={{
+              ...equipo,
+              procesos: procesoInfo
+            }}
+            cliente={cliente}
+            tipo={tipoNotaPDF}
+            onClose={() => {
+              setShowNotaPDFModal(false);
+              setTipoNotaPDF(null);
+            }}
+          />
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
+import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
@@ -37,6 +38,9 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
   const [siguienteNota, setSiguienteNota] = useState(null);
+  const [showNotaPDF, setShowNotaPDF] = useState(false);
+  const [equipoGuardado, setEquipoGuardado] = useState(null);
+  const [clienteGuardado, setClienteGuardado] = useState(null);
 
   // Marcas predefinidas para autocompletado
   const marcasPredefinidas = [
@@ -673,10 +677,18 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         } catch (notifError) {
           console.error('Error creando notificación (no crítico):', notifError);
         }
-      }
 
+        // Guardar datos para mostrar nota PDF
+        setEquipoGuardado({
+          ...data[0],
+          procesos: procesoSeleccionado
+        });
+        setClienteGuardado(cliente);
+        setShowNotaPDF(true);
+      } else {
       onEquipoAdded();
       onClose();
+      }
     } catch (error) {
       console.error('Error:', error);
       alert(`Error: ${error.message}`);
@@ -1300,6 +1312,22 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
               </>
             )}
           </div>
+        )}
+
+        {/* Modal de Nota PDF */}
+        {showNotaPDF && equipoGuardado && clienteGuardado && (
+          <NotaPDF
+            equipo={equipoGuardado}
+            cliente={clienteGuardado}
+            tipo="recepcion"
+            onClose={() => {
+              setShowNotaPDF(false);
+              setEquipoGuardado(null);
+              setClienteGuardado(null);
+              onEquipoAdded();
+              onClose();
+            }}
+          />
         )}
       </div>
     </div>

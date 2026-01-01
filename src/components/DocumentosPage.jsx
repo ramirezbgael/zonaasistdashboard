@@ -5,8 +5,31 @@ import AddDocumentoModal from './AddDocumentoModal.jsx';
 import DocumentoModal from './DocumentoModal.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css'; // Reutilizar estilos similares
-import './EquipoCard.css'; // Reutilizar estilos de cards
-import './DocumentosPage.css'; // Estilos específicos para documentos
+import './ClientesPage.css'; // Usar los mismos estilos que clientes
+import './DocumentosPage.css'; // Estilos específicos para documentos (mínimos)
+
+// Función helper para obtener nombre de usuario
+const obtenerNombreUsuario = async (userId) => {
+    if (!userId) return null;
+    
+    try {
+        // Intentar obtener desde el usuario actual si coincide
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id === userId) {
+            return user.user_metadata?.nombre || 
+                   user.user_metadata?.full_name || 
+                   user.email?.split('@')[0] || 
+                   null;
+        }
+        
+        // Si no es el usuario actual, intentar obtener desde una función RPC o tabla de usuarios
+        // Por ahora, retornar null y se puede mejorar después
+        return null;
+    } catch (error) {
+        console.error('Error obteniendo nombre de usuario:', error);
+        return null;
+    }
+};
 
 export default function DocumentosPage() {
     const [showAddModal, setShowAddModal] = useState(false);
@@ -70,6 +93,28 @@ export default function DocumentosPage() {
                     )
                 `)
                 .order('created_at', { ascending: false });
+            
+            // Obtener información de usuarios asignados
+            if (data && data.length > 0) {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                
+                // Agregar información de usuario a cada documento
+                for (const doc of data) {
+                    if (doc.asignado_a) {
+                        // Si es el usuario actual, usar su información
+                        if (currentUser?.id === doc.asignado_a) {
+                            doc.usuarioAsignado = currentUser.user_metadata?.nombre || 
+                                                  currentUser.user_metadata?.full_name || 
+                                                  currentUser.email?.split('@')[0] || 
+                                                  'Usuario';
+                        } else {
+                            // Para otros usuarios, intentar obtener desde metadata o usar placeholder
+                            // Nota: En producción, esto requeriría una tabla de usuarios o función RPC
+                            doc.usuarioAsignado = await obtenerNombreUsuario(doc.asignado_a);
+                        }
+                    }
+                }
+            }
 
             if (error) throw error;
 
@@ -212,67 +257,57 @@ export default function DocumentosPage() {
                             return (
                                 <div 
                                     key={doc.id} 
-                                    className="card documento-card" 
+                                    className="cliente-card documento-card" 
                                     onClick={handleCardClick}
+                                    style={{ cursor: 'pointer' }}
                                 >
-                                    <div className="equipo-card-header">
-                                        <div className="equipo-avatar documento-avatar" style={{ background: 'linear-gradient(135deg, #10b981, rgba(16, 185, 129, 0.6))' }}>
-                                            <Icon name={getTipoIcon(doc.tipo_servicio)} style={{ fontSize: '1.25rem' }} />
+                                    <div className="cliente-card-header documento-card-header">
+                                        <div className="cliente-avatar documento-avatar">
+                                            <Icon name={getTipoIcon(doc.tipo_servicio)} style={{ fontSize: '1.5rem' }} />
                                         </div>
-                                        <div className="equipo-info">
-                                            <div className="equipo-title-row">
-                                                <h3 className="equipo-marca">{getTipoServicioLabel(doc.tipo_servicio)}</h3>
-                                                {doc.estado === 'completado' ? (
-                                                    <span className="documento-badge completado">
-                                                        <Icon name="check-circle" />
-                                                        Completado
-                                                    </span>
-                                                ) : (
-                                                    <span className="documento-badge pendiente">
-                                                        <Icon name="clock" />
-                                                        Pendiente
-                                                    </span>
+                                        <div className="cliente-info documento-info">
+                                            <h3 className="cliente-nombre documento-nombre">{getTipoServicioLabel(doc.tipo_servicio)}</h3>
+                                            <div className="cliente-details documento-details">
+                                                {doc.usuarioAsignado && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="user" />
+                                                        </div>
+                                                        <span className="cliente-detail-text">{doc.usuarioAsignado}</span>
+                                                    </div>
+                                                )}
+                                                {doc.clientes?.nombre && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="users" />
+                                                        </div>
+                                                        <span className="cliente-detail-text">{doc.clientes.nombre}</span>
+                                                    </div>
+                                                )}
+                                                {doc.tipo_servicio === 'transcripcion' && doc.precio && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="dollar-sign" />
+                                                        </div>
+                                                        <span className="cliente-detail-text">Precio: ${parseFloat(doc.precio).toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                                {(doc.fecha_inicio || doc.created_at) && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="calendar-alt" />
+                                                        </div>
+                                                        <span className="cliente-detail-text">{formatDate(doc.fecha_inicio || doc.created_at)}</span>
+                                                    </div>
                                                 )}
                                             </div>
-                                            {doc.clientes?.nombre && (
-                                                <div className="documento-cliente-info">
-                                                    <Icon name="user" className="documento-info-icon" />
-                                                    <span>{doc.clientes.nombre}</span>
-                                                </div>
-                                            )}
-                                            {doc.descripcion && (
-                                                <div className="documento-descripcion">
-                                                    <Icon name="align-left" className="documento-info-icon" />
-                                                    <span>{doc.descripcion.length > 50 ? doc.descripcion.substring(0, 50) + '...' : doc.descripcion}</span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
-                                    <div className="equipo-card-content">
-                                        <div className="documento-dates">
-                                            {doc.fecha_inicio && (
-                                                <div className="documento-date-item">
-                                                    <Icon name="calendar-alt" className="documento-date-icon" />
-                                                    <div className="documento-date-content">
-                                                        <span className="documento-date-label">Inicio</span>
-                                                        <span className="documento-date-value">{formatDate(doc.fecha_inicio)}</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {doc.fecha_entrega && (
-                                                <div className="documento-date-item">
-                                                    <Icon name="calendar-check" className="documento-date-icon" />
-                                                    <div className="documento-date-content">
-                                                        <span className="documento-date-label">Entrega</span>
-                                                        <span className="documento-date-value">{formatDate(doc.fecha_entrega)}</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="documento-actions">
+                                    {(doc.estado === 'pendiente' || doc.clientes?.telefono) && (
+                                        <div className="cliente-actions documento-actions" onClick={(e) => e.stopPropagation()}>
                                             {doc.estado === 'pendiente' && (
                                                 <button
-                                                    className="documento-action-btn completado"
+                                                    className="cliente-action-btn documento-action-btn"
                                                     onClick={handleMarcarCompletado}
                                                 >
                                                     <Icon name="check-circle" />
@@ -281,7 +316,7 @@ export default function DocumentosPage() {
                                             )}
                                             {doc.clientes?.telefono && (
                                                 <button
-                                                    className="documento-action-btn contactar"
+                                                    className="cliente-action-btn documento-action-btn"
                                                     onClick={handleContactarCliente}
                                                 >
                                                     <Icon name="phone" />
@@ -289,7 +324,7 @@ export default function DocumentosPage() {
                                                 </button>
                                             )}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             );
                         })}

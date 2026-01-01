@@ -7,6 +7,7 @@ import logo from '../assets/logo.png';
 import Settings from './Settings.jsx';
 import Profile from './Profile.jsx';
 import Notifications from './Notifications.jsx';
+import SearchModal from './SearchModal.jsx';
 import './MainLayout.css';
 
 export default function MainLayout() {
@@ -15,6 +16,7 @@ export default function MainLayout() {
     const [showSettings, setShowSettings] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showSearch, setShowSearch] = useState(false);
     const [notificationsCount, setNotificationsCount] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [profilePhotoUrl, setProfilePhotoUrl] = useState(null);
@@ -35,6 +37,8 @@ export default function MainLayout() {
         { path: '/logistica', icon: 'shipping-fast', label: 'Logística' },
         { path: '/clientes', icon: 'users', label: 'Clientes' },
         { path: '/reportes', icon: 'chart-bar', label: 'Reportes' },
+        { path: '/inventario', icon: 'box', label: 'Inventario' },
+        { path: '/whatsapp', icon: 'comment', label: 'WhatsApp' },
     ];
 
     const isActivePath = (path) => {
@@ -47,6 +51,22 @@ export default function MainLayout() {
         setShowUserMenu(false);
         setShowNotifications(false);
     };
+
+    // Atajo de teclado para búsqueda
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setShowSearch(true);
+            }
+            if (e.key === 'Escape' && showSearch) {
+                setShowSearch(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showSearch]);
 
     // Cargar foto de perfil
     useEffect(() => {
@@ -212,10 +232,12 @@ export default function MainLayout() {
                     <div className="navbar-search">
                         <input
                             type="text"
-                            placeholder="Buscar equipos, clientes..."
+                            placeholder="Buscar equipos, clientes... (Cmd/Ctrl + K)"
                             className="search-input"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            onFocus={() => setShowSearch(true)}
+                            onClick={() => setShowSearch(true)}
                         />
                     </div>
 
@@ -451,6 +473,12 @@ export default function MainLayout() {
                     onCountChange={(count) => setNotificationsCount(count)}
                 />
             )}
+
+            {/* Search Modal */}
+            <SearchModal 
+                isOpen={showSearch}
+                onClose={() => setShowSearch(false)}
+            />
         </div>
     );
 }

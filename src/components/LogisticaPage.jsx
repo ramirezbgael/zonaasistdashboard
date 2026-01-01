@@ -6,7 +6,8 @@ import PedidoModal from './PedidoModal.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css';
 import './EquipoCard.css'; // Reutilizar estilos de cards
-import './LogisticaPage.css'; // Estilos específicos para pedidos
+import './ClientesPage.css'; // Usar los mismos estilos que clientes
+import './LogisticaPage.css'; // Estilos específicos para pedidos (mínimos)
 
 export default function LogisticaPage() {
     const [showAddModal, setShowAddModal] = useState(false);
@@ -211,74 +212,49 @@ export default function LogisticaPage() {
                             return (
                                 <div 
                                     key={pedido.id} 
-                                    className="card pedido-card" 
+                                    className="cliente-card pedido-card" 
                                     onClick={handleCardClick}
+                                    style={{ cursor: 'pointer' }}
                                 >
-                                    <div className="equipo-card-header">
-                                        <div className="equipo-avatar pedido-avatar" style={{ background: 'linear-gradient(135deg, #10b981, rgba(16, 185, 129, 0.6))' }}>
-                                            <Icon name="box" style={{ fontSize: '1.25rem' }} />
+                                    <div className="cliente-card-header pedido-card-header">
+                                        <div className="cliente-avatar pedido-avatar">
+                                            <Icon name="box" style={{ fontSize: '1.5rem' }} />
                                         </div>
-                                        <div className="equipo-info">
-                                            <div className="equipo-title-row">
-                                                <h3 className="equipo-marca">{pedido.nombre_pieza}</h3>
-                                                {pedido.estado === 'recibido' || pedido.estado === 'completado' ? (
-                                                    <span className="pedido-badge recibido">
-                                                        <Icon name="check-circle" />
-                                                        Recibido
-                                                    </span>
-                                                ) : (
-                                                    <span className="pedido-badge pendiente">
-                                                        <Icon name="clock" />
-                                                        Pendiente
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {pedido.proveedores?.nombre && (
-                                                <div className="pedido-proveedor-info">
-                                                    <Icon name="truck" className="pedido-info-icon" />
-                                                    <span>{pedido.proveedores.nombre}</span>
-                                                </div>
-                                            )}
-                                            {pedido.numero_parte && (
-                                                <div className="pedido-parte-info">
-                                                    <Icon name="barcode" className="pedido-info-icon" />
-                                                    <span>{pedido.numero_parte}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="equipo-card-content">
-                                        <div className="pedido-details">
-                                            <div className="pedido-detail-item">
-                                                <Icon name="cube" className="pedido-detail-icon" />
-                                                <div className="pedido-detail-content">
-                                                    <span className="pedido-detail-label">Cantidad</span>
-                                                    <span className="pedido-detail-value">{pedido.cantidad}</span>
-                                                </div>
-                                            </div>
-                                            {pedido.precio_unitario && (
-                                                <div className="pedido-detail-item">
-                                                    <Icon name="dollar-sign" className="pedido-detail-icon" />
-                                                    <div className="pedido-detail-content">
-                                                        <span className="pedido-detail-label">Precio unitario</span>
-                                                        <span className="pedido-detail-value">{formatCurrency(pedido.precio_unitario)}</span>
+                                        <div className="cliente-info pedido-info">
+                                            <h3 className="cliente-nombre pedido-nombre">{pedido.nombre_pieza}</h3>
+                                            <div className="cliente-details pedido-details">
+                                                {pedido.proveedores?.nombre && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="truck" />
+                                                        </div>
+                                                        <span className="cliente-detail-text">{pedido.proveedores.nombre}</span>
                                                     </div>
+                                                )}
+                                                {pedido.cantidad && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="cube" />
+                                            </div>
+                                                        <span className="cliente-detail-text">Cantidad: {pedido.cantidad}</span>
                                                 </div>
                                             )}
-                                        </div>
-                                        {pedido.fecha_estimada_llegada && (
-                                            <div className="pedido-fecha-estimada">
-                                                <Icon name="calendar-alt" className="pedido-fecha-icon" />
-                                                <div className="pedido-fecha-content">
-                                                    <span className="pedido-fecha-label">Llegada estimada</span>
-                                                    <span className="pedido-fecha-value">{formatDate(pedido.fecha_estimada_llegada)}</span>
+                                                {pedido.fecha_estimada_llegada && (
+                                                    <div className="cliente-detail-item">
+                                                        <div className="cliente-detail-icon">
+                                                            <Icon name="calendar-alt" />
+                                                        </div>
+                                                        <span className="cliente-detail-text">{formatDate(pedido.fecha_estimada_llegada)}</span>
                                                 </div>
+                                            )}
                                             </div>
-                                        )}
-                                        <div className="pedido-actions">
+                                        </div>
+                                                </div>
+                                    {pedido.estado === 'pendiente' || pedido.equipos?.clientes?.telefono ? (
+                                        <div className="cliente-actions pedido-actions" onClick={(e) => e.stopPropagation()}>
                                             {pedido.estado === 'pendiente' && (
                                                 <button
-                                                    className="pedido-action-btn recibido"
+                                                    className="cliente-action-btn pedido-action-btn"
                                                     onClick={handleMarcarRecibido}
                                                 >
                                                     <Icon name="check-circle" />
@@ -287,7 +263,7 @@ export default function LogisticaPage() {
                                             )}
                                             {pedido.equipos?.clientes?.telefono && (
                                                 <button
-                                                    className="pedido-action-btn contactar"
+                                                    className="cliente-action-btn pedido-action-btn"
                                                     onClick={handleContactarCliente}
                                                 >
                                                     <Icon name="phone" />
@@ -295,7 +271,7 @@ export default function LogisticaPage() {
                                                 </button>
                                             )}
                                         </div>
-                                    </div>
+                                    ) : null}
                                 </div>
                             );
                         })}

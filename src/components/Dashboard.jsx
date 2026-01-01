@@ -189,13 +189,53 @@ export default function Dashboard() {
 
             const equiposConSubproceso = await Promise.all(
                 equiposOrdenados.map(async (equipo) => {
-                    const procesoId = equipo.estado_equipos?.[0]?.proceso_actual_id;
-                    console.log(`Procesando equipo #${equipo.nota}, procesoId: ${procesoId}`);
+                    // Intentar obtener procesoId de múltiples fuentes
+                    let procesoId = equipo.estado_equipos?.[0]?.proceso_actual_id;
+                    
+                    // Si no está en la relación, consultarlo directamente
+                    if (!procesoId) {
+                        const { data: estadoDirecto } = await supabase
+                            .from('estado_equipos')
+                            .select('proceso_actual_id')
+                            .eq('equipo_id', equipo.id)
+                            .order('updated_at', { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+                        
+                        procesoId = estadoDirecto?.proceso_actual_id;
+                    }
+                    
+                    console.log(`Procesando equipo #${equipo.nota}, procesoId: ${procesoId}, estado_equipos:`, equipo.estado_equipos);
                     
                     if (!procesoId) {
-                        console.log(`Equipo #${equipo.nota} no tiene proceso asignado`);
-                        return { ...equipo, siguienteSubproceso: null, totalSubprocesos: 0, tieneProcesoValido: false };
+                        console.log(`⚠️ Equipo #${equipo.nota} no tiene proceso asignado en estado_equipos`);
+                        // Intentar obtener el primer proceso disponible como fallback
+                        const { data: procesosDisponibles } = await supabase
+                            .from('procesos')
+                            .select('id, nombre')
+                            .limit(1)
+                            .single();
+                        
+                        if (procesosDisponibles) {
+                            console.log(`📌 Usando proceso por defecto para equipo #${equipo.nota}: ${procesosDisponibles.nombre}`);
+                            // No asignamos el proceso automáticamente, solo lo mostramos como información
+                            return { 
+                                ...equipo, 
+                                siguienteSubproceso: null, 
+                                totalSubprocesos: 0, 
+                                tieneProcesoValido: false, 
+                                procesoNombre: `Asignar proceso: ${procesosDisponibles.nombre}` 
+                            };
+                        }
+                        return { ...equipo, siguienteSubproceso: null, totalSubprocesos: 0, tieneProcesoValido: false, procesoNombre: null };
                     }
+
+                    // Obtener información del proceso
+                    const { data: procesoData } = await supabase
+                        .from('procesos')
+                        .select('nombre')
+                        .eq('id', procesoId)
+                        .single();
 
                     // Obtener subprocesos del proceso actual
                     const { data: subprocesos } = await supabase
@@ -241,7 +281,8 @@ export default function Dashboard() {
                         ...equipo, 
                         siguienteSubproceso, 
                         totalSubprocesos: subprocesos?.length || 0,
-                        tieneProcesoValido: !!(procesoId && subprocesos && subprocesos.length > 0)
+                        tieneProcesoValido: !!(procesoId && subprocesos && subprocesos.length > 0),
+                        procesoNombre: procesoData?.nombre || null
                     };
                 })
             );
@@ -253,7 +294,7 @@ export default function Dashboard() {
             const listos = [];
             const finalizados = [];
 
-            // Obtener estados actualizados por separado para evitar problemas de cache
+            // Obtener estados actualizados por separado y recalcular siguienteSubproceso si es necesario
             const equiposConEstadoActualizado = await Promise.all(
                 equiposConSubproceso.map(async (equipo) => {
                     const { data: estadoActual } = await supabase
@@ -264,10 +305,59 @@ export default function Dashboard() {
                         .limit(1)
                         .maybeSingle();
                     
-                    return {
-                        ...equipo,
-                        estadoActualizado: estadoActual
-                    };
+                    // Si el equipo no tenía proceso pero ahora sí lo tiene, obtenerlo
+                    let equipoActualizado = { ...equipo, estadoActualizado: estadoActual };
+                    
+                    if (estadoActual?.proceso_actual_id && !equipo.siguienteSubproceso && !equipo.procesoNombre) {
+                        // Obtener información del proceso
+                        const { data: procesoData } = await supabase
+                            .from('procesos')
+                            .select('nombre')
+                            .eq('id', estadoActual.proceso_actual_id)
+                            .single();
+
+                        // Obtener subprocesos del proceso actual
+                        const { data: subprocesos } = await supabase
+                            .from('subprocesos')
+                            .select('*')
+                            .eq('proceso_id', estadoActual.proceso_actual_id)
+                            .order('orden');
+
+                        // Obtener historial para determinar qué subprocesos están completados
+                        const { data: historial } = await supabase
+                            .from('historial_procesos')
+                            .select('subproceso_id, completado')
+                            .eq('equipo_id', equipo.id)
+                            .eq('proceso_id', estadoActual.proceso_actual_id);
+
+                        // Encontrar el siguiente subproceso pendiente
+                        let siguienteSubproceso = null;
+                        if (subprocesos && subprocesos.length > 0) {
+                            for (const subproceso of subprocesos) {
+                                const registros = historial?.filter(h => h.subproceso_id === subproceso.id) || [];
+                                let completado = false;
+                                if (registros.length > 0) {
+                                    const ultimoRegistro = registros[registros.length - 1];
+                                    completado = ultimoRegistro.completado === true;
+                                }
+                                
+                                if (!completado) {
+                                    siguienteSubproceso = subproceso;
+                                    break;
+                                }
+                            }
+                        }
+
+                        equipoActualizado = {
+                            ...equipoActualizado,
+                            siguienteSubproceso,
+                            totalSubprocesos: subprocesos?.length || 0,
+                            tieneProcesoValido: !!(estadoActual.proceso_actual_id && subprocesos && subprocesos.length > 0),
+                            procesoNombre: procesoData?.nombre || null
+                        };
+                    }
+                    
+                    return equipoActualizado;
                 })
             );
 

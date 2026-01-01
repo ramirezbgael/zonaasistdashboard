@@ -177,6 +177,88 @@ input, textarea, select {
   outline: none;
 }
 
+/* === ESTILOS GLOBALES PARA DROPDOWNS === */
+/* Estilos para las opciones de los selects - Estética consistente */
+select option {
+  padding: 0.75rem 1rem;
+  font-size: var(--font-base);
+  font-weight: var(--font-normal);
+  color: var(--gray-900);
+  background-color: var(--white);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+/* Hover state para opciones (solo funciona en algunos navegadores) */
+select option:hover {
+  background-color: var(--gray-100);
+  color: var(--gray-900);
+}
+
+/* Opción seleccionada */
+select option:checked,
+select option[selected] {
+  background-color: var(--primary-blue);
+  color: var(--white);
+  font-weight: var(--font-medium);
+}
+
+/* Dark mode para opciones */
+.dark-mode select option {
+  background-color: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.dark-mode select option:hover {
+  background-color: var(--gray-200);
+  color: var(--gray-900);
+}
+
+.dark-mode select option:checked,
+.dark-mode select option[selected] {
+  background-color: var(--primary-blue);
+  color: var(--white);
+}
+
+/* Estilos mejorados para el select mismo */
+select {
+  padding: 0.75rem 1rem;
+  font-size: var(--font-base);
+  color: var(--gray-900);
+  background-color: var(--white);
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  transition: all var(--transition);
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: var(--gray-400);
+}
+
+select:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  outline: none;
+}
+
+/* Dark mode para select */
+.dark-mode select {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--gray-400);
+  color: var(--gray-900);
+}
+
+.dark-mode select:hover {
+  border-color: var(--gray-500);
+}
+
+.dark-mode select:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
 /* === UTILIDADES === */
 .sr-only {
   position: absolute;

@@ -294,10 +294,15 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
                 <Icon name="check-circle" className="paso-icon" />
                 <span className="paso-texto">Proceso completado</span>
               </>
+            ) : equipo.procesoNombre ? (
+              <>
+                <Icon name="clipboard-list" className="paso-icon" />
+                <span className="paso-texto">{equipo.procesoNombre}</span>
+              </>
             ) : (
               <>
-                <Icon name="clock" className="paso-icon" />
-                <span className="paso-texto">En proceso</span>
+                <Icon name="hourglass-half" className="paso-icon" />
+                <span className="paso-texto">Sin proceso asignado</span>
               </>
             )}
           </div>

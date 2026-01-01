@@ -1706,7 +1706,8 @@
 .btn-pendiente,
 .btn-nota,
 .btn-listo,
-.btn-finalizar {
+.btn-finalizar,
+.btn-nota-pdf {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1783,6 +1784,36 @@
 }
 
 .btn-finalizar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-nota-pdf {
+  background: rgba(107, 114, 128, 0.8);
+  color: var(--white);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(107, 114, 128, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all var(--transition);
+}
+
+.btn-nota-pdf:hover:not(:disabled) {
+  background: rgba(107, 114, 128, 0.95);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 40px rgba(107, 114, 128, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn-nota-pdf:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-nota-pdf:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;

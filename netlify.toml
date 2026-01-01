@@ -10,6 +10,10 @@
 [build.environment]
   NODE_VERSION = "18"
 
+# Variables de entorno necesarias (configurar en Netlify Dashboard)
+# VITE_SUPABASE_URL = tu_url_de_supabase
+# SUPABASE_SERVICE_ROLE_KEY = tu_service_role_key
+
 # Configuración para funciones serverless (si las necesitas en el futuro)
 [functions]
   directory = "netlify/functions"

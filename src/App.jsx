@@ -7,6 +7,9 @@ import Dashboard from './components/Dashboard.jsx';
 import DocumentosPage from './components/DocumentosPage.jsx';
 import LogisticaPage from './components/LogisticaPage.jsx';
 import ClientesPage from './components/ClientesPage.jsx';
+import InventarioPage from './components/InventarioPage.jsx';
+import ReportesPage from './components/ReportesPage.jsx';
+import WhatsAppPage from './components/WhatsAppPage.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import './App.css';
 
@@ -30,6 +33,9 @@ export default function App() {
               <Route path="documentos" element={<DocumentosPage />} />
               <Route path="logistica" element={<LogisticaPage />} />
               <Route path="clientes" element={<ClientesPage />} />
+              <Route path="inventario" element={<InventarioPage />} />
+              <Route path="reportes" element={<ReportesPage />} />
+              <Route path="whatsapp" element={<WhatsAppPage />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Route>
           </Routes>

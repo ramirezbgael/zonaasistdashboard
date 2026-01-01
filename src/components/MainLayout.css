@@ -551,6 +551,7 @@
   .nav-label {
     overflow: hidden;
     text-overflow: ellipsis;
+    display: block; /* Mostrar en tablet */
   }
 }
 
@@ -590,10 +591,16 @@
   }
   
   .nav-link {
-    padding: var(--spacing-md) var(--spacing-md);
+    padding: var(--spacing-md);
     font-size: 0.875rem;
     white-space: nowrap;
     flex-shrink: 0;
+    gap: 0; /* Sin gap cuando solo hay ícono */
+    justify-content: center;
+  }
+  
+  .nav-label {
+    display: none; /* Ocultar texto en desktop */
   }
   
   .navbar-actions {
@@ -623,8 +630,12 @@
   }
   
   .nav-link {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-md);
     font-size: 0.9375rem;
+  }
+  
+  .nav-label {
+    display: none; /* Mantener oculto en large desktop también */
   }
 }
 
