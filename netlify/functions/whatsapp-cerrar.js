@@ -1,4 +1,4 @@
-// Netlify Function para cerrar sesión de WhatsApp
+// Netlify Function para cerrar sesión de WhatsApp usando Evolution API
 const { createClient } = require('@supabase/supabase-js');
 
 exports.handler = async (event, context) => {
@@ -7,6 +7,26 @@ exports.handler = async (event, context) => {
       process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
+
+    // Obtener configuración
+    const { data: config } = await supabase
+      .from('whatsapp_config')
+      .select('*')
+      .single();
+
+    // Si hay Evolution API, cerrar instancia
+    if (config?.evolution_api_url && config?.evolution_api_key && config?.instance_name) {
+      try {
+        await fetch(`${config.evolution_api_url}/instance/logout/${config.instance_name}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': config.evolution_api_key
+          }
+        });
+      } catch (err) {
+        console.error('Error cerrando instancia en Evolution API:', err);
+      }
+    }
 
     // Actualizar configuración
     await supabase
@@ -18,11 +38,6 @@ exports.handler = async (event, context) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', 1);
-
-    // Nota: En Netlify Functions, no podemos mantener el cliente activo
-    // La sesión se cerrará automáticamente cuando la función termine
-    // Para cerrar completamente, necesitarías eliminar los archivos de sesión
-    // pero en /tmp se eliminan automáticamente
 
     return {
       statusCode: 200,
@@ -49,4 +64,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-

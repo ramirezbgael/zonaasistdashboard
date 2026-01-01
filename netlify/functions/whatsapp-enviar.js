@@ -1,54 +1,5 @@
-// Netlify Function para enviar mensajes por WhatsApp
+// Netlify Function para enviar mensajes por WhatsApp usando Evolution API
 const { createClient } = require('@supabase/supabase-js');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-
-let whatsappClient = null;
-let clientReady = false;
-
-async function getWhatsAppClient() {
-  if (whatsappClient && clientReady) {
-    return whatsappClient;
-  }
-
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
-  return new Promise((resolve, reject) => {
-    whatsappClient = new Client({
-      authStrategy: new LocalAuth({
-        dataPath: '/tmp/.wwebjs_auth'
-      }),
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu'
-        ]
-      }
-    });
-
-    whatsappClient.on('ready', () => {
-      console.log('WhatsApp listo para enviar');
-      clientReady = true;
-      resolve(whatsappClient);
-    });
-
-    whatsappClient.on('auth_failure', (msg) => {
-      console.error('Error de autenticación:', msg);
-      reject(new Error('No autenticado'));
-    });
-
-    whatsappClient.initialize().catch(reject);
-  });
-}
 
 exports.handler = async (event, context) => {
   try {
@@ -70,22 +21,59 @@ exports.handler = async (event, context) => {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    // Obtener cliente de WhatsApp
-    const client = await getWhatsAppClient();
+    // Obtener configuración
+    const { data: config } = await supabase
+      .from('whatsapp_config')
+      .select('*')
+      .single();
 
-    // Formatear teléfono (agregar @c.us si no lo tiene)
-    const numeroFormateado = telefono.includes('@c.us') 
-      ? telefono 
-      : `${telefono.replace(/[^0-9]/g, '')}@c.us`;
+    if (!config?.evolution_api_url || !config?.evolution_api_key || !config?.instance_name) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ error: 'Evolution API no configurada' })
+      };
+    }
 
-    // Enviar mensaje
-    await client.sendMessage(numeroFormateado, mensaje);
+    // Formatear teléfono (remover caracteres especiales, agregar código de país si falta)
+    let numeroFormateado = telefono.replace(/[^0-9]/g, '');
+    if (!numeroFormateado.startsWith('52') && numeroFormateado.length === 10) {
+      numeroFormateado = '52' + numeroFormateado;
+    }
+    const numeroCompleto = numeroFormateado + '@s.whatsapp.net';
+
+    // Enviar mensaje usando Evolution API
+    const sendResponse = await fetch(`${config.evolution_api_url}/message/sendText/${config.instance_name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': config.evolution_api_key
+      },
+      body: JSON.stringify({
+        number: numeroCompleto,
+        text: mensaje
+      })
+    });
+
+    if (!sendResponse.ok) {
+      const error = await sendResponse.text();
+      throw new Error(`Error enviando mensaje: ${error}`);
+    }
+
+    const result = await sendResponse.json();
 
     // Si hay PDF, enviarlo también
     if (incluir_pdf && equipo_id) {
-      // TODO: Generar URL del PDF y enviarlo como documento
+      // TODO: Generar PDF y enviarlo como documento
       // const pdfUrl = await generarPDF(equipo_id);
-      // await client.sendMessage(numeroFormateado, new MessageMedia('application/pdf', pdfBase64, 'nota.pdf'));
+      // await fetch(`${config.evolution_api_url}/message/sendMedia/${config.instance_name}`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json', 'apikey': config.evolution_api_key },
+      //   body: JSON.stringify({ number: numeroCompleto, mediatype: 'document', media: pdfUrl })
+      // });
     }
 
     // Actualizar notificación
@@ -119,7 +107,8 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify({
         success: true,
-        message: 'Mensaje enviado correctamente'
+        message: 'Mensaje enviado correctamente',
+        messageId: result.key?.id
       })
     };
   } catch (error) {
@@ -136,4 +125,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-

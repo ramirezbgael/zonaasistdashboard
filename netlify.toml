@@ -13,6 +13,9 @@
 # Variables de entorno necesarias (configurar en Netlify Dashboard)
 # VITE_SUPABASE_URL = tu_url_de_supabase
 # SUPABASE_SERVICE_ROLE_KEY = tu_service_role_key
+# EVOLUTION_API_URL = http://localhost:8080 (o tu URL de Evolution API)
+# EVOLUTION_API_KEY = tu_api_key_de_evolution
+# EVOLUTION_INSTANCE_NAME = zona-asist (opcional, por defecto)
 
 # Configuración para funciones serverless (si las necesitas en el futuro)
 [functions]

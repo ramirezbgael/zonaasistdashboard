@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_config (
     estado VARCHAR(20) DEFAULT 'desconectado',
     qr_code TEXT,
     activo BOOLEAN DEFAULT false,
+    evolution_api_url TEXT,
+    evolution_api_key TEXT,
+    instance_name TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -41,6 +44,11 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_mensajes_created_at ON whatsapp_mensajes
 -- RLS Policies para whatsapp_config (solo usuarios autenticados pueden leer/escribir)
 ALTER TABLE whatsapp_config ENABLE ROW LEVEL SECURITY;
 
+-- Eliminar políticas existentes si existen
+DROP POLICY IF EXISTS "Usuarios autenticados pueden leer configuración de WhatsApp" ON whatsapp_config;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden actualizar configuración de WhatsApp" ON whatsapp_config;
+
+-- Crear políticas
 CREATE POLICY "Usuarios autenticados pueden leer configuración de WhatsApp"
     ON whatsapp_config FOR SELECT
     TO authenticated
@@ -55,6 +63,11 @@ CREATE POLICY "Usuarios autenticados pueden actualizar configuración de WhatsAp
 -- RLS Policies para whatsapp_mensajes
 ALTER TABLE whatsapp_mensajes ENABLE ROW LEVEL SECURITY;
 
+-- Eliminar políticas existentes si existen
+DROP POLICY IF EXISTS "Usuarios autenticados pueden leer mensajes de WhatsApp" ON whatsapp_mensajes;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar mensajes de WhatsApp" ON whatsapp_mensajes;
+
+-- Crear políticas
 CREATE POLICY "Usuarios autenticados pueden leer mensajes de WhatsApp"
     ON whatsapp_mensajes FOR SELECT
     TO authenticated

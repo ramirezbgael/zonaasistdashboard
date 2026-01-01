@@ -472,12 +472,16 @@ export default function WhatsAppPage() {
                                 <li>Escanea este código</li>
                             </ol>
                             <div className="qr-code-wrapper">
-                                <QRCodeSVG 
-                                    value={qrCode} 
-                                    size={256}
-                                    level="M"
-                                    includeMargin={true}
-                                />
+                                {qrCode.startsWith('data:image') ? (
+                                    <img src={qrCode} alt="QR Code" style={{ width: '256px', height: '256px' }} />
+                                ) : (
+                                    <QRCodeSVG 
+                                        value={qrCode} 
+                                        size={256}
+                                        level="M"
+                                        includeMargin={true}
+                                    />
+                                )}
                             </div>
                             <p className="qr-note">
                                 El código expira en 60 segundos. Si expira, haz clic en "Iniciar Sesión" nuevamente.
