@@ -21,6 +21,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     notas: ''
   });
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNotaPDF, setShowNotaPDF] = useState(false);
   const [pedidoGuardado, setPedidoGuardado] = useState(null);
   const [proveedorGuardado, setProveedorGuardado] = useState(null);
@@ -134,6 +135,13 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevenir múltiples submits
+    if (isSubmitting || loading) {
+      return;
+    }
+    
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
@@ -252,7 +260,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     } catch (error) {
       console.error('Error:', error);
       alert(`Error: ${error.message}`);
-    } finally {
+      setIsSubmitting(false);
       setLoading(false);
     }
   };
@@ -377,6 +385,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('proveedor')}
                 className="typeform-btn-primary typeform-next-btn"
+                disabled={loading || isSubmitting}
               >
                 Continuar →
               </button>
@@ -417,6 +426,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('cliente_telefono')}
                 className="typeform-btn-primary typeform-next-btn"
+                disabled={loading || isSubmitting}
               >
                 Continuar →
               </button>
@@ -426,6 +436,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(0)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -467,6 +478,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(1)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -474,7 +486,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('cliente_datos')}
                 className="typeform-btn-primary"
-                disabled={!formData.cliente_nombre || !formData.cliente_email}
+                disabled={!formData.cliente_nombre || !formData.cliente_email || loading || isSubmitting}
               >
                 Continuar →
               </button>
@@ -510,6 +522,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(clienteEncontrado && verificarDatosCompletos(clienteEncontrado).faltantes.length === 0 ? 1 : 2)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -518,6 +531,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                   type="button"
                   onClick={() => handleFieldComplete('producto')}
                   className="typeform-btn-primary"
+                  disabled={loading || isSubmitting}
                 >
                   Continuar →
                 </button>
@@ -555,6 +569,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(3)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -563,6 +578,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                   type="button"
                   onClick={() => handleFieldComplete('cantidad')}
                   className="typeform-btn-primary"
+                  disabled={loading || isSubmitting}
                 >
                   Continuar →
                 </button>
@@ -601,6 +617,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(4)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -609,6 +626,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                   type="button"
                   onClick={() => handleFieldComplete('precio_total')}
                   className="typeform-btn-primary"
+                  disabled={loading || isSubmitting}
                 >
                   Continuar →
                 </button>
@@ -683,6 +701,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(5)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -690,6 +709,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('adelanto')}
                 className="typeform-btn-primary"
+                disabled={loading || isSubmitting}
               >
                 Continuar →
               </button>
@@ -723,6 +743,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(6)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -730,6 +751,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('fecha_esperada')}
                 className="typeform-btn-primary"
+                disabled={loading || isSubmitting}
               >
                 {formData.fecha_esperada ? 'Continuar →' : 'Omitir →'}
               </button>
@@ -758,6 +780,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(7)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
             </button>
@@ -768,9 +791,14 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                   handleSubmit(e);
                 }}
                 className="typeform-btn-primary"
-                disabled={loading}
+                disabled={loading || isSubmitting}
               >
-                {loading ? 'Guardando...' : '✓ Agregar Pedido'}
+                {loading ? (
+                  <>
+                    <span style={{ display: 'inline-block', marginRight: '0.5rem' }}>⏳</span>
+                    Guardando...
+                  </>
+                ) : '✓ Agregar Pedido'}
             </button>
             </div>
           </div>

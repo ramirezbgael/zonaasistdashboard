@@ -19,6 +19,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     fecha_entrega: ''
   });
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
   const [showNotaPDF, setShowNotaPDF] = useState(false);
@@ -123,6 +124,13 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevenir múltiples submits
+    if (isSubmitting || loading) {
+      return;
+    }
+    
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
@@ -230,13 +238,13 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
         setClienteGuardado(cliente);
         setShowNotaPDF(true);
       } else {
-      onDocumentoAdded();
-      onClose();
+        onDocumentoAdded();
+        onClose();
       }
     } catch (error) {
       console.error('Error:', error);
       alert(`Error: ${error.message}`);
-    } finally {
+      setIsSubmitting(false);
       setLoading(false);
     }
   };
@@ -368,6 +376,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('tipo_documento')}
                 className="typeform-btn-primary typeform-next-btn"
+                disabled={loading || isSubmitting}
               >
                 Continuar →
               </button>
@@ -415,6 +424,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(0)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -423,6 +433,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                   type="button"
                   onClick={() => handleFieldComplete('cliente_telefono')}
                   className="typeform-btn-primary"
+                  disabled={loading || isSubmitting}
                 >
                   Continuar →
                 </button>
@@ -484,6 +495,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(1)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -493,6 +505,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                   type="button"
                   onClick={() => handleFieldComplete('cliente_datos')}
                   className="typeform-btn-primary"
+                  disabled={loading || isSubmitting}
                 >
                   Continuar →
                 </button>
@@ -537,6 +550,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                   }
                 }}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -545,6 +559,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                   type="button"
                   onClick={() => handleFieldComplete('precio_total')}
                   className="typeform-btn-primary"
+                  disabled={loading || isSubmitting}
                 >
                   Continuar →
                 </button>
@@ -619,6 +634,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 type="button"
                 onClick={() => setCurrentStep(3)}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
               </button>
@@ -626,6 +642,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 type="button"
                 onClick={() => handleFieldComplete('adelanto')}
                 className="typeform-btn-primary"
+                disabled={loading || isSubmitting}
               >
                 Continuar →
               </button>
@@ -711,6 +728,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                   }
                 }}
                 className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
               >
                 ← Volver
             </button>
@@ -721,9 +739,14 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                   handleSubmit(e);
                 }}
                 className="typeform-btn-primary"
-                disabled={loading}
+                disabled={loading || isSubmitting}
               >
-                {loading ? 'Guardando...' : '✓ Agregar Documento'}
+                {loading ? (
+                  <>
+                    <span style={{ display: 'inline-block', marginRight: '0.5rem' }}>⏳</span>
+                    Guardando...
+                  </>
+                ) : '✓ Agregar Documento'}
             </button>
             </div>
           </div>

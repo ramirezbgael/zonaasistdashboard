@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
-import './AddEquipoModal.css';
 
 export default function AddEquipoModal({ onClose, onEquipoAdded }) {
   const [formData, setFormData] = useState({
@@ -10,9 +9,12 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
     color: '',
     nota: '',
     problema: '',
-    proceso_id: ''
+    proceso_id: '',
+    cargador: '' // 'si', 'no', o ''
   });
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [existingData, setExistingData] = useState({
     colores: []
   });
@@ -22,72 +24,57 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
   const [procesos, setProcesos] = useState([]);
   const [modelosDisponibles, setModelosDisponibles] = useState([]);
 
-  // Marcas predefinidas
   const marcasPredefinidas = [
-    // PCs
     'Dell', 'HP', 'Lenovo', 'Acer', 'ASUS', 'Toshiba', 'Sony', 'Samsung', 'Apple', 'MSI',
-    // Impresoras Epson
     'Epson'
   ];
 
-  // Modelos por marca
   const modelosPorMarca = {
-    // Dell
     'Dell': [
       'Inspiron 15 3000', 'Inspiron 15 5000', 'Inspiron 15 7000',
       'Latitude 3420', 'Latitude 5420', 'Latitude 7420',
       'XPS 13', 'XPS 15', 'Vostro 3500', 'OptiPlex 3080'
     ],
-    // HP
     'HP': [
       'Pavilion 15', 'Pavilion x360', 'EliteBook 840', 'EliteBook 850',
       'ProBook 450', 'ProBook 650', 'Spectre x360', 'Envy 13',
       'Omen 15', 'ZBook 15'
     ],
-    // Lenovo
     'Lenovo': [
       'ThinkPad E14', 'ThinkPad E15', 'ThinkPad T14', 'ThinkPad T15',
       'IdeaPad 3', 'IdeaPad 5', 'Yoga 7i', 'Legion 5',
       'ThinkCentre M720', 'ThinkStation P330'
     ],
-    // Acer
     'Acer': [
       'Aspire 3', 'Aspire 5', 'Aspire 7', 'Swift 3', 'Swift 5',
       'Nitro 5', 'Predator Helios', 'TravelMate P2', 'Spin 3',
       'Veriton X2660G'
     ],
-    // ASUS
     'ASUS': [
       'VivoBook 15', 'VivoBook S15', 'ZenBook 13', 'ZenBook 14',
       'ROG Strix G15', 'TUF Gaming F15', 'ExpertBook B1',
       'ProArt StudioBook', 'Chromebook Flip'
     ],
-    // Toshiba
     'Toshiba': [
       'Satellite C55', 'Satellite L50', 'Portégé X30',
       'Tecra A50', 'dynabook Portégé X40'
     ],
-    // Sony
     'Sony': [
       'VAIO Z', 'VAIO S', 'VAIO Pro', 'VAIO Fit'
     ],
-    // Samsung
     'Samsung': [
       'Galaxy Book Pro', 'Galaxy Book2', 'Notebook 9',
       'Chromebook 4', 'ATIV Book'
     ],
-    // Apple
     'Apple': [
       'MacBook Air M1', 'MacBook Air M2', 'MacBook Pro 13"',
       'MacBook Pro 14"', 'MacBook Pro 16"', 'iMac 24"',
       'Mac mini', 'Mac Studio', 'iMac Pro'
     ],
-    // MSI
     'MSI': [
       'Modern 14', 'Modern 15', 'Prestige 14', 'Prestige 15',
       'GF63 Thin', 'GL65 Leopard', 'GS66 Stealth', 'Creator 15'
     ],
-    // Epson
     'Epson': [
       'L3150', 'L3250', 'L4150', 'L4260', 'L5190', 'L6160', 'L6170', 'L6190',
       'EcoTank L3110', 'EcoTank L3210', 'EcoTank L5590',
@@ -97,7 +84,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
     ]
   };
 
-  // Cargar datos existentes al abrir el modal
   useEffect(() => {
     const loadExistingData = async () => {
       try {
@@ -112,14 +98,12 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         }
 
         if (data && data.length > 0) {
-          // Obtener colores únicos
           const colores = [...new Set(data.map(item => item.color))];
 
           setExistingData({
             colores
           });
 
-          // Calcular la siguiente nota
           const ultimaNota = data[0].nota;
           const siguienteNota = parseInt(ultimaNota) + 1;
           
@@ -154,15 +138,13 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Si cambia la marca, actualizar modelos disponibles y resetear modelo
     if (name === 'marca') {
       setFormData(prev => ({
         ...prev,
         [name]: value,
-        modelo: '' // Resetear modelo cuando cambia la marca
+        modelo: ''
       }));
       
-      // Actualizar modelos disponibles
       if (value && modelosPorMarca[value]) {
         setModelosDisponibles(modelosPorMarca[value]);
       } else {
@@ -175,7 +157,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       }));
     }
 
-    // Mostrar sugerencias solo para color
     if (name === 'color' && value.trim()) {
       const filtered = existingData.colores.filter(color => 
         color.toLowerCase().includes(value.toLowerCase())
@@ -196,28 +177,32 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (isSubmitting || loading) {
+      return;
+    }
+    
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
-      // Validar que los campos requeridos no estén vacíos
       if (!formData.marca.trim() || !formData.modelo.trim() || !formData.color.trim() || !formData.nota.trim() || !formData.proceso_id) {
         alert('Por favor completa todos los campos requeridos (Marca, Modelo, Color, Nota y Proceso)');
         setLoading(false);
         return;
       }
 
-      // Preparar los datos para inserción
       const equipoData = {
         marca: formData.marca.trim(),
         modelo: formData.modelo.trim(),
         color: formData.color.trim(),
         nota: formData.nota.trim(),
-        problema: formData.problema.trim() || null
+        problema: formData.problema.trim() || null,
+        cargador: formData.cargador || null
       };
 
       console.log('Datos a insertar:', equipoData);
       
-      // Verificar permisos de lectura primero
       const { data: testData, error: testError } = await supabase
         .from('equipos')
         .select('id')
@@ -230,7 +215,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         return;
       }
 
-      // Intentar insertar el equipo
       const { data, error } = await supabase
         .from('equipos')
         .insert([equipoData])
@@ -239,69 +223,72 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       if (error) {
         console.error('Error al agregar equipo:', error);
         alert(`Error al agregar el equipo: ${error.message}`);
-      } else {
-        console.log('Equipo agregado exitosamente:', data);
-        
-        // Crear estado inicial del equipo con el proceso seleccionado
-        if (data && data[0]) {
-          const { error: estadoError } = await supabase
-            .from('estado_equipos')
-            .insert({
-              equipo_id: data[0].id,
-              estado: 'en_proceso',
-              proceso_actual_id: parseInt(formData.proceso_id),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-
-          if (estadoError) {
-            console.error('Error al crear estado del equipo:', estadoError);
-          }
-
-          // Registrar inicio del proceso en historial
-          const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
-          const { error: historialError } = await supabase
-            .from('historial_procesos')
-            .insert({
-              equipo_id: data[0].id,
-              proceso_id: parseInt(formData.proceso_id),
-              notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
-              fecha_inicio: new Date().toISOString()
-            });
-
-          if (historialError) {
-            console.error('Error al crear historial:', historialError);
-          }
-
-          // Crear notificación de recepción (para enviar nota de recepción por correo)
-          try {
-            // Obtener información del cliente si existe
-            let clienteInfo = null;
-            if (data[0].cliente_id) {
-              const { data: clienteData, error: clienteError } = await supabase
-                .from('clientes')
-                .select('id, nombre, telefono, email')
-                .eq('id', data[0].cliente_id)
-                .single();
-              
-              if (!clienteError && clienteData) {
-                clienteInfo = clienteData;
-              }
-            }
-
-            await notificarEquipoNuevo(data[0], clienteInfo);
-          } catch (notifError) {
-            console.error('Error creando notificación de recepción (no crítico):', notifError);
-          }
-        }
-        
-        onEquipoAdded(); // Recargar la lista
-        onClose(); // Cerrar el modal
+        setIsSubmitting(false);
+        setLoading(false);
+        return;
       }
+      
+      console.log('Equipo agregado exitosamente:', data);
+      
+      if (data && data[0]) {
+        const { error: estadoError } = await supabase
+          .from('estado_equipos')
+          .insert({
+            equipo_id: data[0].id,
+            estado: 'en_proceso',
+            proceso_actual_id: parseInt(formData.proceso_id),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (estadoError) {
+          console.error('Error al crear estado del equipo:', estadoError);
+        }
+
+        const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
+        const { error: historialError } = await supabase
+          .from('historial_procesos')
+          .insert({
+            equipo_id: data[0].id,
+            proceso_id: parseInt(formData.proceso_id),
+            notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
+            fecha_inicio: new Date().toISOString()
+          });
+
+        if (historialError) {
+          console.error('Error al crear historial:', historialError);
+        }
+
+        try {
+          let clienteInfo = null;
+          if (data[0].cliente_id) {
+            const { data: clienteData, error: clienteError } = await supabase
+              .from('clientes')
+              .select('id, nombre, telefono, email')
+              .eq('id', data[0].cliente_id)
+              .single();
+            
+            if (!clienteError && clienteData) {
+              clienteInfo = clienteData;
+            }
+          }
+
+          await notificarEquipoNuevo(data[0], clienteInfo);
+        } catch (notifError) {
+          console.error('Error creando notificación de recepción (no crítico):', notifError);
+        }
+      }
+      
+      setShowSuccess(true);
+      onEquipoAdded();
+      
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (error) {
       console.error('Error inesperado:', error);
       alert(`Error inesperado: ${error.message}`);
-    } finally {
+      setIsSubmitting(false);
       setLoading(false);
     }
   };
@@ -313,169 +300,168 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal">
-        <button onClick={onClose} className="close-btn">×</button>
-        <h2>Agregar Nuevo Equipo</h2>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="marca">Marca:</label>
-            <select
-              id="marca"
-              name="marca"
-              value={formData.marca}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="">Seleccionar marca...</option>
-              {marcasPredefinidas.map(marca => (
-                <option key={marca} value={marca}>
-                  {marca}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="modelo">Modelo:</label>
-            <select
-              id="modelo"
-              name="modelo"
-              value={formData.modelo}
-              onChange={handleInputChange}
-              required
-              disabled={!formData.marca}
-            >
-              <option value="">
-                {!formData.marca ? 'Primero selecciona una marca...' : 'Seleccionar modelo...'}
-              </option>
-              {modelosDisponibles.map(modelo => (
-                <option key={modelo} value={modelo}>
-                  {modelo}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="color">Color:</label>
-            <div className="color-selector-container">
-              <div className="color-options-grid">
-                {[
-                  { name: 'Negro', value: '#2c2c2c' },
-                  { name: 'Blanco', value: '#f8f9fa' },
-                  { name: 'Gris', value: '#6c757d' },
-                  { name: 'Rojo', value: '#dc3545' },
-                  { name: 'Verde', value: '#28a745' },
-                  { name: 'Azul', value: '#0d6efd' },
-                  { name: 'Amarillo', value: '#ffc107' },
-                  { name: 'Naranja', value: '#fd7e14' },
-                  { name: 'Morado', value: '#6f42c1' },
-                  { name: 'Rosa', value: '#e83e8c' },
-                  { name: 'Celeste', value: '#17a2b8' },
-                  { name: 'Plata', value: '#c0c0c0' },
-                  { name: 'Dorado', value: '#ffd700' },
-                  { name: 'Azul marino', value: '#001f3f' },
-                  { name: 'Verde claro', value: '#90ee90' },
-                  { name: 'Gris oscuro', value: '#495057' }
-                ].map((colorOption) => (
-                  <button
-                    key={colorOption.name}
-                    type="button"
-                    className={`color-option-circle ${formData.color.toLowerCase() === colorOption.name.toLowerCase() ? 'selected' : ''}`}
-                    onClick={() => {
-                      setFormData(prev => ({ ...prev, color: colorOption.name }));
-                      setSuggestions(prev => ({ ...prev, color: [] }));
-                    }}
-                    title={colorOption.name}
-                    style={{ backgroundColor: colorOption.value }}
-                  >
-                    {formData.color.toLowerCase() === colorOption.name.toLowerCase() && (
-                      <span className="color-check">✓</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="text"
-                id="color"
-                name="color"
-                value={formData.color}
-                onChange={handleInputChange}
-                required
-                autoComplete="off"
-                placeholder="O escribe un color personalizado..."
-                className="color-text-input"
-              />
-              {suggestions.color.length > 0 && (
-                <div className="suggestions">
-                  {suggestions.color.map((color, index) => (
-                    <div
-                      key={index}
-                      className="suggestion-item"
-                      onClick={() => handleSuggestionClick('color', color)}
-                    >
-                      {color}
-                    </div>
-                  ))}
-                </div>
-              )}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
+      <div className="w-full max-w-4xl bg-slate-900 rounded-xl shadow-2xl flex border border-slate-700">
+        <div className="hidden md:flex flex-col justify-center items-center w-1/3 bg-slate-800 rounded-l-xl border-r border-slate-700 p-8">
+          <div className="mb-4 text-blue-500 font-bold text-xs tracking-widest px-3 py-1 rounded bg-blue-700">PASO EN EJECUCIÓN</div>
+          <h2 className="text-2xl font-bold text-white mb-2 text-center">Agregar Nuevo Equipo</h2>
+          <p className="text-slate-300 text-sm text-center">Completa los datos del equipo a ingresar. Todos los campos marcados son obligatorios para el registro técnico.</p>
+        </div>
+        <div className="flex-1 p-6 md:p-10 bg-slate-900 rounded-r-xl flex flex-col justify-center">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-red-500 text-2xl font-bold focus:outline-none">×</button>
+          <h2 className="md:hidden text-xl font-bold text-white mb-4 text-center">Agregar Nuevo Equipo</h2>
+          {showSuccess ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="text-5xl text-green-500 mb-4">✓</div>
+              <h3 className="text-lg font-semibold text-green-400 mb-2">¡Equipo agregado exitosamente!</h3>
+              <p className="text-slate-300 text-center">El equipo ha sido guardado correctamente.</p>
             </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="nota">Nota:</label>
-            <input
-              type="text"
-              id="nota"
-              name="nota"
-              value={formData.nota}
-              onChange={handleInputChange}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="proceso_id">Proceso a realizar:</label>
-            <select
-              id="proceso_id"
-              name="proceso_id"
-              value={formData.proceso_id}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="">Seleccionar proceso...</option>
-              {procesos.map(proceso => (
-                <option key={proceso.id} value={proceso.id}>
-                  {proceso.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="problema">Detalle:</label>
-            <textarea
-              id="problema"
-              name="problema"
-              value={formData.problema}
-              onChange={handleInputChange}
-              rows="2"
-              placeholder="Detalles adicionales (opcional)"
-              className="detalle-textarea"
-            />
-          </div>
-
-          <div className="form-actions">
-            <button type="button" onClick={onClose} className="btn-secondary">
-              Cancelar
-            </button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Agregando...' : 'Agregar Equipo'}
-            </button>
-          </div>
-        </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="marca" className="block text-slate-200 font-medium mb-1">Marca</label>
+                  <select
+                    id="marca"
+                    name="marca"
+                    value={formData.marca}
+                    onChange={handleInputChange}
+                    required
+                    disabled={loading || isSubmitting}
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">Seleccionar marca...</option>
+                    {marcasPredefinidas.map(marca => (
+                      <option key={marca} value={marca}>{marca}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="modelo" className="block text-slate-200 font-medium mb-1">Modelo</label>
+                  <select
+                    id="modelo"
+                    name="modelo"
+                    value={formData.modelo}
+                    onChange={handleInputChange}
+                    required
+                    disabled={!formData.marca || loading || isSubmitting}
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">{!formData.marca ? 'Primero selecciona una marca...' : 'Seleccionar modelo...'}</option>
+                    {modelosDisponibles.map(modelo => (
+                      <option key={modelo} value={modelo}>{modelo}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="color" className="block text-slate-200 font-medium mb-1">Color</label>
+                  <input
+                    type="text"
+                    id="color"
+                    name="color"
+                    value={formData.color}
+                    onChange={handleInputChange}
+                    required
+                    autoComplete="off"
+                    placeholder="Color..."
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    disabled={loading || isSubmitting}
+                  />
+                  {suggestions.color.length > 0 && (
+                    <div className="mt-1 bg-slate-800 border border-slate-600 rounded shadow text-white">
+                      {suggestions.color.map((color, index) => (
+                        <div
+                          key={index}
+                          className="px-3 py-1 hover:bg-blue-700 cursor-pointer"
+                          onClick={() => handleSuggestionClick('color', color)}
+                        >
+                          {color}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="nota" className="block text-slate-200 font-medium mb-1">Nota</label>
+                  <input
+                    type="text"
+                    id="nota"
+                    name="nota"
+                    value={formData.nota}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    disabled={loading || isSubmitting}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="proceso_id" className="block text-slate-200 font-medium mb-1">Proceso a realizar</label>
+                  <select
+                    id="proceso_id"
+                    name="proceso_id"
+                    value={formData.proceso_id}
+                    onChange={handleInputChange}
+                    required
+                    disabled={loading || isSubmitting}
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">Seleccionar proceso...</option>
+                    {procesos.map(proceso => (
+                      <option key={proceso.id} value={proceso.id}>{proceso.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="cargador" className="block text-slate-200 font-medium mb-1">¿Se queda el cargador?</label>
+                  <select
+                    id="cargador"
+                    name="cargador"
+                    value={formData.cargador}
+                    onChange={handleInputChange}
+                    disabled={loading || isSubmitting}
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="si">Sí, se queda el cargador</option>
+                    <option value="no">No, no se queda el cargador</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label htmlFor="problema" className="block text-slate-200 font-medium mb-1">Detalle</label>
+                  <textarea
+                    id="problema"
+                    name="problema"
+                    value={formData.problema}
+                    onChange={handleInputChange}
+                    rows="2"
+                    placeholder="Detalles adicionales (opcional)"
+                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    disabled={loading || isSubmitting}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-2 rounded font-semibold bg-slate-700 text-white border border-slate-600 hover:bg-slate-600 focus:outline-none"
+                  disabled={loading || isSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded font-bold bg-blue-700 text-white shadow hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={loading || isSubmitting}
+                >
+                  {loading ? (
+                    <span>Agregando...</span>
+                  ) : 'Agregar Equipo'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );
