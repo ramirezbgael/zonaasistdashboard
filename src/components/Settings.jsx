@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import ProcesosPage from './ProcesosPage.jsx';
 import './Settings.css';
@@ -7,10 +8,93 @@ import './Settings.css';
 export default function Settings({ onClose }) {
   const { isDarkMode, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('apariencia');
+  const [smtpConfig, setSmtpConfig] = useState({
+    smtp_host: '',
+    smtp_port: '',
+    smtp_user: '',
+    smtp_pass: '',
+    smtp_from: '',
+    smtp_secure: true
+  });
+  const [smtpLoading, setSmtpLoading] = useState(false);
+  const [smtpMessage, setSmtpMessage] = useState('');
+
+  // Cargar config SMTP al abrir
+  useEffect(() => {
+    async function fetchConfig() {
+      setSmtpLoading(true);
+      setSmtpMessage('');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!user) {
+        setSmtpMessage('No autenticado');
+        setSmtpLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('smtp_config')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (data) {
+        setSmtpConfig({
+          smtp_host: data.smtp_host || '',
+          smtp_port: data.smtp_port?.toString() || '',
+          smtp_user: data.smtp_user || '',
+          smtp_pass: data.smtp_pass || '',
+          smtp_from: data.smtp_from || '',
+          smtp_secure: data.smtp_secure ?? true
+        });
+      } else {
+        setSmtpConfig({
+          smtp_host: '',
+          smtp_port: '',
+          smtp_user: '',
+          smtp_pass: '',
+          smtp_from: '',
+          smtp_secure: true
+        });
+      }
+      setSmtpLoading(false);
+      if (error || userError) setSmtpMessage('Error al cargar configuración SMTP');
+    }
+    if (activeTab === 'email') fetchConfig();
+  }, [activeTab]);
+
+  async function handleSmtpSave(e) {
+    e.preventDefault();
+    setSmtpLoading(true);
+    setSmtpMessage('');
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (!user) {
+      setSmtpMessage('No autenticado');
+      setSmtpLoading(false);
+      return;
+    }
+    // Ensure smtp_port is a number and only send valid fields
+    const upsertData = {
+      smtp_host: smtpConfig.smtp_host,
+      smtp_port: Number(smtpConfig.smtp_port),
+      smtp_user: smtpConfig.smtp_user,
+      smtp_pass: smtpConfig.smtp_pass,
+      smtp_from: smtpConfig.smtp_from,
+      smtp_secure: !!smtpConfig.smtp_secure,
+      user_id: user.id
+    };
+    console.log('Upsert data:', upsertData); // Debug: log data being sent
+    const { error } = await supabase
+      .from('smtp_config')
+      .upsert(upsertData, { onConflict: ['user_id'] });
+    if (error) {
+      console.error('Supabase error:', error); // Debug: log full error
+    }
+    setSmtpLoading(false);
+    setSmtpMessage(error ? `Error al guardar configuración: ${error.message}` : 'Configuración guardada');
+  }
 
   const tabs = [
     { id: 'apariencia', label: 'Apariencia', icon: 'palette' },
     { id: 'procesos', label: 'Procesos', icon: 'cog' },
+    { id: 'email', label: 'Email', icon: 'envelope' },
   ];
 
   return (
@@ -68,6 +152,39 @@ export default function Settings({ onClose }) {
             <div className="settings-procesos-section">
               <ProcesosPage />
             </div>
+          )}
+
+          {activeTab === 'email' && (
+            <form className="settings-section" onSubmit={handleSmtpSave}>
+              <h3 className="settings-section-title">Configuración de Email SMTP</h3>
+              <div className="settings-item">
+                <label>Servidor SMTP</label>
+                <input type="text" value={smtpConfig.smtp_host} onChange={e => setSmtpConfig(c => ({ ...c, smtp_host: e.target.value }))} required />
+              </div>
+              <div className="settings-item">
+                <label>Puerto</label>
+                <input type="number" value={smtpConfig.smtp_port} onChange={e => setSmtpConfig(c => ({ ...c, smtp_port: e.target.value }))} required />
+              </div>
+              <div className="settings-item">
+                <label>Usuario</label>
+                <input type="text" value={smtpConfig.smtp_user} onChange={e => setSmtpConfig(c => ({ ...c, smtp_user: e.target.value }))} required />
+              </div>
+              <div className="settings-item">
+                <label>Contraseña</label>
+                <input type="password" value={smtpConfig.smtp_pass} onChange={e => setSmtpConfig(c => ({ ...c, smtp_pass: e.target.value }))} required />
+              </div>
+              <div className="settings-item">
+                <label>Remitente (From)</label>
+                <input type="email" value={smtpConfig.smtp_from} onChange={e => setSmtpConfig(c => ({ ...c, smtp_from: e.target.value }))} required />
+              </div>
+              <div className="settings-item">
+                <label>SSL/TLS</label>
+                <input type="checkbox" checked={smtpConfig.smtp_secure} onChange={e => setSmtpConfig(c => ({ ...c, smtp_secure: e.target.checked }))} />
+                <span style={{ marginLeft: 8 }}>{smtpConfig.smtp_secure ? 'Seguro (recomendado)' : 'Sin cifrado'}</span>
+              </div>
+              <button type="submit" className="settings-save-btn" disabled={smtpLoading}>Guardar</button>
+              {smtpMessage && <div className="settings-message">{smtpMessage}</div>}
+            </form>
           )}
         </div>
       </div>
