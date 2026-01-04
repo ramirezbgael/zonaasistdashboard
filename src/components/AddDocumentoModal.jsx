@@ -43,6 +43,14 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     };
   }, []);
 
+  // --- FIX: Paso nunca debe exceder el total de steps ---
+  // Si el paso se sale de rango, lo corregimos automáticamente
+  useEffect(() => {
+    if (currentStep > steps.length - 1) {
+      setCurrentStep(steps.length - 1);
+    }
+  }, [currentStep, steps.length]);
+
   const handleInputChange = async (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -342,7 +350,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
 
         {/* Step Indicator */}
         <div className="typeform-step-indicator">
-          Paso {currentStep + 1} de {totalSteps}
+          Paso {Math.min(currentStep + 1, steps.length)} de {steps.length}
         </div>
 
         {/* Step 0: Tipo de documento */}
