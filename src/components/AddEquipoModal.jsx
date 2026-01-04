@@ -186,14 +186,14 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (isSubmitting || loading) {
       return;
     }
-    
     setIsSubmitting(true);
     setLoading(true);
-
+    let equipoId = null;
+    let equipoObj = null;
+    let clienteInfo = null;
     try {
       if (!formData.marca.trim() || !formData.modelo.trim() || !formData.color.trim() || !formData.nota.trim() || !formData.proceso_id || formData.cargador === null) {
         alert('Por favor completa todos los campos requeridos (Marca, Modelo, Color, Cargador, Nota y Proceso)');
@@ -201,8 +201,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         setLoading(false);
         return;
       }
-
-      // Verificar si la nota ya existe (con retry para evitar race conditions)
       let notaExistente = null;
       let intentos = 0;
       const maxIntentos = 3;
@@ -258,7 +256,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         return;
       }
 
-      // Intentar insertar el equipo
       const { data, error } = await supabase
         .from('equipos')
         .insert([equipoData])
@@ -271,19 +268,19 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         setLoading(false);
         return;
       }
-      
-      // Mostrar confirmación de éxito inmediatamente
+
+      if (data && data[0]) {
+        equipoId = data[0].id;
+        equipoObj = data[0];
+      }
+
       setShowSuccess(true);
-      setFormData({
-        marca: '', modelo: '', color: '', cargador: null, nota: '', problema: '', proceso_id: ''
-      });
+      setFormData({ marca: '', modelo: '', color: '', cargador: null, nota: '', problema: '', proceso_id: '' });
       onEquipoAdded && onEquipoAdded();
       setIsSubmitting(false);
       setLoading(false);
-      // Abrir automáticamente el modal de NotaPDF de recepción
       setShowNotaPDFModal && setShowNotaPDFModal(true);
       setTipoNotaPDF && setTipoNotaPDF('recepcion');
-      // Cerrar el modal automáticamente después de mostrar la nota PDF
       setTimeout(() => {
         setShowSuccess(false);
         setShowNotaPDFModal && setShowNotaPDFModal(false);
@@ -291,14 +288,12 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         onClose();
       }, 2000);
 
-      // --- Lo siguiente es NO CRÍTICO, errores aquí no afectan el feedback visual ---
-      // Crear estado inicial del equipo con el proceso seleccionado
-      if (data && data[0]) {
+      if (equipoId) {
         try {
           await supabase
             .from('estado_equipos')
             .insert({
-              equipo_id: data[0].id,
+              equipo_id: equipoId,
               estado: 'en_proceso',
               proceso_actual_id: parseInt(formData.proceso_id),
               created_at: new Date().toISOString(),
@@ -307,13 +302,12 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         } catch (estadoError) {
           console.error('Error al crear estado del equipo:', estadoError);
         }
-        // Registrar inicio del proceso en historial
         try {
           const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
           await supabase
             .from('historial_procesos')
             .insert({
-              equipo_id: data[0].id,
+              equipo_id: equipoId,
               proceso_id: parseInt(formData.proceso_id),
               notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
               fecha_inicio: new Date().toISOString()
@@ -321,18 +315,16 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         } catch (historialError) {
           console.error('Error al crear historial:', historialError);
         }
-        // Crear notificación de recepción (no crítico)
         try {
-          let clienteInfo = null;
-          if (data[0].cliente_id) {
+          if (equipoObj && equipoObj.cliente_id) {
             const { data: clienteData, error: clienteError } = await supabase
               .from('clientes')
               .select('id, nombre, telefono, email')
-              .eq('id', data[0].cliente_id)
+              .eq('id', equipoObj.cliente_id)
               .single();
             if (!clienteError && clienteData) clienteInfo = clienteData;
           }
-          await notificarEquipoNuevo(data[0], clienteInfo);
+          await notificarEquipoNuevo(equipoObj, clienteInfo);
         } catch (notifError) {
           console.error('Error creando notificación de recepción (no crítico):', notifError);
         }
@@ -341,9 +333,7 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       console.error('Error inesperado:', error);
       setIsSubmitting(false);
       setLoading(false);
-      
-      // Manejo de errores más amigable
-      if (error.message.includes('duplicate key') || error.message.includes('23505')) {
+      if (error.message && (error.message.includes('duplicate key') || error.message.includes('23505'))) {
         alert(`La nota #${formData.nota.trim()} ya está en uso. Por favor usa otra nota.`);
       } else {
         alert(`Error inesperado: ${error.message || 'Por favor intenta de nuevo'}`);
@@ -357,7 +347,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
     }
   };
 
-  // Debug: verificar que el campo cargador esté en el estado
   console.log('FormData cargador:', formData.cargador);
   console.log('Procesos disponibles:', procesos);
 
@@ -448,6 +437,17 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
                     ¿Se queda el cargador? <span className="text-red-400">*</span>
                   </label>
                   <select
+                    id="cargador"
+                    name="cargador"
+                    value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        cargador: value === 'si' ? true : value === 'no' ? false : null
+                      }));
+                    }}
+                    required
                     id="cargador"
                     name="cargador"
                     value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}

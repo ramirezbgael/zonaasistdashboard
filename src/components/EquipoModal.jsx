@@ -303,6 +303,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
   const confirmarEntrega = async () => {
     setEntregaLoading(true);
+    let entregaSuccess = false;
     try {
       const { error: estadoError } = await supabase
         .from('estado_equipos')
@@ -326,13 +327,14 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       if (historialError) throw historialError;
 
-      // Crear notificación de equipo finalizado (no bloquea feedback visual)
-      try {
-        await notificarEquipoFinalizado(equipo, cliente);
-      } catch (notifError) {
-        console.error('Error creando notificación (no crítico):', notifError);
-      }
+      entregaSuccess = true;
+    } catch (error) {
+      console.error('Error al finalizar equipo:', error);
+      alert('Error al finalizar el equipo');
+    }
 
+    // Feedback visual y PDF SIEMPRE que la entrega fue exitosa
+    if (entregaSuccess) {
       setShowEntregaModal(false);
       setEntregaLoading(false);
       setShowEntregaSuccess(true);
@@ -346,11 +348,18 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         window.dispatchEvent(new Event('equipoUpdated'));
         onClose();
       }, 2000);
-    } catch (error) {
-      console.error('Error al finalizar equipo:', error);
-      alert('Error al finalizar el equipo');
+    } else {
       setEntregaLoading(false);
       setShowEntregaModal(false);
+    }
+
+    // Notificación/email: nunca bloquea feedback visual
+    if (entregaSuccess) {
+      try {
+        await notificarEquipoFinalizado(equipo, cliente);
+      } catch (notifError) {
+        console.error('Error creando notificación (no crítico):', notifError);
+      }
     }
   };
 
