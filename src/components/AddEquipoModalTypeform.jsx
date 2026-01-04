@@ -700,11 +700,6 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           fecha_inicio: new Date().toISOString()
         });
 
-        // Enviar email de confirmación si el cliente tiene email y la función está activada
-        if (false) {
-          // Email desactivado globalmente
-        }
-
         // Crear notificación
         try {
           await notificarEquipoNuevo(data[0], cliente.nombre);
@@ -712,17 +707,29 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           console.error('Error creando notificación (no crítico):', notifError);
         }
 
-        // Guardar datos para mostrar nota PDF
+        // Guardar datos para mostrar nota PDF y confirmar
         setEquipoGuardado({
           ...data[0],
           procesos: procesoSeleccionado
         });
         setClienteGuardado(cliente);
         setShowNotaPDF(true);
-      } else {
-      onEquipoAdded();
-      onClose();
+        setLoading(false);
+        // Aquí puedes mostrar un mensaje de éxito si quieres
+        return;
       }
+      // Si no se insertó, refrescar siguienteNota y mostrar error
+      const { data: equiposData } = await supabase
+        .from('equipos')
+        .select('nota')
+        .order('nota', { ascending: false })
+        .limit(1);
+      if (equiposData && equiposData.length > 0) {
+        setSiguienteNota(parseInt(equiposData[0].nota) + 1);
+      }
+      alert('Error: No se pudo guardar el equipo. Intenta de nuevo.');
+      setLoading(false);
+      return;
     } catch (error) {
       console.error('Error:', error);
       alert(`Error: ${error.message}`);
