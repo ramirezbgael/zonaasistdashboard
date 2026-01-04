@@ -165,11 +165,28 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     } else if (field === 'adelanto') {
       setTimeout(() => setCurrentStep(5), 300);
     } else if (field === 'fecha_entrega') {
-      // Siempre avanzar al paso de descripción, sin importar el tipo de documento
-      if (esTranscripcion) {
-        setTimeout(() => setCurrentStep(6), 300); // Paso 6 para transcripción
+      // Si no hay fecha, asignar automáticamente mañana
+      if (!formData.fecha_entrega) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const yyyy = tomorrow.getFullYear();
+        const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const dd = String(tomorrow.getDate()).padStart(2, '0');
+        const fechaMañana = `${yyyy}-${mm}-${dd}`;
+        setFormData(prev => ({ ...prev, fecha_entrega: fechaMañana }));
+        setTimeout(() => {
+          if (esTranscripcion) {
+            setCurrentStep(6);
+          } else {
+            setCurrentStep(5);
+          }
+        }, 300);
       } else {
-        setTimeout(() => setCurrentStep(5), 300); // Paso 5 para otros tipos
+        if (esTranscripcion) {
+          setTimeout(() => setCurrentStep(6), 300);
+        } else {
+          setTimeout(() => setCurrentStep(5), 300);
+        }
       }
     }
   };
@@ -711,7 +728,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 onClick={() => handleFieldComplete('fecha_entrega')}
                 className="typeform-btn-primary"
               >
-                {formData.fecha_entrega ? 'Continuar →' : 'Omitir →'}
+                Continuar →
               </button>
             </div>
           </div>
