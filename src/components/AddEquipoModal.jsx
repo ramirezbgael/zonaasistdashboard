@@ -23,6 +23,8 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
   });
   const [procesos, setProcesos] = useState([]);
   const [modelosDisponibles, setModelosDisponibles] = useState([]);
+  const [showNotaPDFModal, setShowNotaPDFModal] = useState(false);
+  const [tipoNotaPDF, setTipoNotaPDF] = useState(null);
 
   const marcasPredefinidas = [
     'Dell', 'HP', 'Lenovo', 'Acer', 'ASUS', 'Toshiba', 'Sony', 'Samsung', 'Apple', 'MSI',
@@ -278,11 +280,16 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       onEquipoAdded && onEquipoAdded();
       setIsSubmitting(false);
       setLoading(false);
-      // Cerrar el modal automáticamente después de 1.5s
+      // Abrir automáticamente el modal de NotaPDF de recepción
+      setShowNotaPDFModal && setShowNotaPDFModal(true);
+      setTipoNotaPDF && setTipoNotaPDF('recepcion');
+      // Cerrar el modal automáticamente después de mostrar la nota PDF
       setTimeout(() => {
         setShowSuccess(false);
+        setShowNotaPDFModal && setShowNotaPDFModal(false);
+        setTipoNotaPDF && setTipoNotaPDF(null);
         onClose();
-      }, 1500);
+      }, 2000);
 
       // --- Lo siguiente es NO CRÍTICO, errores aquí no afectan el feedback visual ---
       // Crear estado inicial del equipo con el proceso seleccionado

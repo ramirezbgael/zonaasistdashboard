@@ -25,6 +25,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [completandoPaso, setCompletandoPaso] = useState(false);
   const [showNotaPDFModal, setShowNotaPDFModal] = useState(false);
   const [tipoNotaPDF, setTipoNotaPDF] = useState(null); // 'recepcion' o 'entrega'
+  const [showEntregaSuccess, setShowEntregaSuccess] = useState(false);
   const ruletaWrapperRef = useRef(null);
 
   useEffect(() => {
@@ -325,7 +326,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       if (historialError) throw historialError;
 
-      // Crear notificación de equipo finalizado
+      // Crear notificación de equipo finalizado (no bloquea feedback visual)
       try {
         await notificarEquipoFinalizado(equipo, cliente);
       } catch (notifError) {
@@ -334,10 +335,17 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
 
       setShowEntregaModal(false);
       setEntregaLoading(false);
-      onEquipoUpdated?.();
-      // Disparar evento para actualizar el dashboard
-      window.dispatchEvent(new Event('equipoUpdated'));
-      onClose();
+      setShowEntregaSuccess(true);
+      setTipoNotaPDF('entrega');
+      setShowNotaPDFModal(true);
+
+      setTimeout(() => {
+        setShowEntregaSuccess(false);
+        setShowNotaPDFModal(false);
+        onEquipoUpdated?.();
+        window.dispatchEvent(new Event('equipoUpdated'));
+        onClose();
+      }, 2000);
     } catch (error) {
       console.error('Error al finalizar equipo:', error);
       alert('Error al finalizar el equipo');
@@ -1000,6 +1008,17 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
               setTipoNotaPDF(null);
             }}
           />
+        )}
+
+        {/* Feedback visual de éxito */}
+        {showEntregaSuccess && (
+          <div className="entrega-success-modal">
+            <div className="entrega-success-content">
+              <Icon name="check-circle" className="text-green-500 text-5xl mb-4" />
+              <h2 className="text-xl font-bold text-green-400 mb-2">¡Equipo entregado exitosamente!</h2>
+              <p className="text-slate-300">La nota de entrega se generó correctamente.</p>
+            </div>
+          </div>
         )}
       </div>
     </div>
