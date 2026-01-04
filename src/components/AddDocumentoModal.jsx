@@ -163,9 +163,14 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     } else if (field === 'precio_total' && formData.precio_total.trim()) {
       setTimeout(() => setCurrentStep(4), 300); // Ir a adelanto
     } else if (field === 'adelanto') {
-      setTimeout(() => setCurrentStep(5), 300); // Ir a fecha
+      setTimeout(() => setCurrentStep(5), 300);
     } else if (field === 'fecha_entrega') {
-      setTimeout(() => setCurrentStep(6), 300); // Ir a descripción
+      // Siempre avanzar al paso de descripción, sin importar el tipo de documento
+      if (esTranscripcion) {
+        setTimeout(() => setCurrentStep(6), 300); // Paso 6 para transcripción
+      } else {
+        setTimeout(() => setCurrentStep(5), 300); // Paso 5 para otros tipos
+      }
     }
   };
 
