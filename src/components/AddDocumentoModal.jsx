@@ -44,7 +44,43 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
   }, []);
 
   // --- FIX: Paso nunca debe exceder el total de steps ---
-  // Si el paso se sale de rango, lo corregimos automáticamente
+  // Mueve la declaración de steps ANTES del useEffect para evitar ReferenceError
+
+  const esTranscripcion = formData.tipo_documento === 'transcripcion';
+
+  const steps = [
+    {
+      title: '📄 Tipo de documento',
+      description: 'Selecciona el tipo de documento que vas a crear'
+    },
+    {
+      title: '📱 Teléfono del cliente',
+      description: 'Ingresa el número de teléfono del cliente'
+    },
+    {
+      title: '👤 Información del cliente',
+      description: 'Completa los datos del cliente'
+    },
+    ...(esTranscripcion ? [
+      {
+        title: '💰 Precio Total',
+        description: 'Ingresa el precio total de la transcripción'
+      },
+      {
+        title: '💵 Adelanto',
+        description: '¿Se pagó algún adelanto? (opcional)'
+      }
+    ] : []),
+    {
+      title: '📅 Fecha de entrega',
+      description: 'Selecciona la fecha de entrega (opcional)'
+    },
+    {
+      title: '📝 Descripción',
+      description: 'Agrega detalles adicionales (opcional)'
+    }
+  ];
+
   useEffect(() => {
     if (currentStep > steps.length - 1) {
       setCurrentStep(steps.length - 1);
@@ -257,52 +293,16 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     }
   };
 
-  const esTranscripcion = formData.tipo_documento === 'transcripcion';
-  
-  const steps = [
-    {
-      title: '📄 Tipo de documento',
-      description: 'Selecciona el tipo de documento que vas a crear'
-    },
-    {
-      title: '📱 Teléfono del cliente',
-      description: 'Ingresa el número de teléfono del cliente'
-    },
-    {
-      title: '👤 Información del cliente',
-      description: 'Completa los datos del cliente'
-    },
-    ...(esTranscripcion ? [
-      {
-        title: '💰 Precio Total',
-        description: 'Ingresa el precio total de la transcripción'
-      },
-      {
-        title: '💵 Adelanto',
-        description: '¿Se pagó algún adelanto? (opcional)'
-      }
-    ] : []),
-    {
-      title: '📅 Fecha de entrega',
-      description: 'Selecciona la fecha de entrega (opcional)'
-    },
-    {
-      title: '📝 Descripción',
-      description: 'Agrega detalles adicionales (opcional)'
-    }
-  ];
-
-  const totalSteps = steps.length;
   const getProgress = () => {
     if (currentStep === 2) {
       // Paso 2 puede tener sub-pasos (nombre y email)
       const subSteps = datosFaltantes.length;
-      if (subSteps === 0) return ((currentStep + 1) / totalSteps) * 100;
+      if (subSteps === 0) return ((currentStep + 1) / steps.length) * 100;
       // Si falta nombre, estamos en 2.1, si falta email en 2.2
       const currentSubStep = datosFaltantes.includes('nombre') && !formData.cliente_nombre ? 1 : 2;
-      return ((currentStep + currentSubStep / (subSteps + 1)) / totalSteps) * 100;
+      return ((currentStep + currentSubStep / (subSteps + 1)) / steps.length) * 100;
     }
-    return ((currentStep + 1) / totalSteps) * 100;
+    return ((currentStep + 1) / steps.length) * 100;
   };
 
   return (
