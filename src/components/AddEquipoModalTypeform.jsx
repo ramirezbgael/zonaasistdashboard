@@ -679,7 +679,24 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         .insert([equipoData])
         .select();
 
-      if (error) throw error;
+      if (error) {
+        // Si el error es por nota duplicada, refresca y muestra mensaje
+        if (error.message && error.message.includes('duplicate key value')) {
+          const { data: equiposData } = await supabase
+            .from('equipos')
+            .select('nota')
+            .order('nota', { ascending: false })
+            .limit(1);
+          if (equiposData && equiposData.length > 0) {
+            setSiguienteNota(parseInt(equiposData[0].nota) + 1);
+          }
+          alert('Error: La nota ya existe. Se ha actualizado el número de nota, intenta de nuevo.');
+        } else {
+          alert(`Error: ${error.message}`);
+        }
+        setLoading(false);
+        return;
+      }
 
       if (data && data[0]) {
         // Crear estado inicial
