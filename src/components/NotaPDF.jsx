@@ -344,12 +344,13 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
     }
   };
 
+  console.log('[NotaPDF] Render modal:', { tipo, equipo, cliente });
   return createPortal(
-    <div className="nota-pdf-container" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="nota-pdf-content" onClick={(e) => e.stopPropagation()}>
+    <div className="nota-pdf-container" style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(20,20,20,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="nota-pdf-content" style={{ background: '#222', color: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', maxWidth: 420, width: '100%', padding: 32, position: 'relative' }}>
         <div className="nota-pdf-header">
           <h2>{tipo === 'recepcion' ? 'Nota de Recepción' : 'Nota de Entrega'}</h2>
-          <button onClick={onClose} className="nota-pdf-close-btn">×</button>
+          <button onClick={onClose} className="nota-pdf-close-btn" style={{ position: 'absolute', top: 16, right: 16, fontSize: 24, background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>×</button>
         </div>
         <div className="nota-pdf-info">
           <p>El PDF está listo para abrir o descargar.</p>
@@ -358,67 +359,42 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
               <div className="nota-pdf-buttons">
                 <button
                   onClick={() => {
-                    // Usar data URI directamente en un iframe dentro de una nueva ventana
-                    // Esto es más compatible con Safari que blob URLs
+                    console.log('[NotaPDF] Abrir PDF:', pdfFileName);
                     try {
                       const newWindow = window.open('', '_blank');
                       if (newWindow) {
                         newWindow.document.write(`
                           <!DOCTYPE html>
-                          <html>
-                            <head>
-                              <title>${pdfFileName}</title>
-                              <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; }
-                                html, body { width: 100%; height: 100%; overflow: hidden; }
-                                iframe { width: 100%; height: 100vh; border: none; display: block; }
-                              </style>
-                            </head>
-                            <body>
-                              <iframe src="${pdfUrl.dataUri}" type="application/pdf"></iframe>
-                            </body>
-                          </html>
+                          <html><head><title>${pdfFileName}</title></head><body style='margin:0'><iframe src='${pdfUrl.dataUri}' type='application/pdf' style='width:100vw;height:100vh;border:none'></iframe></body></html>
                         `);
                         newWindow.document.close();
                       } else {
-                        // Si el popup está bloqueado, mostrar mensaje
                         alert('Por favor permite ventanas emergentes para abrir el PDF, o usa el botón de descarga.');
                       }
                     } catch (error) {
-                      console.error('Error abriendo PDF:', error);
                       alert('Error al abrir el PDF. Por favor usa el botón de descarga.');
                     }
                   }}
                   className="nota-pdf-btn-primary"
-                >
-                  📄 Abrir PDF en nueva pestaña
-                </button>
+                >📄 Abrir PDF en nueva pestaña</button>
                 <button
                   onClick={() => {
-                    // Descargar el PDF usando blob URL
+                    console.log('[NotaPDF] Descargar PDF:', pdfFileName);
                     const link = document.createElement('a');
                     link.href = pdfUrl.blobUrl;
                     link.download = pdfFileName;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    
-                    // Limpiar URL después de un tiempo
-                    setTimeout(() => {
-                      URL.revokeObjectURL(pdfUrl.blobUrl);
-                    }, 1000);
+                    setTimeout(() => { URL.revokeObjectURL(pdfUrl.blobUrl); }, 1000);
                   }}
                   className="nota-pdf-btn-secondary"
-                >
-                  💾 Descargar PDF
-                </button>
-                <button onClick={onClose} className="nota-pdf-btn-close">
-                  Cerrar
-                </button>
+                >💾 Descargar PDF</button>
+                <button onClick={() => { console.log('[NotaPDF] Cerrar modal'); onClose(); }} className="nota-pdf-btn-close">Cerrar</button>
               </div>
             </>
           ) : (
-            <p>Generando PDF...</p>
+            <p style={{ textAlign: 'center', fontSize: 18, margin: '32px 0' }}>Generando PDF...</p>
           )}
         </div>
       </div>
