@@ -301,35 +301,39 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       
       console.log('Equipo agregado exitosamente:', data);
       
+      // El equipo se guardó correctamente, ahora hacer operaciones adicionales (no críticas)
       if (data && data[0]) {
-        const { error: estadoError } = await supabase
-          .from('estado_equipos')
-          .insert({
-            equipo_id: data[0].id,
-            estado: 'en_proceso',
-            proceso_actual_id: parseInt(formData.proceso_id),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-
-        if (estadoError) {
-          console.error('Error al crear estado del equipo:', estadoError);
+        // Crear estado del equipo (no crítico si falla)
+        try {
+          await supabase
+            .from('estado_equipos')
+            .insert({
+              equipo_id: data[0].id,
+              estado: 'en_proceso',
+              proceso_actual_id: parseInt(formData.proceso_id),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+        } catch (estadoError) {
+          console.error('Error al crear estado del equipo (no crítico):', estadoError);
         }
 
-        const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
-        const { error: historialError } = await supabase
-          .from('historial_procesos')
-          .insert({
-            equipo_id: data[0].id,
-            proceso_id: parseInt(formData.proceso_id),
-            notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
-            fecha_inicio: new Date().toISOString()
-          });
-
-        if (historialError) {
-          console.error('Error al crear historial:', historialError);
+        // Crear historial (no crítico si falla)
+        try {
+          const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
+          await supabase
+            .from('historial_procesos')
+            .insert({
+              equipo_id: data[0].id,
+              proceso_id: parseInt(formData.proceso_id),
+              notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
+              fecha_inicio: new Date().toISOString()
+            });
+        } catch (historialError) {
+          console.error('Error al crear historial (no crítico):', historialError);
         }
 
+        // Crear notificación (no crítico si falla)
         try {
           let clienteInfo = null;
           if (data[0].cliente_id) {
@@ -350,19 +354,36 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         }
       }
       
+      // Limpiar el formulario inmediatamente para evitar doble envío
+      setFormData({
+        marca: '',
+        modelo: '',
+        color: '',
+        problema: '',
+        nota: '',
+        proceso_id: '',
+        cargador: null
+      });
+      
+      // Deshabilitar el botón de envío inmediatamente
+      setIsSubmitting(false);
+      setLoading(false);
+      
       // Mostrar confirmación visual
       setShowSuccess(true);
       
-      // Notificar al componente padre
+      // Notificar al componente padre para actualizar la lista
       if (onEquipoAdded) {
-        onEquipoAdded();
+        try {
+          onEquipoAdded();
+        } catch (updateError) {
+          console.error('Error actualizando lista (no crítico):', updateError);
+        }
       }
       
       // Cerrar el modal después de 1.5 segundos
       setTimeout(() => {
         setShowSuccess(false);
-        setIsSubmitting(false);
-        setLoading(false);
         onClose();
       }, 1500);
     } catch (error) {
