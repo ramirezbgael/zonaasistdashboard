@@ -256,6 +256,7 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         return;
       }
 
+      // Intentar insertar el equipo
       const { data, error } = await supabase
         .from('equipos')
         .insert([equipoData])
@@ -263,47 +264,29 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
 
       if (error) {
         console.error('Error al agregar equipo:', error);
+        alert(`Error al agregar el equipo: ${error.message}`);
         setIsSubmitting(false);
         setLoading(false);
-        
-        // Manejo específico de errores comunes
-        if (error.code === '23505' || error.message.includes('duplicate key') || error.message.includes('equipos_nota_key')) {
-          // Calcular siguiente nota disponible
-          const { data: ultimaNota } = await supabase
-            .from('equipos')
-            .select('nota')
-            .order('nota', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          const siguienteNota = ultimaNota ? (parseInt(ultimaNota.nota) + 1).toString() : '1';
-          
-          const usarNuevaNota = confirm(
-            `La nota #${formData.nota.trim()} ya está en uso.\n\n` +
-            `¿Deseas usar la nota #${siguienteNota} en su lugar?`
-          );
-          
-          if (usarNuevaNota) {
-            setFormData(prev => ({ ...prev, nota: siguienteNota }));
-            // No retornar, permitir que el usuario intente de nuevo con la nueva nota
-            return;
-          } else {
-            alert(`Por favor cambia la nota a otro número. La nota #${siguienteNota} está disponible.`);
-            return;
-          }
-        } else if (error.message.includes('permission denied') || error.message.includes('RLS')) {
-          alert('No tienes permisos para agregar equipos. Contacta al administrador.');
-        } else {
-          alert(`Error al agregar el equipo: ${error.message || 'Error desconocido'}`);
-        }
         return;
       }
       
-      console.log('Equipo agregado exitosamente:', data);
-      
-      // El equipo se guardó correctamente, ahora hacer operaciones adicionales (no críticas)
+      // Mostrar confirmación de éxito inmediatamente
+      setShowSuccess(true);
+      setFormData({
+        marca: '', modelo: '', color: '', cargador: null, nota: '', problema: '', proceso_id: ''
+      });
+      onEquipoAdded && onEquipoAdded();
+      setIsSubmitting(false);
+      setLoading(false);
+      // Cerrar el modal automáticamente después de 1.5s
+      setTimeout(() => {
+        setShowSuccess(false);
+        onClose();
+      }, 1500);
+
+      // --- Lo siguiente es NO CRÍTICO, errores aquí no afectan el feedback visual ---
+      // Crear estado inicial del equipo con el proceso seleccionado
       if (data && data[0]) {
-        // Crear estado del equipo (no crítico si falla)
         try {
           await supabase
             .from('estado_equipos')
@@ -315,10 +298,9 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
               updated_at: new Date().toISOString()
             });
         } catch (estadoError) {
-          console.error('Error al crear estado del equipo (no crítico):', estadoError);
+          console.error('Error al crear estado del equipo:', estadoError);
         }
-
-        // Crear historial (no crítico si falla)
+        // Registrar inicio del proceso en historial
         try {
           const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
           await supabase
@@ -330,10 +312,9 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
               fecha_inicio: new Date().toISOString()
             });
         } catch (historialError) {
-          console.error('Error al crear historial (no crítico):', historialError);
+          console.error('Error al crear historial:', historialError);
         }
-
-        // Crear notificación (no crítico si falla)
+        // Crear notificación de recepción (no crítico)
         try {
           let clienteInfo = null;
           if (data[0].cliente_id) {
@@ -342,50 +323,13 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
               .select('id, nombre, telefono, email')
               .eq('id', data[0].cliente_id)
               .single();
-            
-            if (!clienteError && clienteData) {
-              clienteInfo = clienteData;
-            }
+            if (!clienteError && clienteData) clienteInfo = clienteData;
           }
-
           await notificarEquipoNuevo(data[0], clienteInfo);
         } catch (notifError) {
           console.error('Error creando notificación de recepción (no crítico):', notifError);
         }
       }
-      
-      // Limpiar el formulario inmediatamente para evitar doble envío
-      setFormData({
-        marca: '',
-        modelo: '',
-        color: '',
-        problema: '',
-        nota: '',
-        proceso_id: '',
-        cargador: null
-      });
-      
-      // Deshabilitar el botón de envío inmediatamente
-      setIsSubmitting(false);
-      setLoading(false);
-      
-      // Mostrar confirmación visual
-      setShowSuccess(true);
-      
-      // Notificar al componente padre para actualizar la lista
-      if (onEquipoAdded) {
-        try {
-          onEquipoAdded();
-        } catch (updateError) {
-          console.error('Error actualizando lista (no crítico):', updateError);
-        }
-      }
-      
-      // Cerrar el modal después de 1.5 segundos
-      setTimeout(() => {
-        setShowSuccess(false);
-        onClose();
-      }, 1500);
     } catch (error) {
       console.error('Error inesperado:', error);
       setIsSubmitting(false);
