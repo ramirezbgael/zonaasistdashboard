@@ -526,7 +526,10 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         {/* Header con información del equipo - Simplificado, sin background */}
           <div className="equipo-modal-header">
           <div className="equipo-header-main">
-            <div className="equipo-numero-badge" onClick={() => { setTipoNotaPDF('recepcion'); setShowNotaPDFModal(true); }} style={{ cursor: 'pointer' }} title="Ver nota de recepción">
+            <div className="equipo-numero-badge" onClick={() => {
+              setTipoNotaPDF('recepcion');
+              setShowNotaPDFModal(true);
+            }} style={{ cursor: 'pointer' }} title="Ver nota de recepción">
               <span className="equipo-numero-prefix">#</span>
               <span className="equipo-numero-value">{equipo.nota}</span>
             </div>
