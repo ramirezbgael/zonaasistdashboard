@@ -265,7 +265,9 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
         asignado_a: user?.id || null,
         descripcion: formData.descripcion || null,
         fecha_entrega: formData.fecha_entrega || null,
-        precio: formData.tipo_documento === 'transcripcion' && formData.precio_total ? parseFloat(formData.precio_total) : null
+        precio: formData.tipo_documento === 'transcripcion'
+          ? (formData.precio_total ? parseFloat(formData.precio_total) : 0)
+          : 0 // Para factura, cotización, otro: precio en 0
       };
 
       const { data, error } = await supabase
