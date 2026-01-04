@@ -5,8 +5,8 @@ const { createClient } = require('@supabase/supabase-js');
 exports.handler = async (event, context) => {
   try {
     const supabase = createClient(
-      process.env.VITE_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY // Usa el anon key para operaciones públicas
     );
 
     // Obtener configuración de Evolution API
