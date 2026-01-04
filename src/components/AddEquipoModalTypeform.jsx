@@ -701,27 +701,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         });
 
         // Enviar email de confirmación si el cliente tiene email y la función está activada
-        if (cliente.email && window?.emailEnabled) {
-          try {
-            await supabase.functions.invoke('send-receipt-email', {
-              body: {
-                equipo_id: data[0].id,
-                cliente_email: cliente.email,
-                cliente_nombre: cliente.nombre,
-                equipo_info: {
-                  nota: data[0].nota,
-                  marca: data[0].marca,
-                  modelo: data[0].modelo,
-                  color: data[0].color,
-                  problema: data[0].problema || null
-                }
-              }
-            });
-            console.log('Email de confirmación enviado');
-          } catch (emailError) {
-            console.error('Error al enviar email (no crítico):', emailError);
-            // No bloquear la creación del equipo si falla el email
-          }
+        if (false) {
+          // Email desactivado globalmente
         }
 
         // Crear notificación
