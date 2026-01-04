@@ -726,6 +726,12 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 autoFocus
                 className="typeform-large-textarea"
                 rows="5"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
             />
           </div>
             <div className="typeform-buttons-horizontal">
@@ -733,9 +739,9 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
                 type="button"
                 onClick={() => {
                   if (esTranscripcion) {
-                    setCurrentStep(5);
+                    setCurrentStep(steps.length - 2);
                   } else {
-                    setCurrentStep(4);
+                    setCurrentStep(steps.length - 2);
                   }
                 }}
                 className="typeform-btn-secondary"
@@ -745,10 +751,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
             </button>
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }}
+                onClick={handleSubmit}
                 className="typeform-btn-primary"
                 disabled={loading || isSubmitting}
               >
