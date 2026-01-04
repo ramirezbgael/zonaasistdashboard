@@ -700,8 +700,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           fecha_inicio: new Date().toISOString()
         });
 
-        // Enviar email de confirmación si el cliente tiene email
-        if (cliente.email) {
+        // Enviar email de confirmación si el cliente tiene email y la función está activada
+        if (cliente.email && window?.emailEnabled) {
           try {
             await supabase.functions.invoke('send-receipt-email', {
               body: {

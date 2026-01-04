@@ -8,6 +8,7 @@ import './Settings.css';
 export default function Settings({ onClose }) {
   const { isDarkMode, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('apariencia');
+  const [showEmailConfig, setShowEmailConfig] = useState(false);
   const [smtpConfig, setSmtpConfig] = useState({
     smtp_host: '',
     smtp_port: '',
@@ -18,6 +19,7 @@ export default function Settings({ onClose }) {
   });
   const [smtpLoading, setSmtpLoading] = useState(false);
   const [smtpMessage, setSmtpMessage] = useState('');
+  const [emailEnabled, setEmailEnabled] = useState(false);
 
   // Cargar config SMTP al abrir
   useEffect(() => {
@@ -59,6 +61,11 @@ export default function Settings({ onClose }) {
     }
     if (activeTab === 'email') fetchConfig();
   }, [activeTab]);
+
+  // Actualiza window.emailEnabled globalmente para que otros componentes lo consulten
+  useEffect(() => {
+    window.emailEnabled = emailEnabled;
+  }, [emailEnabled]);
 
   async function handleSmtpSave(e) {
     e.preventDefault();
@@ -127,7 +134,29 @@ export default function Settings({ onClose }) {
           {activeTab === 'apariencia' && (
             <div className="settings-section">
               <h3 className="settings-section-title">Apariencia</h3>
-              
+              {/* Switch para activar/desactivar función de email global */}
+              <div className="settings-item">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={emailEnabled}
+                    onChange={e => setEmailEnabled(e.target.checked)}
+                  />
+                  Activar función de email (notas y recibos)
+                </label>
+              </div>
+              {/* Switch para mostrar/ocultar configuración de email */}
+              <div className="settings-item">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={showEmailConfig}
+                    onChange={e => setShowEmailConfig(e.target.checked)}
+                  />
+                  Mostrar configuración de email
+                </label>
+              </div>
+              {/* ...resto de apariencia... */}
               <div className="settings-item">
                 <div className="settings-item-info">
                   <h4 className="settings-item-title">Modo Oscuro</h4>
@@ -145,6 +174,17 @@ export default function Settings({ onClose }) {
                   <span className="theme-toggle-slider"></span>
                 </label>
               </div>
+
+              <div className="settings-item">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={showEmailConfig}
+                    onChange={e => setShowEmailConfig(e.target.checked)}
+                  />
+                  Mostrar configuración de email
+                </label>
+              </div>
             </div>
           )}
 
@@ -154,7 +194,7 @@ export default function Settings({ onClose }) {
             </div>
           )}
 
-          {activeTab === 'email' && (
+          {activeTab === 'email' && showEmailConfig && emailEnabled && (
             <form className="settings-section" onSubmit={handleSmtpSave}>
               <h3 className="settings-section-title">Configuración de Email SMTP</h3>
               <div className="settings-item">
