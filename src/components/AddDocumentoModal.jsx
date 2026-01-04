@@ -5,6 +5,44 @@ import { notificarDocumentoNuevo } from '../utils/notifications.js';
 import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
+// --- FIX: Declarar steps y esTranscripcion FUERA del componente para evitar ReferenceError en hooks ---
+
+function getSteps(tipo_documento) {
+  const esTranscripcion = tipo_documento === 'transcripcion';
+  return [
+    {
+      title: '📄 Tipo de documento',
+      description: 'Selecciona el tipo de documento que vas a crear'
+    },
+    {
+      title: '📱 Teléfono del cliente',
+      description: 'Ingresa el número de teléfono del cliente'
+    },
+    {
+      title: '👤 Información del cliente',
+      description: 'Completa los datos del cliente'
+    },
+    ...(esTranscripcion ? [
+      {
+        title: '💰 Precio Total',
+        description: 'Ingresa el precio total de la transcripción'
+      },
+      {
+        title: '💵 Adelanto',
+        description: '¿Se pagó algún adelanto? (opcional)'
+      }
+    ] : []),
+    {
+      title: '📅 Fecha de entrega',
+      description: 'Selecciona la fecha de entrega (opcional)'
+    },
+    {
+      title: '📝 Descripción',
+      description: 'Agrega detalles adicionales (opcional)'
+    }
+  ];
+}
+
 export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -43,43 +81,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     };
   }, []);
 
-  // --- FIX: Paso nunca debe exceder el total de steps ---
-  // Mueve la declaración de steps ANTES del useEffect para evitar ReferenceError
-
+  const steps = getSteps(formData.tipo_documento);
   const esTranscripcion = formData.tipo_documento === 'transcripcion';
-
-  const steps = [
-    {
-      title: '📄 Tipo de documento',
-      description: 'Selecciona el tipo de documento que vas a crear'
-    },
-    {
-      title: '📱 Teléfono del cliente',
-      description: 'Ingresa el número de teléfono del cliente'
-    },
-    {
-      title: '👤 Información del cliente',
-      description: 'Completa los datos del cliente'
-    },
-    ...(esTranscripcion ? [
-      {
-        title: '💰 Precio Total',
-        description: 'Ingresa el precio total de la transcripción'
-      },
-      {
-        title: '💵 Adelanto',
-        description: '¿Se pagó algún adelanto? (opcional)'
-      }
-    ] : []),
-    {
-      title: '📅 Fecha de entrega',
-      description: 'Selecciona la fecha de entrega (opcional)'
-    },
-    {
-      title: '📝 Descripción',
-      description: 'Agrega detalles adicionales (opcional)'
-    }
-  ];
 
   useEffect(() => {
     if (currentStep > steps.length - 1) {
