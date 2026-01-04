@@ -7,10 +7,10 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
     marca: '',
     modelo: '',
     color: '',
+    cargador: null, // null = no seleccionado, true = sí se queda, false = no se queda
     nota: '',
     problema: '',
-    proceso_id: '',
-    cargador: '' // 'si', 'no', o ''
+    proceso_id: ''
   });
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,10 +124,17 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
           .select('*')
           .order('id');
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error al cargar procesos:', error);
+          alert(`Error al cargar procesos: ${error.message}`);
+          return;
+        }
+        
+        console.log('Procesos cargados:', data);
         setProcesos(data || []);
       } catch (error) {
-        console.error('Error al cargar procesos:', error);
+        console.error('Error inesperado al cargar procesos:', error);
+        alert(`Error inesperado al cargar procesos: ${error.message}`);
       }
     };
 
@@ -186,9 +193,28 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
     setLoading(true);
 
     try {
-      if (!formData.marca.trim() || !formData.modelo.trim() || !formData.color.trim() || !formData.nota.trim() || !formData.proceso_id) {
-        alert('Por favor completa todos los campos requeridos (Marca, Modelo, Color, Nota y Proceso)');
+      if (!formData.marca.trim() || !formData.modelo.trim() || !formData.color.trim() || !formData.nota.trim() || !formData.proceso_id || formData.cargador === null) {
+        alert('Por favor completa todos los campos requeridos (Marca, Modelo, Color, Cargador, Nota y Proceso)');
+        setIsSubmitting(false);
         setLoading(false);
+        return;
+      }
+
+      // Verificar si la nota ya existe
+      const { data: notaExistente, error: checkError } = await supabase
+        .from('equipos')
+        .select('id, nota')
+        .eq('nota', formData.nota.trim())
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error al verificar nota:', checkError);
+      }
+
+      if (notaExistente) {
+        setLoading(false);
+        setIsSubmitting(false);
+        alert(`La nota #${formData.nota.trim()} ya está en uso. Por favor usa otra nota.`);
         return;
       }
 
@@ -198,7 +224,7 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         color: formData.color.trim(),
         nota: formData.nota.trim(),
         problema: formData.problema.trim() || null,
-        cargador: formData.cargador || null
+        cargador: formData.cargador !== null ? formData.cargador : false
       };
 
       console.log('Datos a insertar:', equipoData);
@@ -211,6 +237,7 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       if (testError) {
         console.error('Error de permisos:', testError);
         alert(`Error de permisos: ${testError.message}`);
+        setIsSubmitting(false);
         setLoading(false);
         return;
       }
@@ -222,9 +249,17 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
 
       if (error) {
         console.error('Error al agregar equipo:', error);
-        alert(`Error al agregar el equipo: ${error.message}`);
         setIsSubmitting(false);
         setLoading(false);
+        
+        // Manejo específico de errores comunes
+        if (error.code === '23505' || error.message.includes('duplicate key')) {
+          alert(`La nota #${formData.nota.trim()} ya está en uso. Por favor usa otra nota.`);
+        } else if (error.message.includes('permission denied') || error.message.includes('RLS')) {
+          alert('No tienes permisos para agregar equipos. Contacta al administrador.');
+        } else {
+          alert(`Error al agregar el equipo: ${error.message || 'Error desconocido'}`);
+        }
         return;
       }
       
@@ -279,17 +314,32 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         }
       }
       
+      // Mostrar confirmación visual
       setShowSuccess(true);
-      onEquipoAdded();
       
+      // Notificar al componente padre
+      if (onEquipoAdded) {
+        onEquipoAdded();
+      }
+      
+      // Cerrar el modal después de 1.5 segundos
       setTimeout(() => {
+        setShowSuccess(false);
+        setIsSubmitting(false);
+        setLoading(false);
         onClose();
       }, 1500);
     } catch (error) {
       console.error('Error inesperado:', error);
-      alert(`Error inesperado: ${error.message}`);
       setIsSubmitting(false);
       setLoading(false);
+      
+      // Manejo de errores más amigable
+      if (error.message.includes('duplicate key') || error.message.includes('23505')) {
+        alert(`La nota #${formData.nota.trim()} ya está en uso. Por favor usa otra nota.`);
+      } else {
+        alert(`Error inesperado: ${error.message || 'Por favor intenta de nuevo'}`);
+      }
     }
   };
 
@@ -298,6 +348,10 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       onClose();
     }
   };
+
+  // Debug: verificar que el campo cargador esté en el estado
+  console.log('FormData cargador:', formData.cargador);
+  console.log('Procesos disponibles:', procesos);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
@@ -354,7 +408,7 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="color" className="block text-slate-200 font-medium mb-1">Color</label>
+                  <label htmlFor="color" className="block text-slate-200 font-medium mb-1">Color <span className="text-red-400">*</span></label>
                   <input
                     type="text"
                     id="color"
@@ -382,6 +436,30 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
                   )}
                 </div>
                 <div>
+                  <label htmlFor="cargador" className="block text-slate-200 font-medium mb-1">
+                    ¿Se queda el cargador? <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    id="cargador"
+                    name="cargador"
+                    value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        cargador: value === 'si' ? true : value === 'no' ? false : null
+                      }));
+                    }}
+                    required
+                    disabled={loading || isSubmitting}
+                    className="w-full rounded border-2 border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    <option value="si">Sí, se queda el cargador</option>
+                    <option value="no">No, no se queda el cargador</option>
+                  </select>
+                </div>
+                <div>
                   <label htmlFor="nota" className="block text-slate-200 font-medium mb-1">Nota</label>
                   <input
                     type="text"
@@ -395,36 +473,30 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
                   />
                 </div>
                 <div>
-                  <label htmlFor="proceso_id" className="block text-slate-200 font-medium mb-1">Proceso a realizar</label>
+                  <label htmlFor="proceso_id" className="block text-slate-200 font-medium mb-1">Proceso a realizar <span className="text-red-400">*</span></label>
                   <select
                     id="proceso_id"
                     name="proceso_id"
                     value={formData.proceso_id}
                     onChange={handleInputChange}
                     required
-                    disabled={loading || isSubmitting}
+                    disabled={loading || isSubmitting || procesos.length === 0}
                     className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
-                    <option value="">Seleccionar proceso...</option>
-                    {procesos.map(proceso => (
-                      <option key={proceso.id} value={proceso.id}>{proceso.nombre}</option>
-                    ))}
+                    <option value="">
+                      {procesos.length === 0 ? 'Cargando procesos...' : 'Seleccionar proceso...'}
+                    </option>
+                    {procesos.length > 0 ? (
+                      procesos.map(proceso => (
+                        <option key={proceso.id} value={proceso.id}>{proceso.nombre}</option>
+                      ))
+                    ) : (
+                      <option value="" disabled>Cargando procesos...</option>
+                    )}
                   </select>
-                </div>
-                <div>
-                  <label htmlFor="cargador" className="block text-slate-200 font-medium mb-1">¿Se queda el cargador?</label>
-                  <select
-                    id="cargador"
-                    name="cargador"
-                    value={formData.cargador}
-                    onChange={handleInputChange}
-                    disabled={loading || isSubmitting}
-                    className="w-full rounded border border-slate-600 bg-slate-800 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="">Seleccionar...</option>
-                    <option value="si">Sí, se queda el cargador</option>
-                    <option value="no">No, no se queda el cargador</option>
-                  </select>
+                  {procesos.length === 0 && (
+                    <p className="text-xs text-yellow-400 mt-1">No se pudieron cargar los procesos. Verifica la consola para más detalles.</p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label htmlFor="problema" className="block text-slate-200 font-medium mb-1">Detalle</label>

@@ -118,12 +118,26 @@ export default function WhatsAppPage() {
         try {
             // Llamar a Netlify Function
             const response = await fetch('/.netlify/functions/whatsapp-estado');
-            const data = await response.json();
-
+            
             if (!response.ok) {
                 setEstadoSesion('desconectado');
                 setNumeroConectado(null);
                 setActivo(false);
+                return;
+            }
+
+            // Parsear JSON de forma segura
+            let data;
+            try {
+                const text = await response.text();
+                if (!text || text.trim().length === 0) {
+                    setEstadoSesion('desconectado');
+                    return;
+                }
+                data = JSON.parse(text);
+            } catch (parseError) {
+                console.error('Error parseando respuesta JSON:', parseError);
+                setEstadoSesion('desconectado');
                 return;
             }
 
@@ -132,10 +146,35 @@ export default function WhatsAppPage() {
                 setNumeroConectado(data.numero || null);
                 setActivo(data.activo || false);
                 
-                // Si hay QR pendiente, actualizarlo
+                // Si hay QR pendiente, actualizarlo de forma segura
                 if (data.qr_code && data.estado !== 'conectado') {
-                    setQrCode(data.qr_code);
-                    setEstadoSesion('esperando_qr');
+                    try {
+                        let qrCodeValido = null;
+                        if (typeof data.qr_code === 'string' && data.qr_code.trim().length > 0) {
+                            const qrString = data.qr_code.trim();
+                            
+                            // Si es base64 image, usarlo directamente
+                            if (qrString.startsWith('data:image')) {
+                                qrCodeValido = qrString;
+                            } 
+                            // Si es un string largo (probablemente base64 sin prefijo), agregar prefijo
+                            else if (qrString.length > 100 && !qrString.includes('://') && !qrString.startsWith('http')) {
+                                qrCodeValido = `data:image/png;base64,${qrString}`;
+                            }
+                            // Si es un código QR válido (URL o texto corto)
+                            else if (qrString.length > 0 && qrString.length < 500) {
+                                qrCodeValido = qrString;
+                            }
+                        }
+                        
+                        if (qrCodeValido) {
+                            setQrCode(qrCodeValido);
+                            setEstadoSesion('esperando_qr');
+                        }
+                    } catch (qrError) {
+                        console.error('Error procesando QR code:', qrError);
+                        // No actualizar el QR si hay error, pero no fallar completamente
+                    }
                 } else if (data.estado === 'conectado') {
                     setQrCode(null);
                 }
@@ -155,12 +194,62 @@ export default function WhatsAppPage() {
             const response = await fetch('/.netlify/functions/whatsapp-iniciar', {
                 method: 'POST'
             });
-            const data = await response.json();
 
-            if (!response.ok) throw new Error(data.error || 'Error al iniciar sesión');
+            if (!response.ok) {
+                let errorMessage = 'Error al iniciar sesión';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                    errorMessage = `Error ${response.status}: ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
+            }
 
-            if (data.qr_code && typeof data.qr_code === 'string' && data.qr_code.length > 0) {
-                setQrCode(data.qr_code);
+            // Parsear JSON de forma segura
+            let data;
+            try {
+                const text = await response.text();
+                if (!text || text.trim().length === 0) {
+                    throw new Error('Respuesta vacía del servidor');
+                }
+                data = JSON.parse(text);
+            } catch (parseError) {
+                console.error('Error parseando respuesta JSON:', parseError);
+                throw new Error('Error al procesar la respuesta del servidor');
+            }
+
+            // Validar y procesar QR code de forma segura
+            let qrCodeValido = null;
+            try {
+                if (data.qr_code) {
+                    if (typeof data.qr_code === 'string' && data.qr_code.trim().length > 0) {
+                        const qrString = data.qr_code.trim();
+                        
+                        // Si es base64 image, usarlo directamente
+                        if (qrString.startsWith('data:image')) {
+                            qrCodeValido = qrString;
+                        } 
+                        // Si es un string largo (probablemente base64 sin prefijo), agregar prefijo
+                        else if (qrString.length > 100 && !qrString.includes('://') && !qrString.startsWith('http')) {
+                            qrCodeValido = `data:image/png;base64,${qrString}`;
+                        }
+                        // Si es un código QR válido (URL o texto corto)
+                        else if (qrString.length > 0 && qrString.length < 500) {
+                            qrCodeValido = qrString;
+                        }
+                    }
+                }
+            } catch (qrError) {
+                console.error('Error procesando QR code:', qrError);
+                // Si hay error procesando el QR, intentar usar el valor original solo si es seguro
+                if (data.qr_code && typeof data.qr_code === 'string' && data.qr_code.length < 1000) {
+                    qrCodeValido = data.qr_code;
+                }
+            }
+
+            if (qrCodeValido) {
+                setQrCode(qrCodeValido);
                 setEstadoSesion('esperando_qr');
                 
                 // Polling para verificar cuando se escanee el QR
@@ -472,16 +561,63 @@ export default function WhatsAppPage() {
                                 <li>Escanea este código</li>
                             </ol>
                             <div className="qr-code-wrapper">
-                                {qrCode.startsWith('data:image') ? (
-                                    <img src={qrCode} alt="QR Code" style={{ width: '256px', height: '256px' }} />
-                                ) : (
-                                    <QRCodeSVG 
-                                        value={qrCode} 
-                                        size={256}
-                                        level="M"
-                                        includeMargin={true}
-                                    />
-                                )}
+                                {(() => {
+                                    try {
+                                        // Siempre intentar mostrar como imagen primero
+                                        let imageSrc = qrCode;
+                                        
+                                        // Si no tiene prefijo data:image, agregarlo
+                                        if (!qrCode.startsWith('data:image')) {
+                                            // Si parece ser base64 (string largo sin http), agregar prefijo
+                                            if (qrCode.length > 100 && !qrCode.includes('://')) {
+                                                imageSrc = `data:image/png;base64,${qrCode}`;
+                                            }
+                                            // Si es una URL o texto corto, generar QR con QRCodeSVG (solo si es seguro)
+                                            else if (qrCode.length < 200 && (qrCode.startsWith('http://') || qrCode.startsWith('https://') || qrCode.startsWith('whatsapp://'))) {
+                                                try {
+                                                    return (
+                                                        <QRCodeSVG 
+                                                            value={qrCode} 
+                                                            size={256}
+                                                            level="M"
+                                                            includeMargin={true}
+                                                        />
+                                                    );
+                                                } catch (svgError) {
+                                                    console.error('Error con QRCodeSVG, usando imagen:', svgError);
+                                                    // Si falla, continuar con imagen
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Mostrar como imagen
+                                        return (
+                                            <img 
+                                                src={imageSrc} 
+                                                alt="QR Code" 
+                                                style={{ width: '256px', height: '256px', maxWidth: '100%' }}
+                                                onError={(e) => {
+                                                    console.error('Error cargando QR code:', e);
+                                                    e.target.style.display = 'none';
+                                                    const errorDiv = document.createElement('div');
+                                                    errorDiv.style.cssText = 'padding: 20px; color: #ef4444; text-align: center;';
+                                                    errorDiv.innerHTML = '<p>Error al mostrar QR code.</p><p style="font-size: 0.875rem; margin-top: 0.5rem;">Por favor, intenta iniciar sesión nuevamente.</p>';
+                                                    e.target.parentElement.appendChild(errorDiv);
+                                                }}
+                                            />
+                                        );
+                                    } catch (error) {
+                                        console.error('Error renderizando QR code:', error);
+                                        return (
+                                            <div style={{ padding: '20px', color: '#ef4444', textAlign: 'center' }}>
+                                                <p>Error al mostrar QR code.</p>
+                                                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                                                    Por favor, intenta iniciar sesión nuevamente.
+                                                </p>
+                                            </div>
+                                        );
+                                    }
+                                })()}
                             </div>
                             <p className="qr-note">
                                 El código expira en 60 segundos. Si expira, haz clic en "Iniciar Sesión" nuevamente.

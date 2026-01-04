@@ -9,10 +9,10 @@ BEGIN
         WHERE table_name = 'equipos' 
         AND column_name = 'cargador'
     ) THEN
-        ALTER TABLE equipos ADD COLUMN cargador VARCHAR(10);
+        ALTER TABLE equipos ADD COLUMN cargador BOOLEAN DEFAULT FALSE;
         
         -- Agregar comentario para documentación
-        COMMENT ON COLUMN equipos.cargador IS 'Indica si el cargador se queda con el equipo: "si" o "no"';
+        COMMENT ON COLUMN equipos.cargador IS 'Indica si el cargador se queda con el equipo: true = sí se queda, false = no se queda';
     END IF;
 END $$;
 

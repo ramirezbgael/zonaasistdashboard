@@ -97,12 +97,41 @@ exports.handler = async (event, context) => {
     }
 
     const qrData = await qrResponse.json();
+    
+    // Procesar QR code según el formato que devuelve Evolution API
+    let qrCodeFormateado = null;
+    if (qrData.qrcode) {
+      // Evolution API puede devolver el QR en diferentes formatos
+      if (qrData.qrcode.base64) {
+        // Si viene como base64, agregar el prefijo data:image
+        qrCodeFormateado = qrData.qrcode.base64.startsWith('data:image') 
+          ? qrData.qrcode.base64 
+          : `data:image/png;base64,${qrData.qrcode.base64}`;
+      } else if (qrData.qrcode.code) {
+        // Si viene como código (string), validar que sea válido
+        const code = qrData.qrcode.code;
+        if (typeof code === 'string' && code.length > 0 && code.length < 500) {
+          qrCodeFormateado = code;
+        }
+      } else if (typeof qrData.qrcode === 'string') {
+        // Si el qrcode es directamente un string
+        if (qrData.qrcode.startsWith('data:image')) {
+          qrCodeFormateado = qrData.qrcode;
+        } else if (qrData.qrcode.length > 100) {
+          // Probablemente base64 sin prefijo
+          qrCodeFormateado = `data:image/png;base64,${qrData.qrcode}`;
+        } else {
+          // Código QR en texto
+          qrCodeFormateado = qrData.qrcode;
+        }
+      }
+    }
 
     // Guardar QR en Supabase
     await supabase
       .from('whatsapp_config')
       .upsert({
-        qr_code: qrData.qrcode?.base64 || qrData.qrcode?.code || null,
+        qr_code: qrCodeFormateado,
         estado: qrData.instance?.status === 'open' ? 'conectado' : 'esperando_qr',
         updated_at: new Date().toISOString()
       }, {
@@ -116,7 +145,7 @@ exports.handler = async (event, context) => {
         'Access-Control-Allow-Origin': '*'
       },
       body: JSON.stringify({
-        qr_code: qrData.qrcode?.base64 || qrData.qrcode?.code || null,
+        qr_code: qrCodeFormateado,
         estado: qrData.instance?.status === 'open' ? 'conectado' : 'esperando_qr'
       })
     };

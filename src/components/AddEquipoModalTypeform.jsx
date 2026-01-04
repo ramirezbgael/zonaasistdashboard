@@ -7,7 +7,7 @@ import './AddEquipoModalTypeform.css';
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color
+  const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color, 3: cargador
   const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_datos (nombre/email), 3: detalle
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
@@ -27,6 +27,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     marca: '',
     modelo: '',
     color: '',
+    cargador: null, // null = no seleccionado, true = sí se queda, false = no se queda
     problema: '',
     proceso_id: '',
     cliente_telefono: '',
@@ -492,6 +493,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     } else if (field === 'modelo' && formData.modelo.trim()) {
       setTimeout(() => setFormSubStep(2), 300);
     } else if (field === 'color' && formData.color.trim()) {
+      setTimeout(() => setFormSubStep(3), 300);
+    } else if (field === 'cargador' && formData.cargador !== null) {
       setTimeout(() => {
         setAdditionalSubStep(0);
         setCurrentStep(3);
@@ -545,8 +548,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
 
     try {
       // Validar campos requeridos
-      if (!formData.marca || !formData.modelo || !formData.color || !formData.proceso_id || !formData.cliente_telefono) {
-        alert('Por favor completa todos los campos requeridos');
+      if (!formData.marca || !formData.modelo || !formData.color || formData.cargador === null || !formData.proceso_id || !formData.cliente_telefono) {
+        alert('Por favor completa todos los campos requeridos (incluyendo si se queda el cargador)');
         setLoading(false);
         return;
       }
@@ -618,6 +621,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         color: formData.color.trim(),
         nota: notaGenerada.toString(),
         problema: formData.problema.trim() || '',
+        cargador: formData.cargador !== null ? formData.cargador : false,
         cliente_id: clienteId
       };
 
@@ -754,8 +758,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
             style={{ 
               width: `${(() => {
                 if (currentStep === 2) {
-                  // Paso 2: Formulario (marca, modelo, color) = 3 sub-pasos
-                  return ((currentStep + (formSubStep + 1) / 3) / (steps.length + 1)) * 100;
+                  // Paso 2: Formulario (marca, modelo, color, cargador) = 4 sub-pasos
+                  return ((currentStep + (formSubStep + 1) / 4) / (steps.length + 1)) * 100;
                 } else if (currentStep === 3) {
                   // Paso 3: Cliente y proceso
                   // Máximo 4 sub-pasos: teléfono, nombre (opcional), proceso, detalle
@@ -1089,6 +1093,55 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                     <button
                       type="button"
                       onClick={() => handleFieldComplete('color')}
+                      className="typeform-btn-primary"
+                    >
+                      Continuar →
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Campo: Cargador */}
+            {formSubStep === 3 && (
+              <>
+                <h2 className="typeform-question">¿Se queda el cargador?</h2>
+                <p className="typeform-description">Indica si el cliente deja el cargador del equipo.</p>
+                <div className="typeform-field-wrapper">
+                  <select
+                    name="cargador"
+                    value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        cargador: value === 'si' ? true : value === 'no' ? false : null
+                      }));
+                      if (value) {
+                        setTimeout(() => handleFieldComplete('cargador'), 300);
+                      }
+                    }}
+                    required
+                    autoFocus
+                    className="typeform-large-input typeform-select"
+                  >
+                    <option value="">Selecciona una opción...</option>
+                    <option value="si">Sí, se queda el cargador</option>
+                    <option value="no">No, no se queda el cargador</option>
+                  </select>
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => setFormSubStep(2)}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  {formData.cargador !== null && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldComplete('cargador')}
                       className="typeform-btn-primary"
                     >
                       Continuar →
