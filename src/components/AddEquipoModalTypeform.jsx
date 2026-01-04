@@ -514,7 +514,14 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         setDatosFaltantes(['nombre', 'email']);
         setTimeout(() => setAdditionalSubStep(2), 300);
       } else {
-        // Cliente existe, verificar qué datos faltan
+        // Cliente existe, cargar sus datos en el formData
+        setFormData(prev => ({
+          ...prev,
+          cliente_nombre: cliente.nombre || prev.cliente_nombre || '',
+          cliente_email: cliente.email || prev.cliente_email || ''
+        }));
+        
+        // Verificar qué datos faltan
         const verificacion = verificarDatosCompletos(cliente);
         setDatosFaltantes(verificacion.faltantes);
         if (verificacion.faltantes.length > 0) {
@@ -554,44 +561,86 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         return;
       }
 
-      // Validar datos del cliente
-      if (!formData.cliente_nombre || !formData.cliente_email) {
-        alert('Por favor completa el nombre y correo del cliente');
-        setLoading(false);
-        return;
+      // Obtener o crear/actualizar cliente primero para verificar datos
+      let cliente = await obtenerOCrearCliente(
+        formData.cliente_telefono.trim(),
+        formData.cliente_nombre?.trim() || '',
+        formData.cliente_email?.trim() || ''
+      );
+
+      // Si el cliente existe, verificar qué datos tiene
+      if (cliente && cliente.id) {
+        const verificacion = verificarDatosCompletos(cliente);
+        
+        // Si faltan datos y no se proporcionaron en el form, pedirlos
+        if (verificacion.faltantes.length > 0) {
+          const faltaNombre = verificacion.faltantes.includes('nombre') && !formData.cliente_nombre?.trim();
+          const faltaEmail = verificacion.faltantes.includes('email') && !formData.cliente_email?.trim();
+          
+          if (faltaNombre || faltaEmail) {
+            alert('Por favor completa el nombre y correo del cliente');
+            setLoading(false);
+            // Volver al paso de datos del cliente
+            setAdditionalSubStep(2);
+            return;
+          }
+        }
+        
+        // Si el cliente tiene los datos, usarlos aunque no estén en formData
+        if (cliente.nombre && !formData.cliente_nombre) {
+          formData.cliente_nombre = cliente.nombre;
+        }
+        if (cliente.email && !formData.cliente_email) {
+          formData.cliente_email = cliente.email;
+        }
+      } else {
+        // Cliente nuevo, validar que se proporcionaron los datos
+        if (!formData.cliente_nombre?.trim() || !formData.cliente_email?.trim()) {
+          alert('Por favor completa el nombre y correo del cliente');
+          setLoading(false);
+          setAdditionalSubStep(2);
+          return;
+        }
       }
 
       // Validar formato de email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.cliente_email)) {
-        alert('Por favor ingresa un correo electrónico válido');
-        setLoading(false);
-        return;
+      const emailFinal = formData.cliente_email?.trim() || cliente?.email || '';
+      if (emailFinal) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailFinal)) {
+          alert('Por favor ingresa un correo electrónico válido');
+          setLoading(false);
+          setAdditionalSubStep(2);
+          return;
+        }
       }
 
-      // Obtener o crear/actualizar cliente
-      let cliente = await obtenerOCrearCliente(
-        formData.cliente_telefono.trim(),
-        formData.cliente_nombre.trim(),
-        formData.cliente_email.trim()
-      );
-
-      // Si el cliente existe pero faltan datos, actualizarlos
+      // Actualizar cliente si faltan datos
       if (cliente && cliente.id) {
         const verificacion = verificarDatosCompletos(cliente);
         if (verificacion.faltantes.length > 0) {
           const updateData = {};
-          if (verificacion.faltantes.includes('nombre') && formData.cliente_nombre) {
-            updateData.nombre = formData.cliente_nombre.trim();
+          const nombreFinal = formData.cliente_nombre?.trim() || cliente.nombre || '';
+          const emailFinal = formData.cliente_email?.trim() || cliente.email || '';
+          
+          if (verificacion.faltantes.includes('nombre') && nombreFinal) {
+            updateData.nombre = nombreFinal;
           }
-          if (verificacion.faltantes.includes('email') && formData.cliente_email) {
-            updateData.email = formData.cliente_email.trim();
+          if (verificacion.faltantes.includes('email') && emailFinal) {
+            updateData.email = emailFinal;
           }
           
           if (Object.keys(updateData).length > 0) {
             cliente = await actualizarCliente(cliente.id, updateData);
           }
         }
+      } else {
+        // Si no se obtuvo cliente, crear uno nuevo
+        cliente = await obtenerOCrearCliente(
+          formData.cliente_telefono.trim(),
+          formData.cliente_nombre?.trim() || '',
+          formData.cliente_email?.trim() || ''
+        );
       }
 
       if (!cliente || !cliente.id) {

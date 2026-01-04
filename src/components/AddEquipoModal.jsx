@@ -200,15 +200,29 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         return;
       }
 
-      // Verificar si la nota ya existe
-      const { data: notaExistente, error: checkError } = await supabase
-        .from('equipos')
-        .select('id, nota')
-        .eq('nota', formData.nota.trim())
-        .maybeSingle();
+      // Verificar si la nota ya existe (con retry para evitar race conditions)
+      let notaExistente = null;
+      let intentos = 0;
+      const maxIntentos = 3;
+      
+      while (intentos < maxIntentos) {
+        const { data, error: checkError } = await supabase
+          .from('equipos')
+          .select('id, nota')
+          .eq('nota', formData.nota.trim())
+          .maybeSingle();
 
-      if (checkError) {
-        console.error('Error al verificar nota:', checkError);
+        if (checkError) {
+          console.error('Error al verificar nota:', checkError);
+          if (intentos < maxIntentos - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Esperar 500ms antes de reintentar
+            intentos++;
+            continue;
+          }
+        }
+
+        notaExistente = data;
+        break;
       }
 
       if (notaExistente) {
@@ -253,8 +267,30 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
         setLoading(false);
         
         // Manejo específico de errores comunes
-        if (error.code === '23505' || error.message.includes('duplicate key')) {
-          alert(`La nota #${formData.nota.trim()} ya está en uso. Por favor usa otra nota.`);
+        if (error.code === '23505' || error.message.includes('duplicate key') || error.message.includes('equipos_nota_key')) {
+          // Calcular siguiente nota disponible
+          const { data: ultimaNota } = await supabase
+            .from('equipos')
+            .select('nota')
+            .order('nota', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          const siguienteNota = ultimaNota ? (parseInt(ultimaNota.nota) + 1).toString() : '1';
+          
+          const usarNuevaNota = confirm(
+            `La nota #${formData.nota.trim()} ya está en uso.\n\n` +
+            `¿Deseas usar la nota #${siguienteNota} en su lugar?`
+          );
+          
+          if (usarNuevaNota) {
+            setFormData(prev => ({ ...prev, nota: siguienteNota }));
+            // No retornar, permitir que el usuario intente de nuevo con la nueva nota
+            return;
+          } else {
+            alert(`Por favor cambia la nota a otro número. La nota #${siguienteNota} está disponible.`);
+            return;
+          }
         } else if (error.message.includes('permission denied') || error.message.includes('RLS')) {
           alert('No tienes permisos para agregar equipos. Contacta al administrador.');
         } else {
