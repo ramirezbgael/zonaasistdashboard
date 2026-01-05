@@ -1,4 +1,5 @@
 import { supabase } from '../supabase.js';
+import { sendTicketRecepcion } from '../services/whatsapp.service.js';
 
 /**
  * Crea una notificación para un usuario
@@ -128,6 +129,17 @@ export async function notificarEquipoNuevo(equipo, cliente = null) {
       mensaje,
       datos
     );
+
+    // Enviar WhatsApp de recepción (no bloquear, loguear error)
+    if (clienteInfo?.telefono && equipo.nota) {
+      sendTicketRecepcion({
+        number: clienteInfo.telefono,
+        cliente: clienteInfo.nombre,
+        equipo: `${equipo.marca} ${equipo.modelo} ${equipo.color || ''}`.trim(),
+        problema: equipo.problema || '',
+        folio: equipo.nota
+      });
+    }
   } catch (error) {
     console.error('Error notificando equipo nuevo:', error);
   }
