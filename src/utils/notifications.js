@@ -1,5 +1,4 @@
 import { supabase } from '../supabase.js';
-import { sendTicketRecepcion } from '../services/whatsapp.service.js';
 
 /**
  * Crea una notificación para un usuario
@@ -130,14 +129,20 @@ export async function notificarEquipoNuevo(equipo, cliente = null) {
       datos
     );
 
-    // Enviar WhatsApp de recepción (no bloquear, loguear error)
+    // Enviar WhatsApp de recepción vía Netlify Function (no bloquear, loguear error)
     if (clienteInfo?.telefono && equipo.nota) {
-      sendTicketRecepcion({
-        number: clienteInfo.telefono,
-        cliente: clienteInfo.nombre,
-        equipo: `${equipo.marca} ${equipo.modelo} ${equipo.color || ''}`.trim(),
-        problema: equipo.problema || '',
-        folio: equipo.nota
+      fetch('/.netlify/functions/whatsapp-recepcion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: clienteInfo.telefono,
+          cliente: clienteInfo.nombre,
+          equipo: `${equipo.marca} ${equipo.modelo} ${equipo.color || ''}`.trim(),
+          problema: equipo.problema || '',
+          folio: equipo.nota
+        })
+      }).catch(err => {
+        console.error('[WhatsApp] Error enviando mensaje de recepción:', err);
       });
     }
   } catch (error) {
