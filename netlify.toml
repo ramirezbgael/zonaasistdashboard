@@ -9,6 +9,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # Omitir variables VITE_ del escaneo de secretos (son públicas y deben estar en el cliente)
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
 
 # Variables de entorno necesarias (configurar en Netlify Dashboard)
 # VITE_SUPABASE_URL = tu_url_de_supabase
