@@ -19,8 +19,10 @@ if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY === 'tu_anon_key_aqui') {
   throw new Error('VITE_SUPABASE_ANON_KEY no está configurada. Revisa tu archivo .env');
 }
 
-console.log('✅ Supabase configurado correctamente');
-console.log('📍 URL:', SUPABASE_URL);
+// Validación silenciosa en producción
+if (import.meta.env.DEV) {
+  console.log('✅ Supabase configurado correctamente');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
