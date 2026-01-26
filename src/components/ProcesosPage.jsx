@@ -15,7 +15,7 @@ export default function ProcesosPage() {
   const [expandedProcesos, setExpandedProcesos] = useState({});
   
   // Form data
-  const [procesoForm, setProcesoForm] = useState({ nombre: '', descripcion: '' });
+  const [procesoForm, setProcesoForm] = useState({ nombre: '', descripcion: '', precio: '' });
   const [subprocesoForm, setSubprocesoForm] = useState({ nombre: '', descripcion: '', orden: 1 });
 
   useEffect(() => {
@@ -73,13 +73,14 @@ export default function ProcesosPage() {
 
   const handleCreateProceso = () => {
     setEditingProceso(null);
-    setProcesoForm({ nombre: '', descripcion: '' });
+    setProcesoForm({ nombre: '', descripcion: '', precio: '' });
     setShowProcesoModal(true);
   };
 
   const handleEditProceso = (proceso) => {
     setEditingProceso(proceso);
-    setProcesoForm({ nombre: proceso.nombre, descripcion: proceso.descripcion || '' });
+    const precio = proceso.precio != null && proceso.precio !== '' ? String(proceso.precio) : '';
+    setProcesoForm({ nombre: proceso.nombre, descripcion: proceso.descripcion || '', precio });
     setShowProcesoModal(true);
   };
 
@@ -89,6 +90,10 @@ export default function ProcesosPage() {
       return;
     }
 
+    const precioVal = procesoForm.precio === '' || procesoForm.precio == null
+      ? 0
+      : parseFloat(String(procesoForm.precio).replace(',', '.')) || 0;
+
     try {
       if (editingProceso) {
         // Actualizar
@@ -96,7 +101,8 @@ export default function ProcesosPage() {
           .from('procesos')
           .update({
             nombre: procesoForm.nombre.trim(),
-            descripcion: procesoForm.descripcion.trim() || null
+            descripcion: procesoForm.descripcion.trim() || null,
+            precio: precioVal
           })
           .eq('id', editingProceso.id);
 
@@ -107,7 +113,8 @@ export default function ProcesosPage() {
           .from('procesos')
           .insert({
             nombre: procesoForm.nombre.trim(),
-            descripcion: procesoForm.descripcion.trim() || null
+            descripcion: procesoForm.descripcion.trim() || null,
+            precio: precioVal
           });
 
         if (error) throw error;
@@ -326,7 +333,12 @@ export default function ProcesosPage() {
                       <p className="proceso-descripcion">{proceso.descripcion}</p>
                     )}
                     <span className="proceso-stats">
-                      {procesoSubs.length} {procesoSubs.length === 1 ? 'paso' : 'pasos'}
+                      <span className="proceso-steps-badge">
+                        {procesoSubs.length} {procesoSubs.length === 1 ? 'paso' : 'pasos'}
+                      </span>
+                      {proceso.precio != null && Number(proceso.precio) > 0 && (
+                        <span className="proceso-precio-badge">${Number(proceso.precio).toLocaleString('es-MX')}</span>
+                      )}
                     </span>
                   </div>
                   <div className="proceso-card-actions">
@@ -459,6 +471,19 @@ export default function ProcesosPage() {
                   placeholder="Descripción opcional del proceso"
                   rows="3"
                 />
+              </div>
+              <div className="form-group">
+                <label htmlFor="proceso-precio">Precio ($ MXN)</label>
+                <input
+                  type="number"
+                  id="proceso-precio"
+                  min="0"
+                  step="0.01"
+                  value={procesoForm.precio}
+                  onChange={(e) => setProcesoForm({ ...procesoForm, precio: e.target.value })}
+                  placeholder="0"
+                />
+                <small>Precio del proceso para notas de entrega. Opcional.</small>
               </div>
               <div className="modal-actions">
                 <button className="btn-secondary" onClick={() => setShowProcesoModal(false)}>

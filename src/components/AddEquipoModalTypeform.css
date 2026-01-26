@@ -561,6 +561,212 @@
   z-index: 0;
 }
 
+/* Cargador Buttons */
+.cargador-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.cargador-option {
+  padding: 1.5rem 2rem;
+  border: 2px solid var(--border-color, #e0e0e0);
+  border-radius: 12px;
+  background: var(--bg-secondary, #ffffff);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.cargador-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--primary-color, #10b981);
+}
+
+.cargador-option.selected {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.cargador-option.selected i {
+  color: #ffffff;
+}
+
+.cargador-option:first-child.selected {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border-color: #ef4444;
+}
+
+.cargador-option:last-child.selected {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #10b981;
+}
+
+.dark-mode .cargador-option {
+  background: #2a2a2a;
+  border-color: #404040;
+  color: #e2e8f0;
+}
+
+.dark-mode .cargador-option:hover {
+  background: #353535;
+  border-color: #505050;
+}
+
+.dark-mode .cargador-option.selected {
+  color: #ffffff;
+}
+
+/* Proceso Picker Grid */
+.proceso-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 0.625rem;
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.proceso-picker-square {
+  aspect-ratio: 1;
+  padding: 0.625rem 0.375rem;
+  border: 2px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  background: var(--bg-secondary, #ffffff);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  min-height: 90px;
+}
+
+.proceso-picker-square:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border-color: var(--primary-color, #10b981);
+}
+
+.proceso-picker-square.selected {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+  border-color: #10b981;
+  border-width: 3px;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.proceso-check-icon {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: #10b981;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+}
+
+.proceso-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-primary, #1a1a1a);
+  line-height: 1.2;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.proceso-picker-square.selected .proceso-name {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.proceso-precio {
+  font-size: 0.6875rem;
+  color: var(--gray-600, #757575);
+  font-weight: 500;
+}
+
+.proceso-picker-square.selected .proceso-precio {
+  color: #059669;
+  font-weight: 600;
+}
+
+.dark-mode .proceso-picker-square {
+  background: #2a2a2a;
+  border-color: #404040;
+  color: #e2e8f0;
+}
+
+.dark-mode .proceso-picker-square:hover {
+  background: #353535;
+  border-color: #505050;
+}
+
+.dark-mode .proceso-name {
+  color: #e2e8f0;
+}
+
+.dark-mode .proceso-precio {
+  color: #94a3b8;
+}
+
+.proceso-total {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+  border: 2px solid #10b981;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.proceso-total-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.proceso-total-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.dark-mode .proceso-total {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+}
+
+.dark-mode .proceso-total-label {
+  color: #e2e8f0;
+}
+
+.dark-mode .proceso-total-value {
+  color: #34d399;
+}
+
 /* Date input specific styles */
 .typeform-large-input[type="date"] {
   color: var(--gray-900);

@@ -189,8 +189,9 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
 
     yPosition += 5;
 
-    // Información de Pago (para pedidos y transcripciones)
-    if ((esPedido || esTranscripcion) && (equipo.precio_total || equipo.adelanto)) {
+    // Información de Pago (para equipos con procesos que tienen precio, pedidos y transcripciones)
+    const tienePrecio = equipo.precio_total || (equipo.procesos && Array.isArray(equipo.procesos) && equipo.procesos.some(p => p?.precio));
+    if ((esPedido || esTranscripcion || tienePrecio) && (equipo.precio_total || equipo.adelanto)) {
       doc.setFillColor(...lightGray);
       doc.rect(margin, yPosition - 5, contentWidth, 8, 'F');
       
@@ -244,9 +245,25 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       
-      if (equipo.procesos) {
-        doc.text(`Proceso: ${equipo.procesos.nombre || 'N/A'}`, margin, yPosition);
-        yPosition += 7;
+      const procesosList = Array.isArray(equipo.procesos) ? equipo.procesos : (equipo.procesos ? [equipo.procesos] : []);
+      if (procesosList.length > 0) {
+        procesosList.forEach((proceso, index) => {
+          if (proceso?.nombre) {
+            const precioText = proceso.precio ? ` - $${parseFloat(proceso.precio).toFixed(2)}` : '';
+            doc.text(`${index + 1}. ${proceso.nombre}${precioText}`, margin, yPosition);
+            yPosition += 7;
+          }
+        });
+        
+        // Mostrar total si hay múltiples procesos con precio
+        const totalCalculado = procesosList.reduce((sum, p) => sum + (parseFloat(p?.precio || 0)), 0);
+        if (totalCalculado > 0 && procesosList.length > 1) {
+          yPosition += 3;
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Total: $${totalCalculado.toFixed(2)}`, margin, yPosition);
+          doc.setFont('helvetica', 'normal');
+          yPosition += 7;
+        }
       }
     }
 

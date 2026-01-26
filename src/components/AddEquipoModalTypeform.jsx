@@ -4,6 +4,7 @@ import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
 import { uploadEquipoPhoto } from '../services/photoUpload.service.js';
 import NotaPDF from './NotaPDF.jsx';
+import Icon from './Icon.jsx';
 import './AddEquipoModalTypeform.css';
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
@@ -31,7 +32,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     cargador: null, // null = no seleccionado, true = sí se queda, false = no se queda
     problema: '',
     contraseña: '',
-    proceso_id: '',
+    proceso_ids: [], // Array de IDs de procesos seleccionados
     cliente_telefono: '',
     cliente_nombre: '',
     cliente_email: ''
@@ -542,7 +543,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
 
   // Avanzar en información adicional
   const handleAdditionalFieldComplete = async (field) => {
-    if (field === 'proceso' && formData.proceso_id) {
+    if (field === 'proceso' && formData.proceso_ids.length > 0) {
       setTimeout(() => setAdditionalSubStep(1), 300); // Ir a teléfono
     } else if (field === 'cliente_telefono' && formData.cliente_telefono.trim()) {
       // Buscar cliente y determinar qué falta
@@ -593,8 +594,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
 
     try {
       // Validar campos requeridos
-      if (!formData.marca || !formData.modelo || !formData.color || formData.cargador === null || !formData.proceso_id || !formData.cliente_telefono) {
-        alert('Por favor completa todos los campos requeridos (incluyendo si se queda el cargador)');
+      if (!formData.marca || !formData.modelo || !formData.color || formData.cargador === null || formData.proceso_ids.length === 0 || !formData.cliente_telefono) {
+        alert('Por favor completa todos los campos requeridos (incluyendo si se queda el cargador y al menos un proceso)');
         setLoading(false);
         return;
       }
@@ -738,23 +739,41 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
       }
 
       if (data && data[0]) {
-        // Crear estado inicial
+        // Crear estado inicial (usar el primer proceso como proceso_actual_id para compatibilidad)
+        const primerProcesoId = formData.proceso_ids[0];
         await supabase.from('estado_equipos').insert({
           equipo_id: data[0].id,
           estado: 'en_proceso',
-          proceso_actual_id: parseInt(formData.proceso_id),
+          proceso_actual_id: parseInt(primerProcesoId),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
 
-        // Registrar en historial
-        const procesoSeleccionado = procesos.find(p => p.id === parseInt(formData.proceso_id));
-        await supabase.from('historial_procesos').insert({
+        // Insertar múltiples procesos en equipo_procesos
+        const procesosSeleccionados = formData.proceso_ids.map(procesoId => ({
           equipo_id: data[0].id,
-          proceso_id: parseInt(formData.proceso_id),
-          notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
-          fecha_inicio: new Date().toISOString()
+          proceso_id: parseInt(procesoId),
+          created_at: new Date().toISOString()
+        }));
+        
+        if (procesosSeleccionados.length > 0) {
+          await supabase.from('equipo_procesos').insert(procesosSeleccionados);
+        }
+
+        // Registrar en historial para cada proceso
+        const procesosParaHistorial = formData.proceso_ids.map(procesoId => {
+          const proceso = procesos.find(p => p.id === parseInt(procesoId));
+          return {
+            equipo_id: data[0].id,
+            proceso_id: parseInt(procesoId),
+            notas: `Proceso iniciado: ${proceso?.nombre}`,
+            fecha_inicio: new Date().toISOString()
+          };
         });
+        
+        if (procesosParaHistorial.length > 0) {
+          await supabase.from('historial_procesos').insert(procesosParaHistorial);
+        }
 
         // Upload photo if captured
         if (capturedImage) {
@@ -776,9 +795,19 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         }
 
         // Guardar datos para mostrar nota PDF y confirmar
+        const procesosSeleccionadosData = formData.proceso_ids.map(id => 
+          procesos.find(p => p.id === parseInt(id))
+        ).filter(Boolean);
+        
+        // Calcular precio total
+        const precioTotal = procesosSeleccionadosData.reduce((sum, p) => 
+          sum + (parseFloat(p?.precio || 0)), 0
+        );
+        
         setEquipoGuardado({
           ...data[0],
-          procesos: procesoSeleccionado
+          procesos: procesosSeleccionadosData,
+          precio_total: precioTotal > 0 ? precioTotal : null
         });
         setClienteGuardado(cliente);
         setShowNotaPDF(true);
@@ -1249,27 +1278,30 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                 <h2 className="typeform-question">¿Se queda el cargador?</h2>
                 <p className="typeform-description">Indica si el cliente deja el cargador del equipo.</p>
                 <div className="typeform-field-wrapper">
-                  <select
-                    name="cargador"
-                    value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData(prev => ({
-                        ...prev,
-                        cargador: value === 'si' ? true : value === 'no' ? false : null
-                      }));
-                      if (value) {
+                  <div className="cargador-buttons">
+                    <button
+                      type="button"
+                      className={`cargador-option ${formData.cargador === false ? 'selected' : ''}`}
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, cargador: false }));
                         setTimeout(() => handleFieldComplete('cargador'), 300);
-                      }
-                    }}
-                    required
-                    autoFocus
-                    className="typeform-large-input typeform-select"
-                  >
-                    <option value="">Selecciona una opción...</option>
-                    <option value="si">Sí, se queda el cargador</option>
-                    <option value="no">No, no se queda el cargador</option>
-                  </select>
+                      }}
+                    >
+                      <Icon name="times-circle" />
+                      <span>No, no se queda</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`cargador-option ${formData.cargador === true ? 'selected' : ''}`}
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, cargador: true }));
+                        setTimeout(() => handleFieldComplete('cargador'), 300);
+                      }}
+                    >
+                      <Icon name="check-circle" />
+                      <span>Sí, se queda</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="typeform-buttons-horizontal">
                   <button
@@ -1297,42 +1329,68 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         {/* Step 3: Información adicional tipo Typeform */}
         {currentStep === 3 && (
           <div className="typeform-step typeform-single-field">
-            {/* Campo: Proceso */}
+            {/* Campo: Procesos (múltiple selección) */}
             {additionalSubStep === 0 && (
               <>
-                <h2 className="typeform-question">¿Qué proceso se va a realizar?</h2>
-                <p className="typeform-description">Selecciona el tipo de servicio a realizar.</p>
+                <h2 className="typeform-question">¿Qué procesos se van a realizar?</h2>
+                <p className="typeform-description">Selecciona uno o más servicios. Puedes seleccionar múltiples procesos.</p>
                 <div className="typeform-field-wrapper">
-                  <select
-                    name="proceso_id"
-                    value={formData.proceso_id}
-                    onChange={(e) => {
-                      handleInputChange(e);
-                      if (e.target.value) {
-                        setTimeout(() => handleAdditionalFieldComplete('proceso'), 300);
-                      }
-                    }}
-                    required
-                    autoFocus
-                    className="typeform-large-input typeform-select"
-                  >
-                    <option value="">Selecciona un proceso...</option>
-                    {procesos.map(proceso => (
-                      <option key={proceso.id} value={proceso.id}>
-                        {proceso.nombre}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="proceso-picker-grid">
+                    {procesos.map(proceso => {
+                      const isSelected = formData.proceso_ids.includes(proceso.id);
+                      return (
+                        <button
+                          key={proceso.id}
+                          type="button"
+                          className={`proceso-picker-square ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            setFormData(prev => {
+                              const newIds = isSelected
+                                ? prev.proceso_ids.filter(id => id !== proceso.id)
+                                : [...prev.proceso_ids, proceso.id];
+                              return { ...prev, proceso_ids: newIds };
+                            });
+                          }}
+                        >
+                          {isSelected && <Icon name="check" className="proceso-check-icon" />}
+                          <span className="proceso-name">{proceso.nombre}</span>
+                          {proceso.precio && (
+                            <span className="proceso-precio">${parseFloat(proceso.precio).toFixed(0)}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {formData.proceso_ids.length > 0 && (
+                    <div className="proceso-total">
+                      <span className="proceso-total-label">Total:</span>
+                      <span className="proceso-total-value">
+                        ${formData.proceso_ids.reduce((sum, id) => {
+                          const proceso = procesos.find(p => p.id === id);
+                          return sum + (parseFloat(proceso?.precio || 0));
+                        }, 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {formData.proceso_id && (
+                <div className="typeform-buttons-horizontal">
                   <button
                     type="button"
-                    onClick={() => handleAdditionalFieldComplete('proceso')}
-                    className="typeform-btn-primary typeform-next-btn"
+                    onClick={() => setAdditionalSubStep(1)}
+                    className="typeform-btn-secondary"
                   >
-                    Continuar →
+                    ← Volver
                   </button>
-                )}
+                  {formData.proceso_ids.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleAdditionalFieldComplete('proceso')}
+                      className="typeform-btn-primary"
+                    >
+                      Continuar →
+                    </button>
+                  )}
+                </div>
               </>
             )}
 
