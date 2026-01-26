@@ -344,13 +344,12 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
     }
   };
 
-  console.log('[NotaPDF] Render modal:', { tipo, equipo, cliente });
   return createPortal(
-    <div className="nota-pdf-container" style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(20,20,20,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="nota-pdf-content" style={{ background: '#222', color: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', maxWidth: 420, width: '100%', padding: 32, position: 'relative' }}>
+    <div className="nota-pdf-container">
+      <div className="nota-pdf-content">
         <div className="nota-pdf-header">
           <h2>{tipo === 'recepcion' ? 'Nota de Recepción' : 'Nota de Entrega'}</h2>
-          <button onClick={onClose} className="nota-pdf-close-btn" style={{ position: 'absolute', top: 16, right: 16, fontSize: 24, background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>×</button>
+          <button type="button" onClick={onClose} className="nota-pdf-close-btn" aria-label="Cerrar">×</button>
         </div>
         <div className="nota-pdf-info">
           <p>El PDF está listo para abrir o descargar.</p>
@@ -358,8 +357,8 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
             <>
               <div className="nota-pdf-buttons">
                 <button
+                  type="button"
                   onClick={() => {
-                    console.log('[NotaPDF] Abrir PDF:', pdfFileName);
                     try {
                       const newWindow = window.open('', '_blank');
                       if (newWindow) {
@@ -378,8 +377,8 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
                   className="nota-pdf-btn-primary"
                 >📄 Abrir PDF en nueva pestaña</button>
                 <button
+                  type="button"
                   onClick={() => {
-                    console.log('[NotaPDF] Descargar PDF:', pdfFileName);
                     const link = document.createElement('a');
                     link.href = pdfUrl.blobUrl;
                     link.download = pdfFileName;
@@ -390,11 +389,11 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
                   }}
                   className="nota-pdf-btn-secondary"
                 >💾 Descargar PDF</button>
-                <button onClick={() => { console.log('[NotaPDF] Cerrar modal'); onClose(); }} className="nota-pdf-btn-close">Cerrar</button>
+                <button type="button" onClick={onClose} className="nota-pdf-btn-close">Cerrar</button>
               </div>
             </>
           ) : (
-            <p style={{ textAlign: 'center', fontSize: 18, margin: '32px 0' }}>Generando PDF...</p>
+            <p className="nota-pdf-loading">Generando PDF...</p>
           )}
         </div>
       </div>

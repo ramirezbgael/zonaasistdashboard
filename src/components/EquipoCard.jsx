@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import PendienteItem from './PendienteItem.jsx';
 import Icon from './Icon.jsx';
 import './EquipoCard.css';
 
 export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
+  const navigate = useNavigate();
   const nota = equipo.nota.toString();
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
@@ -45,6 +47,16 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
 
   // Usar el color del equipo
   const cardColor = getColorFromName(equipo.color);
+  
+  // Detectar si el color es blanco o muy claro para ajustar el contraste del avatar
+  const isColorClaro = equipo.color && (
+    equipo.color.toLowerCase().includes('blanco') || 
+    equipo.color.toLowerCase().includes('perla') ||
+    cardColor === '#f8f9fa' ||
+    cardColor === '#faf0e6' ||
+    cardColor === '#ffffff' ||
+    cardColor === '#fff'
+  );
 
   // Funciones para botones de equipos listos
   const handleLlamarCliente = async (e) => {
@@ -231,17 +243,28 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
     return marca.substring(0, 2).toUpperCase();
   };
 
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      navigate(`/equipos/${equipo.id}`);
+    }
+  };
+
   return (
     <div 
       className="card equipo-card" 
-      onClick={onClick} 
+      onClick={handleCardClick} 
       style={{ 
         cursor: 'pointer',
         '--card-bg-color': cardColor
       }}
     >
       <div className="equipo-card-header">
-        <div className="equipo-avatar" style={{ background: `linear-gradient(135deg, ${cardColor}, ${cardColor}80)` }}>
+        <div 
+          className={`equipo-avatar ${isColorClaro ? 'avatar-color-claro' : ''}`} 
+          style={{ background: `linear-gradient(135deg, ${cardColor}, ${cardColor}80)` }}
+        >
           {getInitials(equipo.marca)}
         </div>
         <div className="equipo-info">
@@ -251,9 +274,9 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
           </div>
           <p className="equipo-modelo">{equipo.modelo}</p>
           {equipo.color && (
-            <div className="equipo-color-info">
+            <div className={`equipo-color-info ${equipo.color.toLowerCase().includes('blanco') ? 'color-claro' : ''}`}>
               <span 
-                className="equipo-color-dot"
+                className={`equipo-color-dot ${equipo.color.toLowerCase().includes('blanco') ? 'color-claro' : ''}`}
                 style={{ backgroundColor: cardColor }}
               />
               <span>{equipo.color}</span>

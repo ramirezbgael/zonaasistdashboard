@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
+import { uploadEquipoPhoto } from '../services/photoUpload.service.js';
 import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
@@ -29,6 +30,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     color: '',
     cargador: null, // null = no seleccionado, true = sí se queda, false = no se queda
     problema: '',
+    contraseña: '',
     proceso_id: '',
     cliente_telefono: '',
     cliente_nombre: '',
@@ -88,6 +90,42 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     );
     setModeloSuggestions(filtered.slice(0, 5));
     setShowModeloSuggestions(filtered.length > 0);
+  };
+
+  // Funciones helper para el selector de colores
+  const getColorHexForPicker = (colorName) => {
+    const colorMap = {
+      'Negro': '#000000',
+      'Blanco': '#ffffff',
+      'Gris': '#808080',
+      'Plateado': '#c0c0c0',
+      'Dorado': '#ffd700',
+      'Rojo': '#ff0000',
+      'Azul': '#0000ff',
+      'Verde': '#008000',
+      'Naranja': '#ffa500'
+    };
+    // Si es un hex code, devolverlo directamente
+    if (colorName && colorName.startsWith('#')) {
+      return colorName;
+    }
+    return colorMap[colorName] || colorName || '#cccccc';
+  };
+
+  const hexToColorName = (hex) => {
+    // Convertir hex a nombre aproximado si es posible
+    const colorMap = {
+      '#000000': 'Negro',
+      '#ffffff': 'Blanco',
+      '#808080': 'Gris',
+      '#c0c0c0': 'Plateado',
+      '#ffd700': 'Dorado',
+      '#ff0000': 'Rojo',
+      '#0000ff': 'Azul',
+      '#008000': 'Verde',
+      '#ffa500': 'Naranja'
+    };
+    return colorMap[hex.toLowerCase()] || hex;
   };
 
   // Verificar disponibilidad de la API de cámara
@@ -670,6 +708,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         color: formData.color.trim(),
         nota: notaGenerada.toString(),
         problema: formData.problema.trim() || '',
+        contraseña: formData.contraseña?.trim() || null,
         cargador: formData.cargador !== null ? formData.cargador : false,
         cliente_id: clienteId
       };
@@ -716,6 +755,18 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
           fecha_inicio: new Date().toISOString()
         });
+
+        // Upload photo if captured
+        if (capturedImage) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            await uploadEquipoPhoto(data[0].id, capturedImage, user?.id || null);
+            console.log('✅ Photo uploaded successfully');
+          } catch (photoError) {
+            console.error('Error uploading photo (non-critical):', photoError);
+            // Don't block the flow if photo upload fails
+          }
+        }
 
         // Crear notificación
         try {
@@ -1118,22 +1169,49 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
               <>
                 <h2 className="typeform-question">¿De qué color es el equipo?</h2>
                 <div className="typeform-field-wrapper">
-                  <input
-                    type="text"
-                    name="color"
-                    value={formData.color}
-                    onChange={handleInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && formData.color.trim()) {
-                        e.preventDefault();
-                        handleFieldComplete('color');
-                      }
-                    }}
-                    placeholder="Escribe el color..."
-                    required
-                    autoFocus
-                    className="typeform-large-input"
-                  />
+                  <div className="color-picker-grid-circles">
+                    {[
+                      'Negro', 'Blanco', 'Gris', 'Plateado', 'Dorado',
+                      'Rojo', 'Azul', 'Verde', 'Naranja'
+                    ].map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`color-picker-circle ${formData.color.toLowerCase() === color.toLowerCase() ? 'selected' : ''}`}
+                        style={{ 
+                          backgroundColor: getColorHexForPicker(color),
+                          borderColor: formData.color.toLowerCase() === color.toLowerCase() ? '#10b981' : 'transparent'
+                        }}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, color }));
+                          setTimeout(() => handleFieldComplete('color'), 300);
+                        }}
+                        title={color}
+                      >
+                        {formData.color.toLowerCase() === color.toLowerCase() && (
+                          <i className="fas fa-check"></i>
+                        )}
+                      </button>
+                    ))}
+                    {/* Selector multicolor como décima opción */}
+                    <div className="color-picker-custom-wrapper">
+                      <input
+                        type="color"
+                        className="color-picker-custom"
+                        value={formData.color && !['Negro', 'Blanco', 'Gris', 'Plateado', 'Dorado', 'Rojo', 'Azul', 'Verde', 'Naranja'].includes(formData.color) 
+                          ? getColorHexForPicker(formData.color) 
+                          : '#cccccc'}
+                        onChange={(e) => {
+                          const hexColor = e.target.value;
+                          // Convertir hex a nombre aproximado o usar el hex directamente
+                          setFormData(prev => ({ ...prev, color: hexToColorName(hexColor) || hexColor }));
+                          setTimeout(() => handleFieldComplete('color'), 300);
+                        }}
+                        title="Otro color"
+                      />
+                      <i className="fas fa-palette color-picker-custom-icon"></i>
+                    </div>
+                  </div>
                 </div>
                 <div className="typeform-buttons-horizontal">
                   <button
@@ -1150,6 +1228,15 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                       className="typeform-btn-primary"
                     >
                       Continuar →
+                    </button>
+                  )}
+                  {!formData.color && (
+                    <button
+                      type="button"
+                      onClick={() => setFormSubStep(1)}
+                      className="typeform-btn-secondary"
+                    >
+                      ← Volver
                     </button>
                   )}
                 </div>
@@ -1402,6 +1489,41 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                         setAdditionalSubStep(2);
                       }
                     }}
+                    className="typeform-btn-secondary"
+                  >
+                    ← Volver
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalSubStep(4)}
+                    className="typeform-btn-primary"
+                  >
+                    Continuar →
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Campo: Contraseña (opcional) */}
+            {additionalSubStep === 4 && (
+              <>
+                <h2 className="typeform-question">¿Tiene contraseña el equipo? (Opcional)</h2>
+                <p className="typeform-description">Si el equipo tiene contraseña, ingrésala aquí. Este campo es opcional.</p>
+                <div className="typeform-field-wrapper">
+                  <input
+                    type="password"
+                    name="contraseña"
+                    value={formData.contraseña}
+                    onChange={handleInputChange}
+                    placeholder="Contraseña del equipo..."
+                    autoFocus
+                    className="typeform-large-input"
+                  />
+                </div>
+                <div className="typeform-buttons-horizontal">
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalSubStep(3)}
                     className="typeform-btn-secondary"
                   >
                     ← Volver

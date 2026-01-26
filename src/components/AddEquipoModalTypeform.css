@@ -460,6 +460,107 @@
   opacity: 0.7;
 }
 
+/* Color Picker Grid - Círculos Elegantes */
+.color-picker-grid-circles {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  justify-items: center;
+}
+
+.color-picker-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.color-picker-circle:hover {
+  transform: translateY(-4px) scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.color-picker-circle.selected {
+  border-color: #10b981;
+  border-width: 4px;
+  box-shadow: 
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 0 0 6px rgba(16, 185, 129, 0.3),
+    0 6px 20px rgba(16, 185, 129, 0.4);
+  transform: scale(1.15);
+}
+
+.color-picker-circle.selected i {
+  color: #ffffff;
+  font-size: 1.25rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.color-picker-custom-wrapper {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.color-picker-custom-wrapper:hover {
+  transform: translateY(-4px) scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.color-picker-custom {
+  width: 100%;
+  height: 100%;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+}
+
+.color-picker-custom-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  color: #6b7280;
+  pointer-events: none;
+  z-index: 1;
+  transition: color 0.2s;
+}
+
+.color-picker-custom-wrapper:hover .color-picker-custom-icon {
+  color: #10b981;
+}
+
+.color-picker-custom-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+  z-index: 0;
+}
+
 /* Date input specific styles */
 .typeform-large-input[type="date"] {
   color: var(--gray-900);

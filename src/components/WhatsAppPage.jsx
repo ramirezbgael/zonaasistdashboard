@@ -492,7 +492,7 @@ export default function WhatsAppPage() {
     };
 
     return (
-        <div className="page-container">
+        <div className="whatsapp-page page-container">
             <div className="page-header">
                 <div className="page-title-section">
                     <h1 className="page-title">

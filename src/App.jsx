@@ -4,6 +4,7 @@ import Login from './components/Login.jsx';
 import MainLayout from './components/MainLayout.jsx';
 import MainDashboard from './components/MainDashboard.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import EquipoDetalle from './components/EquipoDetalle.jsx';
 import DocumentosPage from './components/DocumentosPage.jsx';
 import LogisticaPage from './components/LogisticaPage.jsx';
 import ClientesPage from './components/ClientesPage.jsx';
@@ -30,6 +31,7 @@ export default function App() {
             >
               <Route index element={<MainDashboard />} />
               <Route path="equipos" element={<Dashboard />} />
+              <Route path="equipos/:id" element={<EquipoDetalle />} />
               <Route path="documentos" element={<DocumentosPage />} />
               <Route path="logistica" element={<LogisticaPage />} />
               <Route path="clientes" element={<ClientesPage />} />

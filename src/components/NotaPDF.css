@@ -6,7 +6,7 @@
   bottom: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
@@ -17,6 +17,10 @@
   margin: 0;
   padding: 1rem;
   box-sizing: border-box;
+}
+
+.dark-mode .nota-pdf-container {
+  background: rgba(0, 0, 0, 0.7);
 }
 
 @keyframes fadeIn {
@@ -119,13 +123,24 @@
 
 .nota-pdf-info p {
   margin: 0.5rem 0;
-  color: #64748b;
+  color: #475569;
   font-size: 1rem;
   line-height: 1.6;
 }
 
 .dark-mode .nota-pdf-info p {
   color: #cbd5e1;
+}
+
+.nota-pdf-loading {
+  text-align: center;
+  font-size: 1.125rem;
+  margin: 2rem 0 !important;
+  color: #475569 !important;
+}
+
+.dark-mode .nota-pdf-loading {
+  color: #94a3b8 !important;
 }
 
 .nota-pdf-buttons {

@@ -500,6 +500,13 @@
   overflow-x: hidden;
 }
 
+/* Override background for EquipoDetalle route */
+.main-content:has(.equipo-detalle) {
+  background: #1a1a1a;
+  padding: 0;
+  margin: 0;
+}
+
 /* RESPONSIVE - TABLET */
 @media (min-width: 768px) {
   .navbar-container {
