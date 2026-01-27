@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import jsPDF from 'jspdf';
 import './NotaPDF.css';
@@ -6,7 +6,6 @@ import './NotaPDF.css';
 export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [pdfFileName, setPdfFileName] = useState(null);
-  const canvasRef = useRef(null);
   
   // Detectar si es un pedido, transcripción o documento
   const esPedido = equipo?.tipo === 'pedido' || equipo?.marca === 'Pedido';
@@ -19,341 +18,335 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
 
   // Generar PDF cuando el componente se monta
   useEffect(() => {
-    generarPDF();
+    generarPDF().catch(error => {
+      console.error('Error al generar PDF:', error);
+      alert('Error al generar el PDF. Por favor intenta de nuevo.');
+    });
   }, []);
 
-  const generarPDF = () => {
+  // Paleta: B&W friendly, verde solo acento
+  const colors = {
+    black: [30, 30, 30],
+    grayDark: [80, 80, 80],
+    gray: [120, 120, 120],
+    grayLight: [180, 180, 180],
+    bgBlock: [248, 248, 248],
+    bgCostos: [242, 248, 246], // verde muy suave
+    accent: [16, 185, 129]     // verde logo
+  };
+
+  // Bloque visual: fondo claro + barra verde izquierda + título MAYÚSCULAS
+  const drawBlock = (doc, opts) => {
+    const { margin, contentWidth, yStart, title, contentHeight, accent = true } = opts;
+    const pad = 4;
+    const stripW = 2.5;
+    const innerX = margin + (accent ? stripW + pad : pad) + 1;
+
+    // Fondo del bloque
+    doc.setFillColor(...(opts.bgColor || colors.bgBlock));
+    doc.rect(margin, yStart, contentWidth, contentHeight, 'F');
+
+    // Barra verde acento (izquierda)
+    if (accent) {
+      doc.setFillColor(...colors.accent);
+      doc.rect(margin, yStart, stripW, contentHeight, 'F');
+    }
+
+    // Borde suave
+    doc.setDrawColor(...colors.grayLight);
+    doc.setLineWidth(0.2);
+    doc.rect(margin, yStart, contentWidth, contentHeight, 'S');
+
+    // Título en negrita MAYÚSCULAS
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colors.black);
+    doc.text((title || '').toUpperCase(), innerX, yStart + 6);
+
+    return { innerX, innerY: yStart + 10, innerW: contentWidth - (accent ? stripW + pad : pad) - 4 };
+  };
+
+  const generarPDF = async () => {
     try {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const contentWidth = pageWidth - (margin * 2);
-    let yPosition = margin;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
 
-    // Colores
-    const primaryColor = [16, 185, 129]; // Verde
-    const darkColor = [30, 41, 59]; // Gris oscuro
-    const lightGray = [241, 245, 249]; // Gris claro
+      // ─── ENCABEZADO ─────────────────────────────────────────────────
+      const headerH = 30;
+      doc.setFillColor(...colors.bgBlock);
+      doc.rect(0, 0, pageWidth, headerH + 6, 'F');
+      doc.setDrawColor(...colors.accent);
+      doc.setLineWidth(0.5);
+      doc.line(margin, headerH + 6, pageWidth - margin, headerH + 6);
 
-    // Encabezado con fondo de color
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, pageWidth, 50, 'F');
-    
-    // Logo/Título
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ZONA ASIST', pageWidth / 2, 20, { align: 'center' });
-    
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'normal');
-    doc.text(
-      tipo === 'recepcion' ? 'NOTA DE RECEPCIÓN' : 'NOTA DE ENTREGA',
-      pageWidth / 2,
-      35,
-      { align: 'center' }
-    );
-
-    yPosition = 60;
-
-    // Información de la nota
-    doc.setTextColor(...darkColor);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    
-    // Usar la fecha de creación del equipo/documento/pedido, no la fecha actual
-    const fechaCreacion = equipo?.created_at || equipo?.fecha_inicio || new Date().toISOString();
-    const fechaFormateada = new Date(fechaCreacion).toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    doc.text(`Fecha: ${fechaFormateada}`, margin, yPosition);
-    doc.text(`Nota #${equipo.nota}`, pageWidth - margin, yPosition, { align: 'right' });
-
-    yPosition += 15;
-
-    // Línea separadora
-    doc.setDrawColor(...primaryColor);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-
-    yPosition += 10;
-
-    // Información del Cliente (para equipos o pedidos con cliente asociado)
-    if (!esPedido || (esPedido && infoCliente)) {
-      doc.setFillColor(...lightGray);
-      doc.rect(margin, yPosition - 5, contentWidth, 8, 'F');
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...darkColor);
-      doc.text('INFORMACIÓN DEL CLIENTE', margin, yPosition);
-
-      yPosition += 10;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      
-      if (infoCliente) {
-        doc.text(`Nombre: ${infoCliente.nombre || 'N/A'}`, margin, yPosition);
-        yPosition += 7;
-        
-        if (infoCliente.telefono) {
-          doc.text(`Teléfono: ${infoCliente.telefono}`, margin, yPosition);
-          yPosition += 7;
-        }
-        
-        if (infoCliente.email) {
-          doc.text(`Email: ${infoCliente.email}`, margin, yPosition);
-          yPosition += 7;
-        }
-      } else if (!esPedido) {
-        doc.text('Cliente: No especificado', margin, yPosition);
-        yPosition += 7;
-      }
-
-      yPosition += 5;
-    }
-
-    // Información del Equipo/Pedido/Documento
-    doc.setFillColor(...lightGray);
-    doc.rect(margin, yPosition - 5, contentWidth, 8, 'F');
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    let tituloSeccion = 'INFORMACIÓN DEL EQUIPO';
-    if (esPedido) {
-      tituloSeccion = 'INFORMACIÓN DEL PEDIDO';
-    } else if (esDocumento) {
-      tituloSeccion = 'INFORMACIÓN DEL DOCUMENTO';
-    }
-    doc.text(tituloSeccion, margin, yPosition);
-
-    yPosition += 10;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    
-    if (esPedido) {
-      // Información de pedido
-      doc.text(`Producto/Pieza: ${equipo.modelo || 'N/A'}`, margin, yPosition);
-      yPosition += 7;
-      
-      if (equipo.cantidad) {
-        doc.text(`Cantidad: ${equipo.cantidad}`, margin, yPosition);
-        yPosition += 7;
-      }
-      
-      if (equipo.problema) {
-        doc.text(`Notas: ${equipo.problema}`, margin, yPosition);
-        yPosition += 7;
-      }
-    } else if (esDocumento) {
-      // Información de documento
-      const tipoDocumento = equipo.modelo || 'N/A';
-      const tipoDisplay = tipoDocumento.charAt(0).toUpperCase() + tipoDocumento.slice(1);
-      doc.text(`Tipo de servicio: ${tipoDisplay}`, margin, yPosition);
-      yPosition += 7;
-      
-      if (equipo.problema) {
-        doc.text(`Descripción: ${equipo.problema}`, margin, yPosition);
-        yPosition += 7;
-      }
-    } else {
-      // Información de equipo
-      doc.text(`Marca: ${equipo.marca || 'N/A'}`, margin, yPosition);
-      yPosition += 7;
-      
-      doc.text(`Modelo: ${equipo.modelo || 'N/A'}`, margin, yPosition);
-      yPosition += 7;
-      
-      if (equipo.color) {
-        doc.text(`Color: ${equipo.color}`, margin, yPosition);
-        yPosition += 7;
-      }
-      
-      if (equipo.problema) {
-        doc.text(`Problema reportado: ${equipo.problema}`, margin, yPosition);
-        yPosition += 7;
-      }
-    }
-
-    yPosition += 5;
-
-    // Información de Pago (para equipos con procesos que tienen precio, pedidos y transcripciones)
-    const tienePrecio = equipo.precio_total || (equipo.procesos && Array.isArray(equipo.procesos) && equipo.procesos.some(p => p?.precio));
-    if ((esPedido || esTranscripcion || tienePrecio) && (equipo.precio_total || equipo.adelanto)) {
-      doc.setFillColor(...lightGray);
-      doc.rect(margin, yPosition - 5, contentWidth, 8, 'F');
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...darkColor);
-      doc.text('INFORMACIÓN DE PAGO', margin, yPosition);
-
-      yPosition += 10;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      
-      if (equipo.precio_total) {
-        doc.text(`Precio Total: $${parseFloat(equipo.precio_total || 0).toFixed(2)}`, margin, yPosition);
-        yPosition += 7;
-      }
-      
-      if (equipo.adelanto || equipo.pago_full) {
-        const adelanto = equipo.pago_full ? equipo.precio_total : (equipo.adelanto || 0);
-        doc.text(`Adelanto: $${parseFloat(adelanto || 0).toFixed(2)}`, margin, yPosition);
-        yPosition += 7;
-        
-        if (equipo.pago_full) {
-          doc.setTextColor(40, 167, 69); // Verde
-          doc.setFont('helvetica', 'bold');
-          doc.text('✓ PAGO COMPLETO', margin, yPosition);
-          doc.setTextColor(...darkColor);
-          doc.setFont('helvetica', 'normal');
-          yPosition += 7;
-        } else if (equipo.precio_total) {
-          const restante = parseFloat(equipo.precio_total || 0) - parseFloat(adelanto || 0);
-          doc.text(`Restante: $${restante.toFixed(2)}`, margin, yPosition);
-          yPosition += 7;
-        }
-      }
-
-      yPosition += 5;
-    }
-
-    // Estado y proceso
-    if (equipo.proceso_actual_id || equipo.procesos) {
-      doc.setFillColor(...lightGray);
-      doc.rect(margin, yPosition - 5, contentWidth, 8, 'F');
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PROCESO', margin, yPosition);
-      yPosition += 10;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      
-      const procesosList = Array.isArray(equipo.procesos) ? equipo.procesos : (equipo.procesos ? [equipo.procesos] : []);
-      if (procesosList.length > 0) {
-        procesosList.forEach((proceso, index) => {
-          if (proceso?.nombre) {
-            const precioText = proceso.precio ? ` - $${parseFloat(proceso.precio).toFixed(2)}` : '';
-            doc.text(`${index + 1}. ${proceso.nombre}${precioText}`, margin, yPosition);
-            yPosition += 7;
-          }
+      let logoRight = margin;
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = '/logo.png';
         });
-        
-        // Mostrar total si hay múltiples procesos con precio
-        const totalCalculado = procesosList.reduce((sum, p) => sum + (parseFloat(p?.precio || 0)), 0);
-        if (totalCalculado > 0 && procesosList.length > 1) {
-          yPosition += 3;
-          doc.setFont('helvetica', 'bold');
-          doc.text(`Total: $${totalCalculado.toFixed(2)}`, margin, yPosition);
-          doc.setFont('helvetica', 'normal');
-          yPosition += 7;
+        if (img.width && img.height) {
+          const lw = 28;
+          const lh = (img.height / img.width) * lw;
+          doc.addImage(img, 'PNG', margin, 5, lw, Math.min(lh, 25));
+          logoRight = margin + lw + 8;
         }
+      } catch (e) {
+        console.warn('Logo no cargado:', e);
       }
-    }
 
-    yPosition += 10;
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.black);
+      doc.text('Asistencia en Sistemas Internet y Servicio Técnico', logoRight, 12);
 
-    // Observaciones
-    doc.setFillColor(...lightGray);
-    doc.rect(margin, yPosition - 5, contentWidth, 8, 'F');
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('OBSERVACIONES', margin, yPosition);
-    yPosition += 10;
+      const tituloDoc = tipo === 'recepcion' ? 'Ficha de Recepción' : 'Ficha de Entrega y Garantía';
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(tituloDoc, logoRight, 19);
 
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    
-    let observaciones = '';
-    if (esPedido) {
-      observaciones = tipo === 'recepcion' 
-        ? 'Pedido recibido del proveedor. Se procederá con la verificación y almacenamiento según corresponda.'
-        : 'Pedido entregado/completado según lo acordado.';
-    } else if (esDocumento) {
-      observaciones = tipo === 'recepcion'
-        ? 'Documento recibido en las condiciones descritas. Se procederá con el procesamiento según corresponda.'
-        : 'Documento entregado al cliente. Trabajo completado según lo acordado.';
-    } else {
-      observaciones = tipo === 'recepcion' 
-        ? 'Equipo recibido en las condiciones descritas. Se procederá con la revisión y reparación según corresponda.'
-        : 'Equipo entregado al cliente en buen estado. Trabajo completado según lo acordado.';
-    }
+      const fechaRec = new Date(equipo?.created_at || Date.now()).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const fechaEnt = tipo === 'entrega' ? new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+      const meta = `Nota #${equipo.nota || 'N/A'}   ·   Tel. 722 437 71 08   ·   Recepción: ${fechaRec}${fechaEnt ? `   ·   Entrega: ${fechaEnt}` : ''}`;
+      doc.setFontSize(9);
+      doc.setTextColor(...colors.grayDark);
+      const metaLines = doc.splitTextToSize(meta, pageWidth - margin - logoRight - 4);
+      metaLines.forEach((line, i) => { doc.text(line, logoRight, 26 + i * 4.5); });
+      y = headerH + 10 + metaLines.length * 4.5;
 
-    const observacionesLines = doc.splitTextToSize(observaciones, contentWidth);
-    observacionesLines.forEach(line => {
-      if (yPosition > pageHeight - 30) {
-        doc.addPage();
-        yPosition = margin;
+      // ─── BLOQUE 1: CLIENTE ──────────────────────────────────────────
+      const h1 = 24;
+      const r1 = drawBlock(doc, { margin, contentWidth, yStart: y, title: 'Cliente', contentHeight: h1 });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colors.black);
+      const nom = infoCliente?.nombre || '—';
+      const tel = infoCliente?.telefono ? `Tel. ${infoCliente.telefono}` : '';
+      const mail = infoCliente?.email || '';
+      doc.text(nom, r1.innerX, r1.innerY + 2);
+      if (tel) doc.text(tel, r1.innerX, r1.innerY + 7);
+      if (mail) doc.text(mail, r1.innerX, r1.innerY + (tel ? 12 : 7));
+      y += h1 + 5;
+
+      // ─── BLOQUE 2: DATOS DEL EQUIPO ─────────────────────────────────
+      const h2 = 28;
+      const r2 = drawBlock(doc, { margin, contentWidth, yStart: y, title: 'Datos del equipo', contentHeight: h2 });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colors.black);
+      if (!esPedido && !esDocumento) {
+        const tipoEq = equipo.tipo_equipo || 'Laptop';
+        const marca = equipo.marca || '—';
+        const modelo = equipo.modelo || '—';
+        const det = equipo.color ? `${equipo.color}${equipo.detalles ? ', ' + equipo.detalles : ''}` : (equipo.detalles || '—');
+        const pass = equipo.contraseña ? `Contraseña: ${equipo.contraseña}` : '';
+        doc.text(`${tipoEq}   ·   ${marca}   ·   ${modelo}`, r2.innerX, r2.innerY + 2);
+        doc.text(`Color / detalles: ${det}`, r2.innerX, r2.innerY + 7);
+        if (pass) doc.text(pass, r2.innerX, r2.innerY + 12);
+      } else {
+        doc.text('—', r2.innerX, r2.innerY + 2);
       }
-      doc.text(line, margin, yPosition);
-      yPosition += 7;
-    });
+      y += h2 + 5;
 
-    yPosition += 10;
+      // ─── BLOQUE 3: SERVICIO (mejorado visualmente) ──────────────────
+      const prob = equipo.problema?.trim() || null;
+      const procesosList = Array.isArray(equipo.procesos) ? equipo.procesos : (equipo.procesos ? [equipo.procesos] : []);
+      const sol = procesosList.length ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ') : null;
+      
+      // Problema reportado = procesos (en recepción y entrega)
+      // Solución implementada = equipo.problema (solo en entrega)
+      const tieneProblema = sol && sol.length > 0; // Procesos siempre van en "Problema reportado"
+      const tieneSolucion = tipo === 'entrega' && prob && prob.length > 0; // equipo.problema solo en entrega
+      
+      if (tieneProblema || tieneSolucion) {
+        const lineH = 5;
+        const probLinesPreview = prob ? doc.splitTextToSize(prob, contentWidth - 20) : [];
+        const solLinesPreview = sol ? doc.splitTextToSize(sol, contentWidth - 20) : [];
+        
+        // Calcular altura: problema = procesos (sol); solución = equipo.problema (prob) solo en entrega
+        const probBlockH = tieneProblema ? (4 + 5.5 + solLinesPreview.length * lineH + 4) : 0;
+        const solBlockH = tieneSolucion ? (4 + 5.5 + probLinesPreview.length * lineH + 4) : 0;
+        const h3 = 9 + 1 + 2 + probBlockH + solBlockH + 3;
+        
+        // Fondo con tinte sutil
+        doc.setFillColor(250, 250, 250);
+        doc.rect(margin, y, contentWidth, h3, 'F');
+        doc.setFillColor(...colors.accent);
+        doc.rect(margin, y, 3.5, h3, 'F');
+        doc.setDrawColor(...colors.grayLight);
+        doc.setLineWidth(0.3);
+        doc.rect(margin, y, contentWidth, h3, 'S');
+        
+        // Título
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.black);
+        doc.text('SERVICIO', margin + 8, y + 6);
+        
+        // Separador interno
+        doc.setDrawColor(...colors.grayLight);
+        doc.setLineWidth(0.2);
+        doc.line(margin + 8, y + 9, pageWidth - margin - 8, y + 9);
+        
+        const innerX = margin + 10;
+        let innerY = y + 12;
+        
+        // Problema reportado = procesos (en recepción y entrega)
+        if (tieneProblema && solLinesPreview.length > 0) {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...colors.grayDark);
+          doc.text('Problema reportado:', innerX, innerY);
+          innerY += 5.5;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...colors.black);
+          solLinesPreview.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
+          innerY += solLinesPreview.length * lineH + 4;
+        }
 
-    // Firmas
-    if (yPosition > pageHeight - 50) {
-      doc.addPage();
-      yPosition = margin;
-    }
+        // Solución implementada = equipo.problema (solo en entrega)
+        if (tieneSolucion && probLinesPreview.length > 0) {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...colors.accent);
+          doc.text('Solución implementada:', innerX, innerY);
+          innerY += 5.5;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...colors.black);
+          probLinesPreview.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
+        }
+        
+        y += h3 + 5;
+      }
 
-    const firmaWidth = contentWidth / 2 - 5;
-    const firmaX1 = margin;
-    const firmaX2 = pageWidth / 2 + 5;
+      // ─── BLOQUE 4: COSTOS (destacado) ───────────────────────────────
+      if (tipo === 'entrega') {
+        // Calcular total: primero intentar precio_total, luego sumar precios de procesos
+        let tot = equipo.precio_total;
+        if (!tot && procesosList.length > 0) {
+          tot = procesosList.reduce((sum, p) => {
+            const precio = parseFloat(p?.precio) || 0;
+            return sum + precio;
+          }, 0);
+        }
+        // Si aún no hay total, usar 0
+        tot = tot || 0;
+        
+        const ant = equipo.adelanto || 0;
+        const ade = tot - ant;
+        const estado = equipo.pago_full ? 'Pagado' : 'Pendiente';
+        const costosStr = `Total: $${Number(tot).toFixed(2)}   ·   Anticipo: $${Number(ant).toFixed(2)}   ·   Adeudo: $${Number(ade).toFixed(2)}   ·   ${estado}`;
+        const costosLines = doc.splitTextToSize(costosStr, contentWidth - 16);
+        const h4 = 12 + costosLines.length * 5;
+        doc.setFillColor(...colors.bgCostos);
+        doc.rect(margin, y, contentWidth, h4, 'F');
+        doc.setFillColor(...colors.accent);
+        doc.rect(margin, y, 3.5, h4, 'F');
+        doc.setDrawColor(...colors.accent);
+        doc.setLineWidth(0.5);
+        doc.rect(margin, y, contentWidth, h4, 'S');
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.black);
+        doc.text('COSTOS', margin + 10, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        costosLines.forEach((line, i) => { doc.text(line, margin + 10, y + 14 + i * 5); });
+        y += h4 + 5;
+      }
 
-    // Firma Cliente
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.rect(firmaX1, yPosition, firmaWidth, 30, 'S');
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...darkColor);
-    doc.text('Firma del Cliente', firmaX1 + firmaWidth / 2, yPosition + 5, { align: 'center' });
-    doc.text('_____________________', firmaX1 + firmaWidth / 2, yPosition + 20, { align: 'center' });
+      // ─── BLOQUE 5: GARANTÍA (estilo póliza premium) ──────────────────
+      const garantiaPuntos = [
+        'Garantía de 1 mes en software (sistema operativo, drivers y programas).',
+        'Garantía de 1 año en hardware únicamente en piezas reemplazadas.',
+        'Los respaldos de información se conservan por 30 días.',
+        'Este documento es indispensable para hacer válida la garantía.'
+      ];
+      
+      // Calcular altura necesaria
+      let garTotalH = 12;
+      garantiaPuntos.forEach(punto => {
+        const lines = doc.splitTextToSize(punto, contentWidth - 30);
+        garTotalH += lines.length * 4 + 2;
+      });
+      
+      // Fondo con tinte sutil tipo póliza
+      doc.setFillColor(252, 252, 252);
+      doc.rect(margin, y, contentWidth, garTotalH, 'F');
+      doc.setFillColor(...colors.accent);
+      doc.rect(margin, y, 3.5, garTotalH, 'F');
+      doc.setDrawColor(...colors.grayLight);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, y, contentWidth, garTotalH, 'S');
+      
+      // Título
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.black);
+      doc.text('GARANTÍA', margin + 8, y + 6);
+      
+      // Separador interno
+      doc.setDrawColor(...colors.grayLight);
+      doc.setLineWidth(0.2);
+      doc.line(margin + 8, y + 9, pageWidth - margin - 8, y + 9);
+      
+      const garX = margin + 12;
+      let garY = y + 13;
+      
+      // Puntos numerados con estilo póliza
+      garantiaPuntos.forEach((punto, idx) => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.accent);
+        doc.text(`${idx + 1}.`, garX, garY);
+        
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colors.grayDark);
+        const puntoLines = doc.splitTextToSize(punto, contentWidth - 30);
+        puntoLines.forEach((line, i) => {
+          doc.text(line, garX + 5, garY + i * 4);
+        });
+        garY += puntoLines.length * 4 + 3;
+      });
+      
+      y += garTotalH + 5;
 
-    // Firma Técnico
-    doc.rect(firmaX2, yPosition, firmaWidth, 30, 'S');
-    doc.text('Firma del Técnico', firmaX2 + firmaWidth / 2, yPosition + 5, { align: 'center' });
-    doc.text('_____________________', firmaX2 + firmaWidth / 2, yPosition + 20, { align: 'center' });
+      // ─── BLOQUE 6: FIRMA ────────────────────────────────────────────
+      doc.setDrawColor(...colors.grayLight);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 8;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colors.black);
+      doc.text('Firma del cliente: _________________________________________', margin, y);
+      y += 8;
 
-    // Pie de página
-    const footerY = pageHeight - 15;
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      'Este documento es una copia generada automáticamente por el sistema Zona Asist',
-      pageWidth / 2,
-      footerY,
-      { align: 'center' }
-    );
+      // Pie
+      doc.setFontSize(8);
+      doc.setTextColor(...colors.gray);
+      doc.text('Gracias por confiar en Zona Asist · Síguenos en Facebook', margin, pageHeight - 10);
 
-      // Generar el PDF y crear URL usando base64 para evitar problemas con blob en Safari
       const pdfDataUri = doc.output('datauristring');
       const fileName = `Nota_${tipo === 'recepcion' ? 'Recepcion' : 'Entrega'}_${equipo.nota}_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      // También crear blob para descarga
       const pdfBlob = doc.output('blob');
       const blobUrl = URL.createObjectURL(pdfBlob);
-      
-      setPdfUrl({ dataUri: pdfDataUri, blobUrl: blobUrl });
+      setPdfUrl({ dataUri: pdfDataUri, blobUrl });
       setPdfFileName(fileName);
     } catch (error) {
       console.error('Error al generar PDF:', error);

@@ -15,6 +15,7 @@ export default function EquipoDetalle() {
   const [cliente, setCliente] = useState(null);
   const [estadoEquipo, setEstadoEquipo] = useState(null);
   const [procesoInfo, setProcesoInfo] = useState(null);
+  const [procesosEquipo, setProcesosEquipo] = useState([]); // Todos los procesos asociados al equipo con precios
   const [subprocesos, setSubprocesos] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,13 +29,34 @@ export default function EquipoDetalle() {
   const [showComentarioModal, setShowComentarioModal] = useState(false);
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showOpcionesEspeciales, setShowOpcionesEspeciales] = useState(false);
+  const [procesosDisponibles, setProcesosDisponibles] = useState([]);
+  const [procesoSeleccionado, setProcesoSeleccionado] = useState(null);
+  const [justificacionFinalizado, setJustificacionFinalizado] = useState('');
+  const [cambiandoProceso, setCambiandoProceso] = useState(false);
+  const [finalizandoConJustificacion, setFinalizandoConJustificacion] = useState(false);
 
   useEffect(() => {
     loadCurrentUser();
     if (id) {
       loadEquipo();
     }
+    loadProcesosDisponibles();
   }, [id]);
+
+  const loadProcesosDisponibles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('procesos')
+        .select('id, nombre')
+        .order('nombre');
+      
+      if (error) throw error;
+      setProcesosDisponibles(data || []);
+    } catch (error) {
+      console.error('Error loading procesos:', error);
+    }
+  };
 
   const loadCurrentUser = async () => {
     try {
@@ -100,6 +122,9 @@ export default function EquipoDetalle() {
       // Load estado
       await loadEstadoEquipo();
       
+      // Load procesos asociados al equipo con precios
+      await loadProcesosEquipo();
+      
       // Load historial/timeline
       await loadHistorial();
       
@@ -121,7 +146,8 @@ export default function EquipoDetalle() {
           procesos (
             id,
             nombre,
-            descripcion
+            descripcion,
+            precio
           )
         `)
         .eq('equipo_id', id)
@@ -136,6 +162,67 @@ export default function EquipoDetalle() {
       }
     } catch (error) {
       console.error('Error loading estado:', error);
+    }
+  };
+
+  const loadProcesosEquipo = async () => {
+    try {
+      // 1. Cargar procesos desde equipo_procesos (con precios)
+      const { data: epData, error: epError } = await supabase
+        .from('equipo_procesos')
+        .select(`
+          proceso_id,
+          procesos (
+            id,
+            nombre,
+            precio
+          )
+        `)
+        .eq('equipo_id', id);
+
+      let procesosConPrecio = [];
+
+      if (!epError && epData?.length) {
+        procesosConPrecio = epData
+          .map((ep) => ({
+            id: ep.procesos?.id,
+            nombre: ep.procesos?.nombre,
+            precio: parseFloat(ep.procesos?.precio) || 0,
+          }))
+          .filter((p) => p.id);
+      }
+
+      // 2. Si no hay nada en equipo_procesos, usar proceso actual de estado_equipos
+      if (procesosConPrecio.length === 0) {
+        const { data: estado, error: estadoErr } = await supabase
+          .from('estado_equipos')
+          .select('proceso_actual_id')
+          .eq('equipo_id', id)
+          .maybeSingle();
+
+        if (!estadoErr && estado?.proceso_actual_id) {
+          const { data: proc, error: procErr } = await supabase
+            .from('procesos')
+            .select('id, nombre, precio')
+            .eq('id', estado.proceso_actual_id)
+            .single();
+
+          if (!procErr && proc) {
+            procesosConPrecio = [
+              {
+                id: proc.id,
+                nombre: proc.nombre,
+                precio: parseFloat(proc.precio) || 0,
+              },
+            ];
+          }
+        }
+      }
+
+      setProcesosEquipo(procesosConPrecio);
+    } catch (error) {
+      console.error('Error loading procesos del equipo:', error);
+      setProcesosEquipo([]);
     }
   };
 
@@ -393,6 +480,166 @@ export default function EquipoDetalle() {
     }
   };
 
+  const cambiarProceso = async () => {
+    if (!procesoSeleccionado) {
+      alert('Por favor selecciona un proceso');
+      return;
+    }
+
+    if (!confirm(`¿Estás seguro de cambiar el proceso a "${procesosDisponibles.find(p => p.id === procesoSeleccionado)?.nombre}"?`)) {
+      return;
+    }
+
+    setCambiandoProceso(true);
+    try {
+      const usuarioId = currentUser?.id;
+      if (!usuarioId) {
+        alert('Error: No se pudo identificar el usuario');
+        return;
+      }
+
+      // Actualizar estado_equipos
+      const { data: estadoExistente } = await supabase
+        .from('estado_equipos')
+        .select('id')
+        .eq('equipo_id', id)
+        .maybeSingle();
+
+      if (estadoExistente) {
+        const { error: estadoError } = await supabase
+          .from('estado_equipos')
+          .update({
+            proceso_actual_id: procesoSeleccionado,
+            updated_at: new Date().toISOString()
+          })
+          .eq('equipo_id', id);
+
+        if (estadoError) throw estadoError;
+      } else {
+        const { error: estadoError } = await supabase
+          .from('estado_equipos')
+          .insert({
+            equipo_id: id,
+            proceso_actual_id: procesoSeleccionado,
+            estado: 'en_proceso',
+            updated_at: new Date().toISOString()
+          });
+
+        if (estadoError) throw estadoError;
+      }
+
+      // Verificar si el proceso ya está en equipo_procesos, si no, agregarlo
+      const { data: procesoExistente } = await supabase
+        .from('equipo_procesos')
+        .select('id')
+        .eq('equipo_id', id)
+        .eq('proceso_id', procesoSeleccionado)
+        .maybeSingle();
+
+      if (!procesoExistente) {
+        // Agregar el proceso a equipo_procesos
+        const { error: equipoProcesoError } = await supabase
+          .from('equipo_procesos')
+          .insert({
+            equipo_id: id,
+            proceso_id: procesoSeleccionado
+          });
+
+        if (equipoProcesoError) {
+          console.warn('Error al agregar proceso a equipo_procesos (no crítico):', equipoProcesoError);
+        }
+      }
+
+      // Registrar en historial
+      const procesoNombre = procesosDisponibles.find(p => p.id === procesoSeleccionado)?.nombre;
+      const { error: historialError } = await supabase
+        .from('historial_procesos')
+        .insert({
+          equipo_id: id,
+          proceso_id: procesoSeleccionado,
+          notas: `OPCIÓN ESPECIAL: Proceso cambiado a "${procesoNombre}"`,
+          completado: null,
+          usuario_id: usuarioId,
+          tipo_evento: 'cambio_proceso'
+        });
+
+      if (historialError) throw historialError;
+
+      alert('Proceso cambiado exitosamente');
+      setShowOpcionesEspeciales(false);
+      setProcesoSeleccionado(null);
+      await loadEquipo();
+    } catch (error) {
+      console.error('Error cambiando proceso:', error);
+      alert('Error al cambiar el proceso');
+    } finally {
+      setCambiandoProceso(false);
+    }
+  };
+
+  const finalizarConJustificacion = async () => {
+    if (!justificacionFinalizado.trim()) {
+      alert('Por favor proporciona una justificación');
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de marcar este equipo como finalizado sin completar el proceso?')) {
+      return;
+    }
+
+    setFinalizandoConJustificacion(true);
+    try {
+      const usuarioId = currentUser?.id;
+      if (!usuarioId) {
+        alert('Error: No se pudo identificar el usuario');
+        return;
+      }
+
+      // Actualizar estado a finalizado
+      const { error: estadoError } = await supabase
+        .from('estado_equipos')
+        .update({
+          estado: 'finalizado',
+          updated_at: new Date().toISOString()
+        })
+        .eq('equipo_id', id);
+
+      if (estadoError) throw estadoError;
+
+      // Registrar en historial con justificación
+      const { error: historialError } = await supabase
+        .from('historial_procesos')
+        .insert({
+          equipo_id: id,
+          proceso_id: estadoEquipo?.proceso_actual_id,
+          notas: `OPCIÓN ESPECIAL: Equipo finalizado sin completar proceso. Justificación: ${justificacionFinalizado.trim()}`,
+          completado: true,
+          fecha_completado: new Date().toISOString(),
+          usuario_id: usuarioId,
+          tipo_evento: 'finalizacion_especial'
+        });
+
+      if (historialError) throw historialError;
+
+      // Create notification
+      try {
+        await notificarEquipoFinalizado(equipo, cliente);
+      } catch (notifError) {
+        console.error('Error creating notification (non-critical):', notifError);
+      }
+
+      alert('Equipo marcado como finalizado exitosamente');
+      setShowOpcionesEspeciales(false);
+      setJustificacionFinalizado('');
+      await loadEquipo();
+    } catch (error) {
+      console.error('Error finalizando equipo:', error);
+      alert('Error al finalizar el equipo');
+    } finally {
+      setFinalizandoConJustificacion(false);
+    }
+  };
+
   const marcarComoFinalizado = async () => {
     if (!confirm('¿Estás seguro de que quieres marcar este equipo como entregado?')) {
       return;
@@ -606,12 +853,21 @@ export default function EquipoDetalle() {
           <div className="header-equipo-number">#{equipo.nota}</div>
           <div className="header-equipo-model">{equipo.marca} {equipo.modelo}</div>
         </div>
-        <div className="header-status">
-          <span className={`status-badge status-badge-header ${estadoEquipo?.estado || 'pendiente'}`}>
-            {estadoEquipo?.estado === 'en_proceso' ? 'EN PROCESO' : 
-             estadoEquipo?.estado === 'finalizado' ? 'FINALIZADO' :
-             estadoEquipo?.estado === 'listo' ? 'LISTO' : 'PENDIENTE'}
-          </span>
+        <div className="header-actions">
+          <button 
+            onClick={() => setShowOpcionesEspeciales(true)}
+            className="header-options-btn"
+            title="Opciones especiales"
+          >
+            <Icon name="cog" />
+          </button>
+          <div className="header-status">
+            <span className={`status-badge status-badge-header ${estadoEquipo?.estado || 'pendiente'}`}>
+              {estadoEquipo?.estado === 'en_proceso' ? 'EN PROCESO' : 
+               estadoEquipo?.estado === 'finalizado' ? 'FINALIZADO' :
+               estadoEquipo?.estado === 'listo' ? 'LISTO' : 'PENDIENTE'}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -1038,7 +1294,7 @@ export default function EquipoDetalle() {
         <NotaPDF
           equipo={{
             ...equipo,
-            procesos: procesoInfo
+            procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
           }}
           cliente={cliente}
           tipo={tipoNotaPDF}
@@ -1060,6 +1316,118 @@ export default function EquipoDetalle() {
               <Icon name="times" />
             </button>
             <img src={selectedPhoto.url} alt="Equipo" className="photo-modal-image" />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Opciones Especiales */}
+      {showOpcionesEspeciales && (
+        <div className="comentario-modal-overlay" onClick={() => setShowOpcionesEspeciales(false)}>
+          <div className="comentario-modal opciones-especiales-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="comentario-modal-header">
+              <h3>Opciones Especiales</h3>
+              <button 
+                className="comentario-modal-close"
+                onClick={() => {
+                  setShowOpcionesEspeciales(false);
+                  setProcesoSeleccionado(null);
+                  setJustificacionFinalizado('');
+                }}
+              >
+                <Icon name="times" />
+              </button>
+            </div>
+            <div className="comentario-modal-body">
+              {/* Opción 1: Cambiar Proceso */}
+              <div className="opcion-especial-section">
+                <h4 className="opcion-especial-title">
+                  <Icon name="exchange-alt" />
+                  Cambiar Proceso a Realizar
+                </h4>
+                <p className="opcion-especial-desc">
+                  Cambia el proceso asignado a este equipo. Esto se registrará en el historial.
+                </p>
+                <select
+                  className="opcion-especial-select"
+                  value={procesoSeleccionado || ''}
+                  onChange={(e) => setProcesoSeleccionado(e.target.value ? parseInt(e.target.value) : null)}
+                >
+                  <option value="">Selecciona un proceso...</option>
+                  {procesosDisponibles.map(proceso => (
+                    <option key={proceso.id} value={proceso.id}>
+                      {proceso.nombre}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn-opcion-especial"
+                  onClick={cambiarProceso}
+                  disabled={!procesoSeleccionado || cambiandoProceso}
+                >
+                  {cambiandoProceso ? (
+                    <>
+                      <Icon name="sync" className="spinning" />
+                      Cambiando...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="check" />
+                      Cambiar Proceso
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Separador */}
+              <div className="opcion-especial-divider"></div>
+
+              {/* Opción 2: Finalizar con Justificación */}
+              <div className="opcion-especial-section">
+                <h4 className="opcion-especial-title">
+                  <Icon name="flag-checkered" />
+                  Finalizar sin Completar Proceso
+                </h4>
+                <p className="opcion-especial-desc">
+                  Marca el equipo como finalizado sin completar todos los pasos del proceso. Debes proporcionar una justificación.
+                </p>
+                <textarea
+                  className="opcion-especial-textarea"
+                  placeholder="Justifica por qué se finaliza sin completar el proceso (ej: cliente canceló, equipo no reparable, etc.)"
+                  value={justificacionFinalizado}
+                  onChange={(e) => setJustificacionFinalizado(e.target.value)}
+                  rows={4}
+                />
+                <button
+                  className="btn-opcion-especial btn-opcion-especial-danger"
+                  onClick={finalizarConJustificacion}
+                  disabled={!justificacionFinalizado.trim() || finalizandoConJustificacion}
+                >
+                  {finalizandoConJustificacion ? (
+                    <>
+                      <Icon name="sync" className="spinning" />
+                      Finalizando...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="check" />
+                      Finalizar con Justificación
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="comentario-modal-footer">
+              <button 
+                className="btn-cancel"
+                onClick={() => {
+                  setShowOpcionesEspeciales(false);
+                  setProcesoSeleccionado(null);
+                  setJustificacionFinalizado('');
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
