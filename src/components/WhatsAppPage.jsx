@@ -493,6 +493,10 @@ export default function WhatsAppPage() {
 
     return (
         <div className="whatsapp-page page-container">
+            {/* Cinta que cubre TODO el contenido de WhatsApp */}
+            <div className="whatsapp-dev-tape-full" aria-hidden="true">
+                <span className="whatsapp-dev-tape-text-full">EN DESARROLLO</span>
+            </div>
             <div className="page-header">
                 <div className="page-title-section">
                     <h1 className="page-title">
@@ -701,26 +705,29 @@ export default function WhatsAppPage() {
                 </div>
             )}
 
-            {/* Tabs */}
-            <div className="whatsapp-tabs">
-                <button 
-                    className={`tab ${tabActivo === 'pendientes' ? 'active' : ''}`}
-                    onClick={() => setTabActivo('pendientes')}
-                >
-                    <Icon name="clock" />
-                    Pendientes ({notificacionesPendientes.length})
-                </button>
-                <button 
-                    className={`tab ${tabActivo === 'enviados' ? 'active' : ''}`}
-                    onClick={() => setTabActivo('enviados')}
-                >
-                    <Icon name="check-circle" />
-                    Enviados ({mensajesEnviados.length})
-                </button>
-            </div>
+            {/* Sección mensajería: tabs + listas, con cinta "En desarrollo" */}
+            <div className="whatsapp-messaging-section">
 
-            {/* Lista de Pendientes */}
-            {tabActivo === 'pendientes' && (
+                {/* Tabs */}
+                <div className="whatsapp-tabs">
+                    <button 
+                        className={`tab ${tabActivo === 'pendientes' ? 'active' : ''}`}
+                        onClick={() => setTabActivo('pendientes')}
+                    >
+                        <Icon name="clock" />
+                        Pendientes ({notificacionesPendientes.length})
+                    </button>
+                    <button 
+                        className={`tab ${tabActivo === 'enviados' ? 'active' : ''}`}
+                        onClick={() => setTabActivo('enviados')}
+                    >
+                        <Icon name="check-circle" />
+                        Enviados ({mensajesEnviados.length})
+                    </button>
+                </div>
+
+                {/* Lista de Pendientes */}
+                {tabActivo === 'pendientes' && (
                 <div className="whatsapp-list">
                     {notificacionesPendientes.length === 0 ? (
                         <div className="empty-state">
@@ -771,10 +778,10 @@ export default function WhatsAppPage() {
                         ))
                     )}
                 </div>
-            )}
+                )}
 
-            {/* Lista de Enviados */}
-            {tabActivo === 'enviados' && (
+                {/* Lista de Enviados */}
+                {tabActivo === 'enviados' && (
                 <div className="whatsapp-list">
                     {mensajesEnviados.length === 0 ? (
                         <div className="empty-state">
@@ -810,7 +817,8 @@ export default function WhatsAppPage() {
                         ))
                     )}
                 </div>
-            )}
+                )}
+            </div>
         </div>
     );
 }
