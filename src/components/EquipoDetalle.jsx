@@ -7,7 +7,126 @@ import Icon from './Icon.jsx';
 import NotaPDF from './NotaPDF.jsx';
 import './EquipoDetalle.css';
 
-export default function EquipoDetalle() {
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_EQUIPOS_DETALLE = {
+  'demo-e1': {
+    equipo: {
+      id: 'demo-e1',
+      nota: '123',
+      marca: 'Dell',
+      modelo: 'Inspiron 15',
+      color: 'negro',
+      problema: 'No enciende',
+      contraseña: '1234',
+      cargador: true,
+      adelanto: 500,
+      cliente_id: 'demo-c1',
+      created_at: new Date().toISOString()
+    },
+    cliente: {
+      id: 'demo-c1',
+      nombre: 'Juan Pérez',
+      telefono: '5512345678',
+      email: 'juan@example.com'
+    },
+    estadoEquipo: {
+      estado: 'en_proceso',
+      updated_at: new Date().toISOString(),
+      proceso_actual_id: 1,
+      procesos: {
+        id: 1,
+        nombre: 'Reparación estándar',
+        descripcion: 'Diagnóstico y reparación básica',
+        precio: 1200
+      }
+    },
+    procesosEquipo: [
+      {
+        id: 1,
+        nombre: 'Reparación estándar',
+        precio: 1200,
+        requiere_recordatorio: false,
+        meses_vigencia: null
+      }
+    ],
+    subprocesos: [
+      { id: 11, nombre: 'Diagnóstico inicial', descripcion: 'Revisar estado general', orden: 1 },
+      { id: 12, nombre: 'Cotizar reparación', descripcion: 'Definir piezas y mano de obra', orden: 2 },
+      { id: 13, nombre: 'Aplicar reparación', descripcion: 'Cambiar piezas y probar', orden: 3 }
+    ],
+    historial: [
+      {
+        id: 'h1',
+        created_at: new Date().toISOString(),
+        notas: 'Equipo recibido en mostrador',
+        completado: true,
+        tipo_evento: 'nota',
+        subproceso_id: null,
+        procesos: { nombre: 'Reparación estándar' },
+        subprocesos: null,
+        profiles: { id: 'demo-user', nombre: 'Tú (demo)', email: 'demo@example.com', foto_url: null }
+      },
+      {
+        id: 'h2',
+        created_at: new Date().toISOString(),
+        notas: 'Diagnóstico inicial completado',
+        completado: true,
+        tipo_evento: 'subproceso',
+        subproceso_id: 11,
+        procesos: { nombre: 'Reparación estándar' },
+        subprocesos: { nombre: 'Diagnóstico inicial' },
+        profiles: { id: 'demo-user', nombre: 'Tú (demo)', email: 'demo@example.com', foto_url: null }
+      }
+    ],
+    fotos: []
+  },
+  'demo-e2': {
+    equipo: {
+      id: 'demo-e2',
+      nota: '130',
+      marca: 'HP',
+      modelo: 'Pavilion 14',
+      color: 'gris',
+      problema: 'Lento y se traba',
+      contraseña: '',
+      cargador: true,
+      adelanto: 0,
+      cliente_id: 'demo-c2',
+      created_at: new Date().toISOString()
+    },
+    cliente: {
+      id: 'demo-c2',
+      nombre: 'Ana López',
+      telefono: '5522334455',
+      email: 'ana@example.com'
+    },
+    estadoEquipo: {
+      estado: 'listo',
+      updated_at: new Date().toISOString(),
+      proceso_actual_id: 2,
+      procesos: {
+        id: 2,
+        nombre: 'Mantenimiento completo',
+        descripcion: 'Formateo, limpieza y optimización',
+        precio: 950
+      }
+    },
+    procesosEquipo: [
+      {
+        id: 2,
+        nombre: 'Mantenimiento completo',
+        precio: 950,
+        requiere_recordatorio: false,
+        meses_vigencia: null
+      }
+    ],
+    subprocesos: [],
+    historial: [],
+    fotos: []
+  }
+};
+
+export default function EquipoDetalle({ demoMode = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
   
@@ -15,7 +134,7 @@ export default function EquipoDetalle() {
   const [cliente, setCliente] = useState(null);
   const [estadoEquipo, setEstadoEquipo] = useState(null);
   const [procesoInfo, setProcesoInfo] = useState(null);
-  const [procesosEquipo, setProcesosEquipo] = useState([]); // Todos los procesos asociados al equipo con precios
+  const [procesosEquipo, setProcesosEquipo] = useState([]); // Todos los procesos asociados al equipo con precios / recordatorios
   const [subprocesos, setSubprocesos] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +142,7 @@ export default function EquipoDetalle() {
   const [completandoPaso, setCompletandoPaso] = useState(false);
   const [showNotaPDFModal, setShowNotaPDFModal] = useState(false);
   const [tipoNotaPDF, setTipoNotaPDF] = useState(null);
+  const [equipoParaNotaPDF, setEquipoParaNotaPDF] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [fotos, setFotos] = useState([]);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -35,17 +155,49 @@ export default function EquipoDetalle() {
   const [justificacionFinalizado, setJustificacionFinalizado] = useState('');
   const [cambiandoProceso, setCambiandoProceso] = useState(false);
   const [finalizandoConJustificacion, setFinalizandoConJustificacion] = useState(false);
+  const [showPagoModal, setShowPagoModal] = useState(false);
+  const [nuevoAdelanto, setNuevoAdelanto] = useState('');
+  const [actualizandoAdelanto, setActualizandoAdelanto] = useState(false);
+  const [showLicenciaModal, setShowLicenciaModal] = useState(false);
+  const [licenciaForm, setLicenciaForm] = useState({
+    proceso_id: null,
+    producto: '',
+    clave: '',
+    fecha_activacion: '',
+  });
 
   useEffect(() => {
     loadCurrentUser();
+
+    if (demoMode) {
+      // Cargar datos de ejemplo sin tocar Supabase
+      const demo = DEMO_EQUIPOS_DETALLE[id] || DEMO_EQUIPOS_DETALLE['demo-e1'];
+      if (demo) {
+        setEquipo(demo.equipo);
+        setCliente(demo.cliente);
+        setEstadoEquipo(demo.estadoEquipo);
+        setProcesoInfo(demo.estadoEquipo?.procesos || null);
+        setProcesosEquipo(demo.procesosEquipo || []);
+        setSubprocesos(demo.subprocesos || []);
+        setHistorial(demo.historial || []);
+        setFotos(demo.fotos || []);
+      }
+      setLoading(false);
+      return;
+    }
+
     if (id) {
       loadEquipo();
     }
     loadProcesosDisponibles();
-  }, [id]);
+  }, [id, demoMode]);
 
   const loadProcesosDisponibles = async () => {
     try {
+      if (demoMode) {
+        alert('Demo: aquí se marcaría el subproceso como completado en la base real.');
+        return;
+      }
       const { data, error } = await supabase
         .from('procesos')
         .select('id, nombre')
@@ -88,6 +240,7 @@ export default function EquipoDetalle() {
           problema,
           contraseña,
           cargador,
+          adelanto,
           cliente_id,
           created_at,
           clientes (
@@ -167,7 +320,7 @@ export default function EquipoDetalle() {
 
   const loadProcesosEquipo = async () => {
     try {
-      // 1. Cargar procesos desde equipo_procesos (con precios)
+      // 1. Cargar procesos desde equipo_procesos (con precios y configuración de recordatorios)
       const { data: epData, error: epError } = await supabase
         .from('equipo_procesos')
         .select(`
@@ -175,7 +328,9 @@ export default function EquipoDetalle() {
           procesos (
             id,
             nombre,
-            precio
+            precio,
+            requiere_recordatorio,
+            meses_vigencia
           )
         `)
         .eq('equipo_id', id);
@@ -188,6 +343,8 @@ export default function EquipoDetalle() {
             id: ep.procesos?.id,
             nombre: ep.procesos?.nombre,
             precio: parseFloat(ep.procesos?.precio) || 0,
+            requiere_recordatorio: !!ep.procesos?.requiere_recordatorio,
+            meses_vigencia: ep.procesos?.meses_vigencia ?? null,
           }))
           .filter((p) => p.id);
       }
@@ -203,7 +360,7 @@ export default function EquipoDetalle() {
         if (!estadoErr && estado?.proceso_actual_id) {
           const { data: proc, error: procErr } = await supabase
             .from('procesos')
-            .select('id, nombre, precio')
+            .select('id, nombre, precio, requiere_recordatorio, meses_vigencia')
             .eq('id', estado.proceso_actual_id)
             .single();
 
@@ -213,6 +370,8 @@ export default function EquipoDetalle() {
                 id: proc.id,
                 nombre: proc.nombre,
                 precio: parseFloat(proc.precio) || 0,
+                requiere_recordatorio: !!proc.requiere_recordatorio,
+                meses_vigencia: proc.meses_vigencia ?? null,
               },
             ];
           }
@@ -402,6 +561,11 @@ export default function EquipoDetalle() {
   };
 
   const marcarComoListo = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se marcaría el equipo como listo.');
+      return;
+    }
+
     if (!confirm('¿Estás seguro de que quieres marcar este equipo como listo? Se moverá a la lista de "Listos para recoger".')) {
       return;
     }
@@ -481,6 +645,11 @@ export default function EquipoDetalle() {
   };
 
   const cambiarProceso = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se cambiaría el proceso en la base real.');
+      return;
+    }
+
     if (!procesoSeleccionado) {
       alert('Por favor selecciona un proceso');
       return;
@@ -578,6 +747,11 @@ export default function EquipoDetalle() {
   };
 
   const finalizarConJustificacion = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se marcaría el equipo como finalizado con justificación.');
+      return;
+    }
+
     if (!justificacionFinalizado.trim()) {
       alert('Por favor proporciona una justificación');
       return;
@@ -641,6 +815,11 @@ export default function EquipoDetalle() {
   };
 
   const marcarComoFinalizado = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se marcaría el equipo como entregado y se generaría la nota real.');
+      return;
+    }
+
     if (!confirm('¿Estás seguro de que quieres marcar este equipo como entregado?')) {
       return;
     }
@@ -699,6 +878,11 @@ export default function EquipoDetalle() {
   };
 
   const agregarComentario = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se guardaría un comentario en el historial real.');
+      return;
+    }
+
     if (!nuevoComentario.trim()) {
       alert('Por favor ingresa un comentario');
       return;
@@ -819,6 +1003,145 @@ export default function EquipoDetalle() {
     const mensajeTexto = `Hola ${cliente.nombre || 'cliente'}! Te escribo de Zona Asist sobre tu equipo #${equipo.nota} (${equipo.marca} ${equipo.modelo}).`;
     const mensaje = encodeURIComponent(mensajeTexto);
     window.open(`https://wa.me/52${numeroLimpio}?text=${mensaje}`, '_blank');
+  };
+
+  const procesosConRecordatorio = procesosEquipo.filter(
+    (p) => p.requiere_recordatorio && p.meses_vigencia
+  );
+
+  const openLicenciaModal = () => {
+    if (!equipo) return;
+    const hoy = new Date();
+    const isoHoy = hoy.toISOString().split('T')[0];
+    const defaultProceso = procesosConRecordatorio[0] || null;
+    setLicenciaForm({
+      proceso_id: defaultProceso?.id || null,
+      producto: defaultProceso?.nombre || '',
+      clave: '',
+      fecha_activacion: isoHoy,
+    });
+    setShowLicenciaModal(true);
+  };
+
+  const calcularFechaExpira = () => {
+    const proceso = procesosConRecordatorio.find(
+      (p) => p.id === licenciaForm.proceso_id
+    );
+    if (!proceso || !proceso.meses_vigencia || !licenciaForm.fecha_activacion) {
+      return null;
+    }
+    const base = new Date(licenciaForm.fecha_activacion + 'T00:00:00');
+    if (Number.isNaN(base.getTime())) return null;
+    const meses = parseInt(proceso.meses_vigencia, 10) || 0;
+    if (!meses) return null;
+    const fecha = new Date(base);
+    fecha.setMonth(fecha.getMonth() + meses);
+    return fecha.toISOString().split('T')[0];
+  };
+
+  const registrarLicencia = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se registraría la licencia en Supabase.');
+      return;
+    }
+
+    if (!equipo?.id) return;
+    const proceso = procesosConRecordatorio.find(
+      (p) => p.id === licenciaForm.proceso_id
+    );
+    if (!proceso) {
+      alert('Selecciona el proceso asociado a la licencia (Office barato / caro).');
+      return;
+    }
+    if (!licenciaForm.clave.trim()) {
+      alert('Ingresa la clave de la licencia.');
+      return;
+    }
+    if (!licenciaForm.fecha_activacion) {
+      alert('Selecciona la fecha de activación de la licencia.');
+      return;
+    }
+
+    const fecha_expira = calcularFechaExpira();
+    if (!fecha_expira) {
+      alert('No se pudo calcular la fecha de expiración. Revisa meses de vigencia en el proceso.');
+      return;
+    }
+
+    try {
+      const meses_vigencia = parseInt(proceso.meses_vigencia, 10) || 0;
+      const fecha_activacion = licenciaForm.fecha_activacion;
+
+      // Recordatorio 7 días antes de la fecha de expiración
+      const expDate = new Date(fecha_expira + 'T00:00:00');
+      expDate.setDate(expDate.getDate() - 7);
+      const fecha_recordatorio = expDate.toISOString().split('T')[0];
+
+      const { error } = await supabase
+        .from('licencias_software')
+        .insert({
+          cliente_id: cliente?.id || null,
+          equipo_id: equipo.id,
+          proceso_id: proceso.id,
+          producto: licenciaForm.producto || proceso.nombre,
+          clave: licenciaForm.clave.trim(),
+          meses_vigencia,
+          fecha_activacion,
+          fecha_expira,
+          fecha_recordatorio,
+          recordatorio_enviado: false,
+        });
+
+      if (error) throw error;
+
+      alert('Licencia registrada correctamente. Se generará un recordatorio automático antes de que caduque.');
+      setShowLicenciaModal(false);
+      setLicenciaForm({
+        proceso_id: null,
+        producto: '',
+        clave: '',
+        fecha_activacion: '',
+      });
+    } catch (error) {
+      console.error('Error registrando licencia:', error);
+      alert('Error al registrar la licencia. Por favor intenta de nuevo.');
+    }
+  };
+
+  const registrarAdelanto = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se sumaría el adelanto al equipo en Supabase.');
+      return;
+    }
+
+    if (!equipo?.id) return;
+    const monto = parseFloat(nuevoAdelanto);
+    if (!monto || monto <= 0) {
+      alert('Por favor ingresa un monto válido de adelanto');
+      return;
+    }
+
+    setActualizandoAdelanto(true);
+    try {
+      const adelantoActual = parseFloat(equipo.adelanto || 0);
+      const nuevoTotal = adelantoActual + monto;
+
+      const { error } = await supabase
+        .from('equipos')
+        .update({ adelanto: nuevoTotal })
+        .eq('id', equipo.id);
+
+      if (error) throw error;
+
+      await loadEquipo();
+      setShowPagoModal(false);
+      setNuevoAdelanto('');
+    } catch (error) {
+      console.error('Error registrando adelanto:', error);
+      alert('Error al registrar el adelanto. Por favor intenta de nuevo.');
+    } finally {
+      setActualizandoAdelanto(false);
+    }
   };
 
   if (loading) {
@@ -1046,6 +1369,12 @@ export default function EquipoDetalle() {
                   </div>
                 </div>
               )}
+              <div className="status-item">
+                <span className="status-label">Adelanto acumulado:</span>
+                <span className="date-value">
+                  ${parseFloat(equipo.adelanto || 0).toFixed(2)}
+                </span>
+              </div>
             </div>
           </section>
 
@@ -1095,20 +1424,93 @@ export default function EquipoDetalle() {
             <div className="section-content actions-list">
               <button 
                 className="action-btn"
-                onClick={() => {
-                  setTipoNotaPDF('recepcion');
-                  setShowNotaPDFModal(true);
+                onClick={async () => {
+                  try {
+                    const { data: pedidosData } = await supabase
+                      .from('pedidos_piezas')
+                      .select('id, nombre_pieza, cantidad, precio_unitario, estado')
+                      .eq('equipo_id', equipo.id);
+
+                    const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
+                    const pedidosTotal = pedidos.reduce((sum, p) => {
+                      const qty = parseFloat(p?.cantidad) || 0;
+                      const unit = parseFloat(p?.precio_unitario) || 0;
+                      return sum + qty * unit;
+                    }, 0);
+
+                    setEquipoParaNotaPDF({
+                      ...equipo,
+                      procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+                      pedidos_ligados: pedidos,
+                      pedidos_total: pedidosTotal
+                    });
+                  } catch (err) {
+                    console.error('Error cargando pedidos ligados:', err);
+                    setEquipoParaNotaPDF({
+                      ...equipo,
+                      procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
+                    });
+                  } finally {
+                    setTipoNotaPDF('recepcion');
+                    setShowNotaPDFModal(true);
+                  }
                 }}
               >
                 <Icon name="file-alt" />
                 Nota de Recepción
               </button>
+              <button
+                className="action-btn"
+                onClick={() => {
+                  setNuevoAdelanto('');
+                  setShowPagoModal(true);
+                }}
+              >
+                <Icon name="dollar-sign" />
+                Registrar adelanto
+              </button>
+              {procesosConRecordatorio.length > 0 && (
+                <button
+                  className="action-btn"
+                  onClick={openLicenciaModal}
+                >
+                  <Icon name="key" />
+                  Registrar licencia
+                </button>
+              )}
               {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
                 <button 
                   className="action-btn"
-                  onClick={() => {
-                    setTipoNotaPDF('entrega');
-                    setShowNotaPDFModal(true);
+                  onClick={async () => {
+                    try {
+                      const { data: pedidosData } = await supabase
+                        .from('pedidos_piezas')
+                        .select('id, nombre_pieza, cantidad, precio_unitario, estado')
+                        .eq('equipo_id', equipo.id);
+
+                      const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
+                      const pedidosTotal = pedidos.reduce((sum, p) => {
+                        const qty = parseFloat(p?.cantidad) || 0;
+                        const unit = parseFloat(p?.precio_unitario) || 0;
+                        return sum + qty * unit;
+                      }, 0);
+
+                      setEquipoParaNotaPDF({
+                        ...equipo,
+                        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+                        pedidos_ligados: pedidos,
+                        pedidos_total: pedidosTotal
+                      });
+                    } catch (err) {
+                      console.error('Error cargando pedidos ligados:', err);
+                      setEquipoParaNotaPDF({
+                        ...equipo,
+                        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
+                      });
+                    } finally {
+                      setTipoNotaPDF('entrega');
+                      setShowNotaPDFModal(true);
+                    }
                   }}
                 >
                   <Icon name="file-alt" />
@@ -1292,7 +1694,7 @@ export default function EquipoDetalle() {
       {/* Nota PDF Modal */}
       {showNotaPDFModal && tipoNotaPDF && (
         <NotaPDF
-          equipo={{
+          equipo={equipoParaNotaPDF || {
             ...equipo,
             procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
           }}
@@ -1301,8 +1703,181 @@ export default function EquipoDetalle() {
           onClose={() => {
             setShowNotaPDFModal(false);
             setTipoNotaPDF(null);
+            setEquipoParaNotaPDF(null);
           }}
         />
+      )}
+
+      {/* Modal de Adelanto */}
+      {showPagoModal && (
+        <div className="comentario-modal-overlay" onClick={() => {
+          if (!actualizandoAdelanto) {
+            setShowPagoModal(false);
+            setNuevoAdelanto('');
+          }
+        }}>
+          <div className="comentario-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="comentario-modal-header">
+              <h3>Registrar adelanto</h3>
+              <button
+                className="comentario-modal-close"
+                onClick={() => {
+                  if (!actualizandoAdelanto) {
+                    setShowPagoModal(false);
+                    setNuevoAdelanto('');
+                  }
+                }}
+              >
+                <Icon name="times" />
+              </button>
+            </div>
+            <div className="comentario-modal-body">
+              <p style={{ marginBottom: '0.75rem' }}>
+                Adelanto acumulado actual:{' '}
+                <strong>${parseFloat(equipo?.adelanto || 0).toFixed(2)}</strong>
+              </p>
+              <input
+                type="number"
+                className="typeform-large-input"
+                placeholder="Ej: 500.00"
+                value={nuevoAdelanto}
+                onChange={(e) => setNuevoAdelanto(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div className="comentario-modal-footer">
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  if (!actualizandoAdelanto) {
+                    setShowPagoModal(false);
+                    setNuevoAdelanto('');
+                  }
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-save-comentario"
+                onClick={registrarAdelanto}
+                disabled={actualizandoAdelanto || !nuevoAdelanto.trim()}
+              >
+                <Icon name="check" />
+                {actualizandoAdelanto ? 'Guardando...' : 'Guardar adelanto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Licencia de Software */}
+      {showLicenciaModal && (
+        <div className="comentario-modal-overlay" onClick={() => setShowLicenciaModal(false)}>
+          <div className="comentario-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="comentario-modal-header">
+              <h3>Registrar licencia de software</h3>
+              <button
+                className="comentario-modal-close"
+                onClick={() => setShowLicenciaModal(false)}
+              >
+                <Icon name="times" />
+              </button>
+            </div>
+            <div className="comentario-modal-body">
+              <div className="form-group">
+                <label>Proceso asociado</label>
+                <select
+                  className="typeform-large-input"
+                  value={licenciaForm.proceso_id || ''}
+                  onChange={(e) => {
+                    const id = e.target.value ? parseInt(e.target.value, 10) : null;
+                    const proc = procesosConRecordatorio.find((p) => p.id === id);
+                    setLicenciaForm((prev) => ({
+                      ...prev,
+                      proceso_id: id,
+                      producto: proc?.nombre || prev.producto,
+                    }));
+                  }}
+                >
+                  <option value="">Selecciona un proceso...</option>
+                  {procesosConRecordatorio.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} ({p.meses_vigencia} meses)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Nombre del producto / licencia</label>
+                <input
+                  type="text"
+                  className="typeform-large-input"
+                  placeholder="Ej: Office barato, Office caro..."
+                  value={licenciaForm.producto}
+                  onChange={(e) =>
+                    setLicenciaForm((prev) => ({ ...prev, producto: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label>Clave de la licencia</label>
+                <input
+                  type="text"
+                  className="typeform-large-input"
+                  placeholder="Clave / serial de la licencia"
+                  value={licenciaForm.clave}
+                  onChange={(e) =>
+                    setLicenciaForm((prev) => ({ ...prev, clave: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label>Fecha de activación</label>
+                <input
+                  type="date"
+                  className="typeform-large-input"
+                  value={licenciaForm.fecha_activacion}
+                  onChange={(e) =>
+                    setLicenciaForm((prev) => ({
+                      ...prev,
+                      fecha_activacion: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              {(() => {
+                const fechaExpira = calcularFechaExpira();
+                if (!fechaExpira) return null;
+                const proceso = procesosConRecordatorio.find(
+                  (p) => p.id === licenciaForm.proceso_id
+                );
+                return (
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#555' }}>
+                    Esta licencia vencerá el <strong>{fechaExpira}</strong>{' '}
+                    ({proceso?.meses_vigencia} meses de vigencia). Se enviará un
+                    recordatorio aproximadamente 7 días antes.
+                  </p>
+                );
+              })()}
+            </div>
+            <div className="comentario-modal-footer">
+              <button
+                className="btn-cancel"
+                onClick={() => setShowLicenciaModal(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-save-comentario"
+                onClick={registrarLicencia}
+              >
+                <Icon name="check" />
+                Guardar licencia
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Photo Modal */}

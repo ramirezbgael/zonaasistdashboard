@@ -7,10 +7,18 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
   const [equipos, setEquipos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [saldoCuenta, setSaldoCuenta] = useState(0);
+  const [loadingSaldo, setLoadingSaldo] = useState(true);
+  const [showCuentaModal, setShowCuentaModal] = useState(false);
+  const [tipoMovimiento, setTipoMovimiento] = useState('deposito'); // 'deposito' | 'cargo'
+  const [montoMovimiento, setMontoMovimiento] = useState('');
+  const [notaMovimiento, setNotaMovimiento] = useState('');
+  const [procesandoMovimiento, setProcesandoMovimiento] = useState(false);
 
   useEffect(() => {
     if (cliente?.id) {
       fetchHistorial();
+      fetchSaldo();
     }
   }, [cliente?.id]);
 
@@ -55,6 +63,29 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
       setError(`Error al cargar el historial: ${err.message || 'Error desconocido'}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSaldo = async () => {
+    if (!cliente?.id) return;
+    try {
+      setLoadingSaldo(true);
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('cuenta_saldo')
+        .eq('id', cliente.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error obteniendo saldo de cliente:', error);
+        return;
+      }
+
+      setSaldoCuenta(parseFloat(data?.cuenta_saldo || 0));
+    } catch (err) {
+      console.error('Error en fetchSaldo:', err);
+    } finally {
+      setLoadingSaldo(false);
     }
   };
 
@@ -106,6 +137,74 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
     }
   };
 
+  const abrirCuentaModal = (tipo) => {
+    setTipoMovimiento(tipo);
+    setMontoMovimiento('');
+    setNotaMovimiento('');
+    setShowCuentaModal(true);
+  };
+
+  const guardarMovimientoCuenta = async () => {
+    const monto = parseFloat(montoMovimiento);
+    if (!monto || monto <= 0) {
+      alert('Ingresa un monto válido.');
+      return;
+    }
+
+    const esDeposito = tipoMovimiento === 'deposito';
+    const delta = esDeposito ? monto : -monto;
+    const nuevoSaldo = (saldoCuenta || 0) + delta;
+
+    if (!esDeposito && nuevoSaldo < 0) {
+      alert('El cliente no tiene saldo suficiente en su cuenta.');
+      return;
+    }
+
+    setProcesandoMovimiento(true);
+
+    try {
+      // Registrar movimiento en historial de cuenta (si la tabla existe)
+      try {
+        const { error: movError } = await supabase
+          .from('cliente_cuentas_movimientos')
+          .insert({
+            cliente_id: cliente.id,
+            tipo: esDeposito ? 'deposito' : 'cargo',
+            monto,
+            saldo_despues: nuevoSaldo,
+            descripcion: notaMovimiento?.trim() || null
+          });
+
+        if (movError) {
+          // Si la tabla no existe o hay otro problema, solo lo registramos en consola
+          console.error('Error registrando movimiento de cuenta (no crítico):', movError);
+        }
+      } catch (innerErr) {
+        console.error('Error inesperado registrando movimiento de cuenta:', innerErr);
+      }
+
+      // Actualizar saldo en clientes
+      const { error: updError } = await supabase
+        .from('clientes')
+        .update({ cuenta_saldo: nuevoSaldo })
+        .eq('id', cliente.id);
+
+      if (updError) {
+        throw updError;
+      }
+
+      setSaldoCuenta(nuevoSaldo);
+      setShowCuentaModal(false);
+      setMontoMovimiento('');
+      setNotaMovimiento('');
+    } catch (err) {
+      console.error('Error actualizando saldo de cuenta:', err);
+      alert('Error al actualizar la cuenta del cliente. Intenta de nuevo.');
+    } finally {
+      setProcesandoMovimiento(false);
+    }
+  };
+
   return (
     <div className="cliente-historial-overlay" onClick={handleOverlayClick}>
       <div className="cliente-historial-modal" onClick={(e) => e.stopPropagation()}>
@@ -120,6 +219,40 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
         </div>
 
         <div className="cliente-historial-content">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1rem',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ fontSize: '0.95rem' }}>
+              <span style={{ color: '#555', marginRight: '0.25rem' }}>Saldo en cuenta:</span>
+              <strong>
+                {loadingSaldo ? 'Cargando...' : `$${(saldoCuenta || 0).toFixed(2)}`}
+              </strong>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                className="btn-secondary"
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                onClick={() => abrirCuentaModal('deposito')}
+              >
+                <Icon name="plus-circle" /> Agregar a cuenta
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                onClick={() => abrirCuentaModal('cargo')}
+              >
+                <Icon name="minus-circle" /> Descontar de cuenta
+              </button>
+            </div>
+          </div>
+
           {loading ? (
             <div className="cliente-historial-loading">
               <div className="loading-spinner"></div>
@@ -222,6 +355,93 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
           </button>
         </div>
       </div>
+
+      {/* Modal para movimientos de cuenta */}
+      {showCuentaModal && (
+        <div className="cliente-historial-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget && !procesandoMovimiento) {
+            setShowCuentaModal(false);
+          }
+        }}>
+          <div className="cliente-historial-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cliente-historial-header">
+              <div className="cliente-historial-header-info">
+                <h2>
+                  {tipoMovimiento === 'deposito' ? 'Agregar a cuenta' : 'Descontar de cuenta'}
+                </h2>
+                <p className="cliente-historial-subtitle">{cliente?.nombre}</p>
+              </div>
+              <button
+                className="cliente-historial-close-btn"
+                onClick={() => {
+                  if (!procesandoMovimiento) {
+                    setShowCuentaModal(false);
+                  }
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="cliente-historial-content">
+              <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: '#555' }}>
+                Saldo actual:{' '}
+                <strong>${(saldoCuenta || 0).toFixed(2)}</strong>
+              </div>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                  Monto
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="typeform-large-input"
+                  value={montoMovimiento}
+                  onChange={(e) => setMontoMovimiento(e.target.value)}
+                  placeholder="Ej: 100.00"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                  Nota (opcional)
+                </label>
+                <textarea
+                  className="typeform-large-textarea"
+                  rows="3"
+                  value={notaMovimiento}
+                  onChange={(e) => setNotaMovimiento(e.target.value)}
+                  placeholder={
+                    tipoMovimiento === 'deposito'
+                      ? 'Ej: Depósito en efectivo, transferencia, etc.'
+                      : 'Ej: Impresiones del día, servicio aplicado, etc.'
+                  }
+                />
+              </div>
+            </div>
+            <div className="cliente-historial-footer">
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  if (!procesandoMovimiento) {
+                    setShowCuentaModal(false);
+                  }
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ marginLeft: '0.5rem' }}
+                onClick={guardarMovimientoCuenta}
+                disabled={procesandoMovimiento}
+              >
+                {procesandoMovimiento ? 'Guardando...' : 'Guardar movimiento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

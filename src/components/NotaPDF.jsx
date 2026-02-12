@@ -245,11 +245,26 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
         }
         // Si aún no hay total, usar 0
         tot = tot || 0;
+
+        // Sumar pedidos ligados (refacciones/piezas) si existen
+        const pedidosTot = (() => {
+          if (typeof equipo?.pedidos_total === 'number') return equipo.pedidos_total;
+          const pedidos = Array.isArray(equipo?.pedidos_ligados) ? equipo.pedidos_ligados : [];
+          return pedidos.reduce((sum, p) => {
+            const qty = parseFloat(p?.cantidad) || 0;
+            const unit = parseFloat(p?.precio_unitario) || 0;
+            return sum + qty * unit;
+          }, 0);
+        })();
+
+        const totFinal = (parseFloat(tot) || 0) + (parseFloat(pedidosTot) || 0);
         
         const ant = equipo.adelanto || 0;
-        const ade = tot - ant;
+        const ade = totFinal - ant;
         const estado = equipo.pago_full ? 'Pagado' : 'Pendiente';
-        const costosStr = `Total: $${Number(tot).toFixed(2)}   ·   Anticipo: $${Number(ant).toFixed(2)}   ·   Adeudo: $${Number(ade).toFixed(2)}   ·   ${estado}`;
+        const costosStr = pedidosTot > 0
+          ? `Servicios: $${Number(tot).toFixed(2)}   ·   Refacciones: $${Number(pedidosTot).toFixed(2)}   ·   Total: $${Number(totFinal).toFixed(2)}   ·   Anticipo: $${Number(ant).toFixed(2)}   ·   Adeudo: $${Number(ade).toFixed(2)}   ·   ${estado}`
+          : `Total: $${Number(totFinal).toFixed(2)}   ·   Anticipo: $${Number(ant).toFixed(2)}   ·   Adeudo: $${Number(ade).toFixed(2)}   ·   ${estado}`;
         const costosLines = doc.splitTextToSize(costosStr, contentWidth - 16);
         const h4 = 12 + costosLines.length * 5;
         doc.setFillColor(...colors.bgCostos);

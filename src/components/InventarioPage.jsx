@@ -8,7 +8,72 @@ import './Dashboard.css';
 import './ClientesPage.css';
 import './InventarioPage.css';
 
-export default function InventarioPage() {
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_PRODUCTOS = [
+    {
+        id: 'demo-p1',
+        tipo: 'refaccion',
+        nombre: 'SSD 500GB NVMe',
+        descripcion: 'Disco sólido para upgrades rápidos',
+        codigo_sku: 'SSD-500-NVME',
+        stock_actual: 6,
+        stock_reservado: 2,
+        stock_disponible: 4,
+        stock_minimo: 3,
+        costo_promedio: 850,
+        valor_total: 5100,
+        estado_producto: 'disponible',
+        categoria: 'Almacenamiento',
+        proveedores: { nombre: 'Proveedor demo' },
+        ubicacion: 'Estante A1'
+    },
+    {
+        id: 'demo-p2',
+        tipo: 'consumible',
+        nombre: 'Resma papel carta',
+        descripcion: 'Papel blanco 75g',
+        codigo_sku: 'PAPEL-CARTA',
+        stock_actual: 2,
+        stock_reservado: 0,
+        stock_disponible: 2,
+        stock_minimo: 5,
+        costo_promedio: 120,
+        valor_total: 240,
+        estado_producto: 'bajo_minimo',
+        categoria: 'Papel',
+        proveedores: { nombre: 'Papelería demo' },
+        ubicacion: 'Bodega'
+    },
+    {
+        id: 'demo-p3',
+        tipo: 'tinta',
+        nombre: 'Tinta Epson Negra 544',
+        descripcion: 'Original',
+        codigo_sku: 'TIN-EP-544-N',
+        stock_actual: 0,
+        stock_reservado: 0,
+        stock_disponible: 0,
+        stock_minimo: 2,
+        costo_promedio: 220,
+        valor_total: 0,
+        estado_producto: 'agotado',
+        categoria: 'Tintas',
+        proveedores: { nombre: 'Mayorista demo' },
+        ubicacion: 'Estante C3'
+    }
+];
+
+const DEMO_METRICS = {
+    valorTotal: DEMO_PRODUCTOS.reduce(
+        (sum, p) => sum + (p.valor_total || (p.stock_actual || 0) * (p.costo_promedio || 0)),
+        0
+    ),
+    productosActivos: DEMO_PRODUCTOS.filter(p => (p.stock_actual || 0) > 0).length,
+    alertasCriticas: DEMO_PRODUCTOS.filter(p => p.estado_producto === 'agotado' || p.estado_producto === 'bajo_minimo').length,
+    movimientosHoy: 3
+};
+
+export default function InventarioPage({ demoMode = false }) {
     const [productos, setProductos] = useState([]);
     const [productosBajoMinimo, setProductosBajoMinimo] = useState([]);
     const [productosAgotados, setProductosAgotados] = useState([]);
@@ -41,9 +106,19 @@ export default function InventarioPage() {
     }, [searchParams, setSearchParams]);
 
     useEffect(() => {
+        if (demoMode) {
+            // En modo demo usar datos estáticos
+            setProductos(DEMO_PRODUCTOS);
+            setProductosAgotados(DEMO_PRODUCTOS.filter(p => p.estado_producto === 'agotado'));
+            setProductosBajoMinimo(DEMO_PRODUCTOS.filter(p => p.estado_producto === 'bajo_minimo'));
+            setMetrics(DEMO_METRICS);
+            setLoading(false);
+            return;
+        }
+
         fetchProductos();
         fetchMetrics();
-    }, []);
+    }, [demoMode]);
 
     useEffect(() => {
         if (showAddModal === false) {
@@ -361,32 +436,36 @@ export default function InventarioPage() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <button
-                        className="btn-primary"
-                        onClick={() => {
-                            setEditingProducto(null);
-                            setShowAddModal(true);
-                        }}
-                    >
-                        <Icon name="plus" />
-                        <span>Nuevo Producto</span>
-                    </button>
-                    {productos.length > 0 && selectedProducto && (
-                        <button
-                            className="btn-secondary"
-                            onClick={() => {
-                                setProductoParaStock(selectedProducto);
-                                setShowAgregarStockModal(true);
-                            }}
-                            style={{ 
-                                background: 'rgba(16, 185, 129, 0.1)',
-                                border: '1px solid rgba(16, 185, 129, 0.3)',
-                                color: '#10b981'
-                            }}
-                        >
-                            <Icon name="box" />
-                            <span>Agregar Stock</span>
-                        </button>
+                    {!demoMode && (
+                        <>
+                            <button
+                                className="btn-primary"
+                                onClick={() => {
+                                    setEditingProducto(null);
+                                    setShowAddModal(true);
+                                }}
+                            >
+                                <Icon name="plus" />
+                                <span>Nuevo Producto</span>
+                            </button>
+                            {productos.length > 0 && selectedProducto && (
+                                <button
+                                    className="btn-secondary"
+                                    onClick={() => {
+                                        setProductoParaStock(selectedProducto);
+                                        setShowAgregarStockModal(true);
+                                    }}
+                                    style={{ 
+                                        background: 'rgba(16, 185, 129, 0.1)',
+                                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                                        color: '#10b981'
+                                    }}
+                                >
+                                    <Icon name="box" />
+                                    <span>Agregar Stock</span>
+                                </button>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -531,7 +610,13 @@ export default function InventarioPage() {
                             <div
                                 key={producto.id}
                                 className="refaccion-card"
-                                onClick={() => setSelectedProducto(producto)}
+                                onClick={() => {
+                                    if (demoMode) {
+                                        alert('Vista demo de inventario. Aquí normalmente verías más detalles del producto.');
+                                        return;
+                                    }
+                                    setSelectedProducto(producto);
+                                }}
                             >
                                 <div className="refaccion-card-header">
                                     <div className="refaccion-icon">
@@ -615,34 +700,38 @@ export default function InventarioPage() {
                                 </div>
 
                                 <div className="refaccion-card-actions">
-                                    <button
-                                        className="btn-secondary"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setProductoParaStock(producto);
-                                            setShowAgregarStockModal(true);
-                                        }}
-                                        style={{ 
-                                            background: 'rgba(16, 185, 129, 0.1)',
-                                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                                            color: '#10b981'
-                                        }}
-                                    >
-                                        <Icon name="plus" />
-                                        <span>Agregar Stock</span>
-                                    </button>
-                                    <button
-                                        className="btn-secondary"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedProducto(producto);
-                                            setEditingProducto(producto);
-                                            setShowAddModal(true);
-                                        }}
-                                    >
-                                        <Icon name="edit" />
-                                        <span>Editar</span>
-                                    </button>
+                                    {!demoMode && (
+                                        <>
+                                            <button
+                                                className="btn-secondary"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setProductoParaStock(producto);
+                                                    setShowAgregarStockModal(true);
+                                                }}
+                                                style={{ 
+                                                    background: 'rgba(16, 185, 129, 0.1)',
+                                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                    color: '#10b981'
+                                                }}
+                                            >
+                                                <Icon name="plus" />
+                                                <span>Agregar Stock</span>
+                                            </button>
+                                            <button
+                                                className="btn-secondary"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedProducto(producto);
+                                                    setEditingProducto(producto);
+                                                    setShowAddModal(true);
+                                                }}
+                                            >
+                                                <Icon name="edit" />
+                                                <span>Editar</span>
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         ))
@@ -663,7 +752,7 @@ export default function InventarioPage() {
                                     : 'Agrega un nuevo producto al inventario para comenzar'
                                 }
                             </p>
-                            {!searchQuery && (
+                            {!demoMode && !searchQuery && (
                                 <button
                                     className="btn-primary"
                                     onClick={() => {
@@ -680,36 +769,40 @@ export default function InventarioPage() {
                 </div>
             )}
 
-            {/* Modals */}
-            <AddInventarioModal
-                isOpen={showAddModal}
-                onClose={() => {
-                    setShowAddModal(false);
-                    setEditingProducto(null);
-                }}
-                onSuccess={async () => {
-                    console.log('🔄 Recargando productos después de agregar...');
-                    await fetchProductos();
-                    await fetchMetrics();
-                    console.log('✅ Recarga completada');
-                }}
-                editingProduct={editingProducto}
-            />
-            <AgregarStockModal
-                isOpen={showAgregarStockModal}
-                onClose={() => {
-                    setShowAgregarStockModal(false);
-                    setProductoParaStock(null);
-                }}
-                onSuccess={async () => {
-                    console.log('🔄 Recargando productos después de agregar stock...');
-                    await fetchProductos();
-                    await fetchMetrics();
-                    console.log('✅ Recarga completada');
-                }}
-                producto={productoParaStock}
-                productos={getProductosFiltrados()}
-            />
+            {/* Modals (solo en modo real) */}
+            {!demoMode && (
+                <>
+                    <AddInventarioModal
+                        isOpen={showAddModal}
+                        onClose={() => {
+                            setShowAddModal(false);
+                            setEditingProducto(null);
+                        }}
+                        onSuccess={async () => {
+                            console.log('🔄 Recargando productos después de agregar...');
+                            await fetchProductos();
+                            await fetchMetrics();
+                            console.log('✅ Recarga completada');
+                        }}
+                        editingProduct={editingProducto}
+                    />
+                    <AgregarStockModal
+                        isOpen={showAgregarStockModal}
+                        onClose={() => {
+                            setShowAgregarStockModal(false);
+                            setProductoParaStock(null);
+                        }}
+                        onSuccess={async () => {
+                            console.log('🔄 Recargando productos después de agregar stock...');
+                            await fetchProductos();
+                            await fetchMetrics();
+                            console.log('✅ Recarga completada');
+                        }}
+                        producto={productoParaStock}
+                        productos={getProductosFiltrados()}
+                    />
+                </>
+            )}
         </div>
     );
 }

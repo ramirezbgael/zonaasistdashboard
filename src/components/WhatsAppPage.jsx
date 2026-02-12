@@ -5,7 +5,41 @@ import { QRCodeSVG } from 'qrcode.react';
 import './WhatsAppPage.css';
 import './ClientesPage.css';
 
-export default function WhatsAppPage() {
+// Datos de ejemplo para modo demo (sin Supabase ni Netlify)
+const DEMO_NOTIFICACIONES = [
+    {
+        id: 'demo-n1',
+        tipo: 'equipo_recepcion',
+        created_at: new Date().toISOString(),
+        datos: {
+            equipo_info: { marca: 'Dell', modelo: 'Inspiron 15', nota: '123', problema: 'No enciende' },
+            cliente_info: { nombre: 'Juan Pérez', telefono: '5512345678' }
+        }
+    },
+    {
+        id: 'demo-n2',
+        tipo: 'equipo_listo',
+        created_at: new Date().toISOString(),
+        datos: {
+            equipo_info: { marca: 'Lenovo', modelo: 'IdeaPad 3', nota: '140' },
+            cliente_info: { nombre: 'Ana López', telefono: '5522334455' }
+        }
+    }
+];
+
+const DEMO_ENVIADOS = [
+    {
+        id: 'demo-m1',
+        tipo: 'equipo_listo',
+        telefono: '5512345678',
+        mensaje: 'Hola Juan, tu equipo está listo para recoger.',
+        estado: 'enviado',
+        incluyo_pdf: false,
+        created_at: new Date().toISOString()
+    }
+];
+
+export default function WhatsAppPage({ demoMode = false }) {
     const [notificacionesPendientes, setNotificacionesPendientes] = useState([]);
     const [mensajesEnviados, setMensajesEnviados] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -21,6 +55,16 @@ export default function WhatsAppPage() {
     const estadoIntervalRef = useRef(null);
 
     useEffect(() => {
+        if (demoMode) {
+            // En modo demo usar datos estáticos y no conectar nada real
+            setNotificacionesPendientes(DEMO_NOTIFICACIONES);
+            setMensajesEnviados(DEMO_ENVIADOS);
+            setEstadoSesion('conectado');
+            setNumeroConectado('+52 55 0000 0000 (demo)');
+            setActivo(true);
+            return;
+        }
+
         cargarNotificacionesPendientes();
         cargarMensajesEnviados();
         verificarEstadoSesion();
@@ -46,7 +90,7 @@ export default function WhatsAppPage() {
             if (qrIntervalRef.current) clearInterval(qrIntervalRef.current);
             if (estadoIntervalRef.current) clearInterval(estadoIntervalRef.current);
         };
-    }, []);
+    }, [demoMode]);
 
     const cargarNotificacionesPendientes = async () => {
         try {
@@ -186,6 +230,10 @@ export default function WhatsAppPage() {
     };
 
     const iniciarSesion = async () => {
+        if (demoMode) {
+            alert('En la demo, la sesión de WhatsApp ya aparece como conectada solo para mostrar la interfaz.');
+            return;
+        }
         try {
             setLoading(true);
             setEstadoSesion('generando_qr');
@@ -286,6 +334,10 @@ export default function WhatsAppPage() {
     };
 
     const cerrarSesion = async () => {
+        if (demoMode) {
+            alert('En la demo no se cierra ninguna sesión real de WhatsApp.');
+            return;
+        }
         try {
             setLoading(true);
             const response = await fetch('/.netlify/functions/whatsapp-cerrar', {
@@ -314,6 +366,10 @@ export default function WhatsAppPage() {
     };
 
     const toggleActivo = async () => {
+        if (demoMode) {
+            setActivo(!activo);
+            return;
+        }
         try {
             setLoading(true);
             const nuevoEstado = !activo;
@@ -378,6 +434,10 @@ export default function WhatsAppPage() {
     };
 
     const enviarMensaje = async (notificacion, incluirPDF = false) => {
+        if (demoMode) {
+            alert('Demo de WhatsApp: aquí se simula el envío pero no sale nada de tu número real.');
+            return;
+        }
         if (!activo || estadoSesion !== 'conectado') {
             alert('Por favor, conecta y activa WhatsApp primero');
             setMostrarConfig(true);

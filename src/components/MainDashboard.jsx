@@ -4,7 +4,88 @@ import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import './MainDashboard.css';
 
-export default function MainDashboard() {
+const DEMO_STATS = {
+  equiposPendientes: 4,
+  equiposListos: 2,
+  equiposFinalizados: 18,
+  trabajosPendientes: 3,
+  entregasPendientes: 2,
+  equiposTerminadosHoy: 3,
+  equiposTerminadosSemana: 9
+};
+
+const DEMO_ALERTAS = [
+  {
+    tipo: 'warning',
+    icono: 'exclamation-triangle',
+    titulo: '⚠️ 2 Equipos retrasados',
+    mensaje: 'Más de 3 días sin movimiento',
+    count: 2
+  },
+  {
+    tipo: 'info',
+    icono: 'clock',
+    titulo: '⏰ 2 entregas para HOY',
+    mensaje: 'Equipos listos para recoger',
+    count: 2
+  }
+];
+
+const DEMO_ACCIONES = [
+  {
+    tipo: 'equipo_retrasado',
+    icono: 'exclamation-circle',
+    titulo: 'Revisar Laptop #123',
+    descripcion: 'Dell Inspiron 15 - 4 días sin avance',
+    prioridad: 'alta'
+  },
+  {
+    tipo: 'entrega',
+    icono: 'check-circle',
+    titulo: 'Entregar PC Gamer #130',
+    descripcion: 'Ryzen 5 · 16GB RAM · SSD 1TB',
+    prioridad: 'alta'
+  },
+  {
+    tipo: 'presupuesto',
+    icono: 'dollar-sign',
+    titulo: 'Autorizar transcripción',
+    descripcion: '3 horas de audio pendientes de precio',
+    prioridad: 'media'
+  }
+];
+
+const DEMO_ACTIVIDADES = [
+  {
+    id: 'demo-a1',
+    tipo: 'equipo',
+    icono: 'check-circle',
+    titulo: 'Equipo #130 entregado al cliente',
+    descripcion: 'PC Gamer listo y entregado',
+    tiempo: 'Hace 10 min',
+    color: '#10b981'
+  },
+  {
+    id: 'demo-a2',
+    tipo: 'equipo',
+    icono: 'comment',
+    titulo: 'Nota agregada a equipo #125',
+    descripcion: 'Cliente confirmó respaldo de información',
+    tiempo: 'Hace 35 min',
+    color: '#3b82f6'
+  },
+  {
+    id: 'demo-a3',
+    tipo: 'documento',
+    icono: 'file-alt',
+    titulo: 'Nuevo documento creado',
+    descripcion: 'Transcripción de conferencia 2h',
+    tiempo: 'Hace 1 h',
+    color: '#8b5cf6'
+  }
+];
+
+export default function MainDashboard({ demoMode = false, demoData }) {
     const [alertas, setAlertas] = useState([]);
     const [stats, setStats] = useState({
         equiposPendientes: 0,
@@ -22,6 +103,16 @@ export default function MainDashboard() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        if (demoMode) {
+            const d = demoData || {};
+            setAlertas(d.alertas || DEMO_ALERTAS);
+            setStats(d.stats || DEMO_STATS);
+            setSiguientesAcciones(d.siguientesAcciones || DEMO_ACCIONES);
+            setActividades(d.actividades || DEMO_ACTIVIDADES);
+            setLoading(false);
+            return;
+        }
+
         fetchDashboardData();
         // Refrescar cada 5 minutos
         const interval = setInterval(fetchDashboardData, 5 * 60 * 1000);
@@ -34,17 +125,18 @@ export default function MainDashboard() {
         
         window.addEventListener('equipoUpdated', handleEquipoUpdated);
         // Actualizar cuando la ventana vuelve a tener foco
-        window.addEventListener('focus', () => {
+        const handleFocus = () => {
             console.log('🔄 Ventana con foco, actualizando dashboard...');
             fetchDashboardData();
-        });
+        };
+        window.addEventListener('focus', handleFocus);
         
         return () => {
             clearInterval(interval);
             window.removeEventListener('equipoUpdated', handleEquipoUpdated);
-            window.removeEventListener('focus', fetchDashboardData);
+            window.removeEventListener('focus', handleFocus);
         };
-    }, []);
+    }, [demoMode]);
 
     const formatRelativeTime = (dateString) => {
         if (!dateString) return 'N/A';
@@ -204,7 +296,6 @@ export default function MainDashboard() {
                     tipo_servicio,
                     descripcion,
                     precio,
-                    precio_total,
                     estado,
                     fecha_entrega,
                     created_at,
@@ -220,7 +311,7 @@ export default function MainDashboard() {
             
             // Trabajos sin presupuesto aprobado (transcripciones sin precio)
             const trabajosSinPresupuesto = documentos?.filter(doc => 
-                doc.tipo_servicio === 'transcripcion' && !doc.precio_total && !doc.precio
+                doc.tipo_servicio === 'transcripcion' && (!doc.precio || Number(doc.precio) <= 0)
             ) || [];
 
             // Entregas de documentos para hoy
@@ -507,7 +598,9 @@ export default function MainDashboard() {
                 <div className="quick-actions-grid">
                     <button 
                         className="quick-action-btn"
-                        onClick={() => navigate('/equipos?add=true')}
+                        onClick={() => {
+                            navigate(demoMode ? '/demo/equipos' : '/equipos/nuevo');
+                        }}
                         title="Nuevo Equipo"
                     >
                         <Icon name="plus" className="action-icon" />
@@ -516,7 +609,9 @@ export default function MainDashboard() {
                     
                     <button 
                         className="quick-action-btn"
-                        onClick={() => navigate('/documentos?add=true')}
+                        onClick={() => {
+                            navigate(demoMode ? '/demo/documentos' : '/documentos/nuevo');
+                        }}
                         title="Nuevo Documento"
                     >
                         <Icon name="file-alt" className="action-icon" />
@@ -525,7 +620,9 @@ export default function MainDashboard() {
                     
                     <button 
                         className="quick-action-btn"
-                        onClick={() => navigate('/logistica?add=true')}
+                        onClick={() => {
+                            navigate(demoMode ? '/demo/logistica' : '/logistica/nuevo');
+                        }}
                         title="Nuevo Pedido"
                     >
                         <Icon name="shopping-cart" className="action-icon" />
@@ -535,6 +632,7 @@ export default function MainDashboard() {
                     <button 
                         className="quick-action-btn"
                         onClick={() => {
+                            if (demoMode) return;
                             const nota = prompt('Ingresa el número de nota a buscar:');
                             if (nota) {
                                 navigate(`/equipos?search=${nota}`);
@@ -601,7 +699,7 @@ export default function MainDashboard() {
                 <div className="overview-cards">
                     <div 
                         className="overview-card equipos-pendientes"
-                        onClick={() => navigate('/equipos?tab=pendientes')}
+                        onClick={() => navigate(demoMode ? '/demo/equipos' : '/equipos?tab=pendientes')}
                     >
                         <div className="card-icon"><Icon name="hourglass-half" /></div>
                         <div className="card-content">
@@ -612,7 +710,7 @@ export default function MainDashboard() {
                     
                     <div 
                         className="overview-card equipos-listos"
-                        onClick={() => navigate('/equipos?tab=listos')}
+                        onClick={() => navigate(demoMode ? '/demo/equipos' : '/equipos?tab=listos')}
                     >
                         <div className="card-icon"><Icon name="check-circle" /></div>
                         <div className="card-content">
@@ -623,7 +721,7 @@ export default function MainDashboard() {
                     
                     <div 
                         className="overview-card equipos-entregados"
-                        onClick={() => navigate('/equipos?tab=finalizados')}
+                        onClick={() => navigate(demoMode ? '/demo/equipos' : '/equipos?tab=finalizados')}
                     >
                         <div className="card-icon"><Icon name="check-circle" /></div>
                         <div className="card-content">

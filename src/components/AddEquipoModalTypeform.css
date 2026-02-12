@@ -26,6 +26,23 @@
   visibility: visible !important;
 }
 
+/* === PAGE MODE (sin overlay modal) === */
+.typeform-page {
+  width: 100%;
+  min-height: calc(100vh - 120px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+  box-sizing: border-box;
+}
+
+.typeform-page-inner {
+  max-height: none;
+  height: auto;
+  animation: none;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -1023,13 +1040,16 @@
 }
 
 .typeform-next-btn {
-  margin-top: var(--space-4);
-  max-width: 100%;
-  padding: 0.375rem 1.25rem !important;
+  /* Botón "Continuar" del primer paso: más compacto y más alto */
+  display: block !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: var(--space-4) auto 0 auto !important;
+  padding: 0 1rem !important;
   font-size: 0.875rem !important;
-  min-height: 36px !important;
-  height: 36px !important;
-  max-height: 36px !important;
+  min-height: 63px !important; /* 175% de 36px ≈ 63px */
+  height: 63px !important;
+  max-height: 63px !important;
   line-height: 1.2 !important;
 }
 
@@ -1156,6 +1176,17 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
+  .typeform-page {
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  .typeform-page-inner {
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
   .typeform-modal-overlay {
     padding: 0;
     align-items: stretch;

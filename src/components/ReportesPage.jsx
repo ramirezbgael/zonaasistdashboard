@@ -8,7 +8,37 @@ import {
 import './ReportesPage.css';
 import './ClientesPage.css';
 
-export default function ReportesPage() {
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_RESUMEN = {
+    equipos: {
+        distribucion: {
+            pendiente: 4,
+            en_proceso: 6,
+            listo: 3,
+            finalizado: 12
+        },
+        total: 25
+    },
+    documentos: {
+        total: 8,
+        porTipo: {
+            transcripcion: 5,
+            factura: 2,
+            cotizacion: 1
+        },
+        detalles: []
+    },
+    pedidos: {
+        total: 5,
+        porEstado: {
+            pendiente: 3,
+            recibido: 2
+        },
+        detalles: []
+    }
+};
+
+export default function ReportesPage({ demoMode = false }) {
     // Calcular fechas del último mes (mes anterior)
     const calcularUltimoMes = () => {
         const ahora = new Date();
@@ -380,18 +410,23 @@ export default function ReportesPage() {
     const cargarResumen = async () => {
         setLoadingResumen(true);
         try {
-            // Cargar datos de resumen para gráficas principales
-            const [equiposData, documentosData, pedidosData] = await Promise.all([
-                generarEquiposPorEstado(),
-                generarDocumentosProcesados(),
-                generarPedidosEstado()
-            ]);
+            if (demoMode) {
+                // En modo demo usar datos estáticos
+                setDatosResumen(DEMO_RESUMEN);
+            } else {
+                // Cargar datos de resumen para gráficas principales desde Supabase
+                const [equiposData, documentosData, pedidosData] = await Promise.all([
+                    generarEquiposPorEstado(),
+                    generarDocumentosProcesados(),
+                    generarPedidosEstado()
+                ]);
 
-            setDatosResumen({
-                equipos: equiposData,
-                documentos: documentosData,
-                pedidos: pedidosData
-            });
+                setDatosResumen({
+                    equipos: equiposData,
+                    documentos: documentosData,
+                    pedidos: pedidosData
+                });
+            }
         } catch (error) {
             console.error('Error cargando resumen:', error);
         } finally {
@@ -517,7 +552,78 @@ export default function ReportesPage() {
                         <div
                             key={reporte.id}
                             className="reporte-card"
-                            onClick={() => generarReporte(reporte)}
+                            onClick={() => {
+                                if (demoMode) {
+                                    // En demo, generar datos ficticios rápidos sin tocar Supabase
+                                    setReporteSeleccionado(reporte);
+                                    switch (reporte.id) {
+                                        case 'equipos_procesados':
+                                            setDatosReporte({
+                                                total: 25,
+                                                completados: 12,
+                                                enProceso: 6,
+                                                pendientes: 7
+                                            });
+                                            break;
+                                        case 'equipos_por_estado':
+                                            setDatosReporte(DEMO_RESUMEN.equipos);
+                                            break;
+                                        case 'equipos_por_proceso':
+                                            setDatosReporte({
+                                                distribucion: {
+                                                    'Reparación estándar': 10,
+                                                    'Mantenimiento completo': 5,
+                                                    'Instalación software': 4,
+                                                    'Diagnóstico rápido': 6
+                                                },
+                                                total: 25
+                                            });
+                                            break;
+                                        case 'tiempo_promedio':
+                                            setDatosReporte({
+                                                tiempoPromedio: '3.5',
+                                                totalEquipos: 18,
+                                                detalles: [
+                                                    { equipo: { nota: '130' }, dias: 5 },
+                                                    { equipo: { nota: '125' }, dias: 4 },
+                                                    { equipo: { nota: '120' }, dias: 3 }
+                                                ]
+                                            });
+                                            break;
+                                        case 'documentos_procesados':
+                                            setDatosReporte(DEMO_RESUMEN.documentos);
+                                            break;
+                                        case 'pedidos_estado':
+                                            setDatosReporte(DEMO_RESUMEN.pedidos);
+                                            break;
+                                        case 'inventario_valor':
+                                            setDatosReporte({
+                                                valorTotal: 18500,
+                                                porTipo: {
+                                                    Refacciones: { cantidad: 32, valor: 9500 },
+                                                    Consumibles: { cantidad: 50, valor: 6000 },
+                                                    'Equipos venta': { cantidad: 4, valor: 3000 }
+                                                },
+                                                totalProductos: 86
+                                            });
+                                            break;
+                                        case 'productividad_tecnicos':
+                                            setDatosReporte({
+                                                porTecnico: {
+                                                    'Carlos Técnico': 15,
+                                                    'Ana Soporte': 12,
+                                                    'Luis Taller': 9
+                                                },
+                                                totalAcciones: 36
+                                            });
+                                            break;
+                                        default:
+                                            setDatosReporte(null);
+                                    }
+                                } else {
+                                    generarReporte(reporte);
+                                }
+                            }}
                         >
                             <div className="reporte-icon" style={{ background: `${reporte.color}20`, color: reporte.color }}>
                                 <Icon name={reporte.icono} />

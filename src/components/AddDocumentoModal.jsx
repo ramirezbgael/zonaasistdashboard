@@ -8,7 +8,6 @@ import './AddEquipoModalTypeform.css';
 // --- FIX: Declarar steps y esTranscripcion FUERA del componente para evitar ReferenceError en hooks ---
 
 function getSteps(tipo_documento) {
-  const esTranscripcion = tipo_documento === 'transcripcion';
   return [
     {
       title: '📄 Tipo de documento',
@@ -22,16 +21,14 @@ function getSteps(tipo_documento) {
       title: '👤 Información del cliente',
       description: 'Completa los datos del cliente'
     },
-    ...(esTranscripcion ? [
-      {
-        title: '💰 Precio Total',
-        description: 'Ingresa el precio total de la transcripción'
-      },
-      {
-        title: '💵 Adelanto',
-        description: '¿Se pagó algún adelanto? (opcional)'
-      }
-    ] : []),
+    {
+      title: '💰 Total del documento',
+      description: 'Ingresa el total del documento'
+    },
+    {
+      title: '💵 Adelanto',
+      description: '¿Se pagó algún adelanto? (opcional)'
+    },
     {
       title: '📅 Fecha de entrega',
       description: 'Selecciona la fecha de entrega (opcional)'
@@ -43,7 +40,7 @@ function getSteps(tipo_documento) {
   ];
 }
 
-export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
+export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'modal' }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     tipo_documento: '',
@@ -66,6 +63,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
+    if (mode !== 'modal') return;
     const originalOverflow = document.body.style.overflow;
     const originalPosition = document.body.style.position;
     const originalHeight = document.body.style.height;
@@ -82,7 +80,6 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
   }, []);
 
   const steps = getSteps(formData.tipo_documento);
-  const esTranscripcion = formData.tipo_documento === 'transcripcion';
 
   useEffect(() => {
     if (currentStep > steps.length - 1) {
@@ -133,12 +130,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           // Faltan datos, pedir completarlos
           setTimeout(() => setCurrentStep(2), 300);
         } else {
-          // Todo completo, verificar si es transcripción para pedir precio
-          if (formData.tipo_documento === 'transcripcion') {
-            setTimeout(() => setCurrentStep(3), 300); // Ir a precio
-          } else {
-            setTimeout(() => setCurrentStep(4), 300); // Ir a fecha
-          }
+          // Todo completo, ir a total
+          setTimeout(() => setCurrentStep(3), 300);
         }
       }
     } else if (field === 'cliente_datos') {
@@ -154,40 +147,15 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
         return;
       }
       
-      // Si es transcripción, ir a precio, sino a fecha
-      if (formData.tipo_documento === 'transcripcion') {
-        setTimeout(() => setCurrentStep(3), 300); // Ir a precio
-      } else {
-        setTimeout(() => setCurrentStep(4), 300); // Ir a fecha
-      }
+      // Ir a total
+      setTimeout(() => setCurrentStep(3), 300);
     } else if (field === 'precio_total' && formData.precio_total.trim()) {
       setTimeout(() => setCurrentStep(4), 300); // Ir a adelanto
     } else if (field === 'adelanto') {
-      setTimeout(() => setCurrentStep(5), 300);
+      setTimeout(() => setCurrentStep(5), 300); // Ir a fecha
     } else if (field === 'fecha_entrega') {
-      // Si no hay fecha, asignar automáticamente mañana
-      if (!formData.fecha_entrega) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const yyyy = tomorrow.getFullYear();
-        const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const dd = String(tomorrow.getDate()).padStart(2, '0');
-        const fechaMañana = `${yyyy}-${mm}-${dd}`;
-        setFormData(prev => ({ ...prev, fecha_entrega: fechaMañana }));
-        setTimeout(() => {
-          if (esTranscripcion) {
-            setCurrentStep(6);
-          } else {
-            setCurrentStep(5);
-          }
-        }, 300);
-      } else {
-        if (esTranscripcion) {
-          setTimeout(() => setCurrentStep(6), 300);
-        } else {
-          setTimeout(() => setCurrentStep(5), 300);
-        }
-      }
+      // Fecha es opcional, solo avanzar
+      setTimeout(() => setCurrentStep(6), 300);
     }
   };
 
@@ -205,24 +173,27 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     try {
       // Validar campos requeridos
       if (!formData.tipo_documento || !formData.cliente_telefono) {
-        alert('Por favor completa todos los campos requeridos');
-        setLoading(false);
-        return;
+        throw new Error('Por favor completa todos los campos requeridos');
       }
 
       // Validar datos del cliente
       if (!formData.cliente_nombre || !formData.cliente_email) {
-        alert('Por favor completa el nombre y correo del cliente');
-        setLoading(false);
-        return;
+        throw new Error('Por favor completa el nombre y correo del cliente');
       }
 
       // Validar formato de email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.cliente_email)) {
-        alert('Por favor ingresa un correo electrónico válido');
-        setLoading(false);
-        return;
+        throw new Error('Por favor ingresa un correo electrónico válido');
+      }
+
+      // Validar total
+      if (!formData.precio_total || String(formData.precio_total).trim() === '') {
+        throw new Error('Por favor ingresa el total del documento');
+      }
+      const totalDocumento = parseFloat(formData.precio_total);
+      if (Number.isNaN(totalDocumento) || totalDocumento < 0) {
+        throw new Error('El total del documento no es válido');
       }
 
       // Obtener o crear/actualizar cliente
@@ -265,9 +236,15 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
         asignado_a: user?.id || null,
         descripcion: formData.descripcion || null,
         fecha_entrega: formData.fecha_entrega || null,
-        precio: formData.tipo_documento === 'transcripcion'
-          ? (formData.precio_total ? parseFloat(formData.precio_total) : 0)
-          : 0 // Para factura, cotización, otro: precio en 0
+        // Guardamos total en "precio" para cualquier tipo de documento
+        precio: totalDocumento,
+        // Guardamos metadata de pago sin requerir cambios de esquema
+        archivos: {
+          meta: {
+            adelanto: parseFloat(formData.adelanto) || 0,
+            pago_full: !!formData.pago_full
+          }
+        }
       };
 
       const { data, error } = await supabase
@@ -287,9 +264,9 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           console.error('Error creando notificación (no crítico):', notifError);
         }
 
-        // Calcular restante si es transcripción
-        const precioTotal = formData.tipo_documento === 'transcripcion' ? (parseFloat(formData.precio_total) || 0) : 0;
-        const adelanto = formData.tipo_documento === 'transcripcion' ? (parseFloat(formData.adelanto) || 0) : 0;
+        // Calcular restante
+        const precioTotal = parseFloat(formData.precio_total) || 0;
+        const adelanto = parseFloat(formData.adelanto) || 0;
         const restante = precioTotal - adelanto;
 
         // Guardar datos para mostrar nota PDF
@@ -304,7 +281,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           restante: restante > 0 ? restante : null,
           pago_full: formData.pago_full,
           created_at: data[0].created_at,
-          tipo: formData.tipo_documento === 'transcripcion' ? 'transcripcion' : 'documento'
+          tipo: 'documento'
         });
         setClienteGuardado(cliente);
         setShowNotaPDF(true);
@@ -315,6 +292,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
     } catch (error) {
       console.error('Error:', error);
       alert(`Error: ${error.message}`);
+    } finally {
+      // IMPORTANT: siempre liberar estados para que el botón no quede bloqueado
       setIsSubmitting(false);
       setLoading(false);
     }
@@ -333,10 +312,10 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
   };
 
   return (
-    <div 
-      className="typeform-modal-overlay" 
-      onClick={onClose}
-      style={{
+    <div
+      className={mode === 'modal' ? 'typeform-modal-overlay' : 'typeform-page'}
+      onClick={mode === 'modal' ? onClose : undefined}
+      style={mode === 'modal' ? {
         position: 'fixed',
         top: 0,
         left: 0,
@@ -350,11 +329,11 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
         justifyContent: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.6)',
         padding: '1rem'
-      }}
+      } : undefined}
     >
       <div 
-        className="typeform-modal" 
-        onClick={(e) => e.stopPropagation()}
+        className={mode === 'modal' ? 'typeform-modal' : 'typeform-modal typeform-page-inner'}
+        onClick={mode === 'modal' ? (e) => e.stopPropagation() : undefined}
         style={{
           position: 'relative',
           zIndex: 1060,
@@ -549,10 +528,10 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           </div>
         )}
 
-        {/* Step 3: Precio Total (solo para transcripción) */}
-        {currentStep === 3 && esTranscripcion && (
+        {/* Step 3: Total del documento */}
+        {currentStep === 3 && (
           <div className="typeform-step typeform-single-field">
-            <h2 className="typeform-question">¿Cuál es el precio total de la transcripción?</h2>
+            <h2 className="typeform-question">¿Cuál es el total del documento?</h2>
             <p className="typeform-description">{steps[3].description}</p>
             <div className="typeform-field-wrapper">
               <input
@@ -603,8 +582,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           </div>
         )}
 
-        {/* Step 4: Adelanto (solo para transcripción) */}
-        {currentStep === 4 && esTranscripcion && (
+        {/* Step 4: Adelanto */}
+        {currentStep === 4 && (
           <div className="typeform-step typeform-single-field">
             <h2 className="typeform-question">¿Se pagó algún adelanto?</h2>
             <p className="typeform-description">{steps[4].description}</p>
@@ -685,8 +664,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           </div>
         )}
 
-        {/* Step 4/5: Fecha de entrega */}
-        {((currentStep === 4 && !esTranscripcion) || (currentStep === 5 && esTranscripcion)) && (
+        {/* Step 5: Fecha de entrega */}
+        {currentStep === 5 && (
           <div className="typeform-step typeform-single-field">
             <h2 className="typeform-question">¿Cuándo se entregará el documento?</h2>
             <p className="typeform-description">Selecciona la fecha de entrega (opcional). Puedes omitir este paso.</p>
@@ -709,18 +688,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
             <div className="typeform-buttons-horizontal">
               <button
                 type="button"
-                onClick={() => {
-                  if (esTranscripcion) {
-                    setCurrentStep(4);
-                  } else {
-                    // Volver al paso anterior según si se mostró el paso 2
-                    if (datosFaltantes.length > 0 || !clienteEncontrado) {
-                      setCurrentStep(2);
-                    } else {
-                      setCurrentStep(1);
-                    }
-                  }
-                }}
+                onClick={() => setCurrentStep(4)}
                 className="typeform-btn-secondary"
               >
                 ← Volver
@@ -736,8 +704,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
           </div>
         )}
 
-        {/* Step 5/6: Descripción (opcional) */}
-        {((currentStep === 5 && !esTranscripcion) || (currentStep === 6 && esTranscripcion)) && (
+        {/* Step 6: Descripción (opcional) */}
+        {currentStep === 6 && (
           <div className="typeform-step typeform-single-field">
             <h2 className="typeform-question">¿Hay algún detalle adicional? (Opcional)</h2>
             <p className="typeform-description">Describe cualquier información relevante sobre el documento.</p>
@@ -762,11 +730,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (esTranscripcion) {
-                    setCurrentStep(steps.length - 2);
-                  } else {
-                    setCurrentStep(steps.length - 2);
-                  }
+                  setCurrentStep(5);
                 }}
                 className="typeform-btn-secondary"
                 disabled={loading || isSubmitting}

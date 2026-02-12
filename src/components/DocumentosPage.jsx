@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
-import AddDocumentoModal from './AddDocumentoModal.jsx';
 import DocumentoModal from './DocumentoModal.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css'; // Reutilizar estilos similares
@@ -31,8 +30,62 @@ const obtenerNombreUsuario = async (userId) => {
     }
 };
 
-export default function DocumentosPage() {
-    const [showAddModal, setShowAddModal] = useState(false);
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_DOCUMENTOS = [
+    {
+        id: 'demo-d1',
+        tipo_servicio: 'transcripcion',
+        descripcion: 'Conferencia marketing 2h',
+        precio: 650,
+        estado: 'pendiente',
+        fecha_inicio: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        asignado_a: null,
+        usuarioAsignado: 'Tú (demo)',
+        clientes: {
+            id: 'demo-c1',
+            nombre: 'Universidad X',
+            telefono: '5511122233',
+            email: 'contacto@universidadx.mx'
+        }
+    },
+    {
+        id: 'demo-d2',
+        tipo_servicio: 'factura',
+        descripcion: 'Factura servicios de impresión',
+        precio: 320,
+        estado: 'pendiente',
+        fecha_inicio: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        asignado_a: null,
+        usuarioAsignado: 'Tú (demo)',
+        clientes: {
+            id: 'demo-c2',
+            nombre: 'Empresa ABC',
+            telefono: '5544455566',
+            email: 'facturacion@empresaabc.com'
+        }
+    },
+    {
+        id: 'demo-d3',
+        tipo_servicio: 'transcripcion',
+        descripcion: 'Podcast episodio 10',
+        precio: 500,
+        estado: 'completado',
+        fecha_inicio: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        asignado_a: null,
+        usuarioAsignado: 'Tú (demo)',
+        clientes: {
+            id: 'demo-c3',
+            nombre: 'Cliente frecuente',
+            telefono: '5577788899',
+            email: 'cliente@ejemplo.com'
+        }
+    }
+];
+
+export default function DocumentosPage({ demoMode = false }) {
     const [showDocumentoModal, setShowDocumentoModal] = useState(false);
     const [selectedDocumento, setSelectedDocumento] = useState(null);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -42,14 +95,14 @@ export default function DocumentosPage() {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    // Detectar si viene del dashboard principal para abrir el modal
+    // Detectar si viene del dashboard principal para crear (antes abría modal)
     useEffect(() => {
         const shouldAdd = searchParams.get('add');
         if (shouldAdd === 'true') {
-            setShowAddModal(true);
+            navigate('/documentos/nuevo');
             setSearchParams({}, { replace: true });
         }
-    }, [searchParams, setSearchParams]);
+    }, [searchParams, setSearchParams, navigate]);
 
     // Detectar si hay un documento_id en la URL (desde notificación)
     useEffect(() => {
@@ -74,11 +127,22 @@ export default function DocumentosPage() {
     }, [searchParams, documentos, documentosCompletados, setSearchParams]);
 
     useEffect(() => {
+        if (demoMode) {
+            // En modo demo usar datos estáticos y no tocar Supabase
+            const pendientes = DEMO_DOCUMENTOS.filter(d => d.estado === 'pendiente');
+            const completados = DEMO_DOCUMENTOS.filter(d => d.estado === 'completado');
+            setDocumentos(pendientes);
+            setDocumentosCompletados(completados);
+            setLoading(false);
+            return;
+        }
+
         fetchDocumentos();
-    }, [activeTab]);
+    }, [activeTab, demoMode]);
 
     const fetchDocumentos = async () => {
         try {
+            if (demoMode) return;
             setLoading(true);
             
             const { data, error } = await supabase
@@ -201,6 +265,10 @@ export default function DocumentosPage() {
 
                             const handleMarcarCompletado = async (e) => {
                                 e.stopPropagation();
+                                if (demoMode) {
+                                    alert('En el modo demo no se modifican documentos reales. Esto es solo una vista de ejemplo.');
+                                    return;
+                                }
                                 if (!confirm('¿Confirmas que el documento ha sido completado?')) {
                                     return;
                                 }
@@ -342,21 +410,11 @@ export default function DocumentosPage() {
 
             <button
                 className="add-equipo-fab"
-                onClick={() => setShowAddModal(true)}
+                onClick={() => navigate('/documentos/nuevo')}
                 title="Agregar nuevo documento"
             >
                 <Icon name="plus" />
             </button>
-
-            {showAddModal && (
-                <AddDocumentoModal
-                    onClose={() => setShowAddModal(false)}
-                    onDocumentoAdded={() => {
-                        setShowAddModal(false);
-                        fetchDocumentos();
-                    }}
-                />
-            )}
 
             {showDocumentoModal && selectedDocumento && (
                 <DocumentoModal

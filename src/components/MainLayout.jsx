@@ -8,9 +8,10 @@ import Settings from './Settings.jsx';
 import Profile from './Profile.jsx';
 import Notifications from './Notifications.jsx';
 import SearchModal from './SearchModal.jsx';
+import Footer from './Footer.jsx';
 import './MainLayout.css';
 
-export default function MainLayout() {
+export default function MainLayout({ demoMode = false }) {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -26,24 +27,28 @@ export default function MainLayout() {
     const location = useLocation();
 
     const handleLogout = async () => {
+        if (demoMode) {
+            navigate('/login');
+            return;
+        }
         await supabase.auth.signOut();
         navigate('/login');
     };
 
+    const basePath = demoMode ? '/demo' : '';
     const menuItems = [
-        { path: '/', icon: 'home', label: 'Dashboard' },
-        { path: '/equipos', icon: 'tools', label: 'Equipos' },
-        { path: '/documentos', icon: 'file-alt', label: 'Documentos' },
-        { path: '/logistica', icon: 'shipping-fast', label: 'Logística' },
-        { path: '/clientes', icon: 'users', label: 'Clientes' },
-        { path: '/reportes', icon: 'chart-bar', label: 'Reportes' },
-        { path: '/inventario', icon: 'box', label: 'Inventario' },
-        { path: '/whatsapp', icon: 'comment', label: 'WhatsApp' },
+        { path: demoMode ? '/demo' : '/', icon: 'home', label: 'Dashboard' },
+        { path: `${basePath}/equipos`, icon: 'tools', label: 'Equipos' },
+        { path: `${basePath}/documentos`, icon: 'file-alt', label: 'Documentos' },
+        { path: `${basePath}/logistica`, icon: 'shipping-fast', label: 'Logística' },
+        { path: `${basePath}/clientes`, icon: 'users', label: 'Clientes' },
+        { path: `${basePath}/reportes`, icon: 'chart-bar', label: 'Reportes' },
+        { path: `${basePath}/inventario`, icon: 'box', label: 'Inventario' },
+        { path: `${basePath}/whatsapp`, icon: 'comment', label: 'WhatsApp' },
     ];
 
     const isActivePath = (path) => {
-        if (path === '/') return location.pathname === '/';
-        return location.pathname.startsWith(path);
+        return location.pathname === path || location.pathname.startsWith(`${path}/`);
     };
 
     const closeMenus = () => {
@@ -68,8 +73,13 @@ export default function MainLayout() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [showSearch]);
 
-    // Cargar foto de perfil
+    // Cargar foto de perfil (omitido en modo demo)
     useEffect(() => {
+        if (demoMode) {
+            setProfilePhotoUrl(null);
+            return;
+        }
+
         const loadProfilePhoto = async () => {
             try {
                 const { data: { user } } = await supabase.auth.getUser();
@@ -119,10 +129,11 @@ export default function MainLayout() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [demoMode]);
 
     // Función para recargar foto (se puede llamar desde fuera)
     const reloadProfilePhoto = async () => {
+        if (demoMode) return;
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -143,8 +154,13 @@ export default function MainLayout() {
         }
     };
 
-    // Cargar contador de notificaciones
+    // Cargar contador de notificaciones (omitido en modo demo)
     useEffect(() => {
+        if (demoMode) {
+            setNotificationsCount(0);
+            return;
+        }
+
         const loadNotificationsCount = async () => {
             try {
                 const { data: { user } } = await supabase.auth.getUser();
@@ -197,14 +213,17 @@ export default function MainLayout() {
             supabase.removeChannel(channel);
             clearInterval(interval);
         };
-    }, []);
+    }, [demoMode]);
 
     return (
         <div className="main-layout">
             <nav className="navbar">
                 <div className="navbar-container">
                     {/* Logo */}
-                    <a href="#" className="navbar-brand" onClick={(e) => { e.preventDefault(); navigate('/'); }}>
+                    <a href="#" className="navbar-brand" onClick={(e) => { 
+                        e.preventDefault(); 
+                        navigate(demoMode ? '/demo' : '/'); 
+                    }}>
                         <img src={logo} className="brand-logo" alt="Zona Asist" />
                         <span className="brand-text">Zona Asist</span>
                     </a>
@@ -236,8 +255,12 @@ export default function MainLayout() {
                             className="search-input"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            onFocus={() => setShowSearch(true)}
-                            onClick={() => setShowSearch(true)}
+                            onFocus={() => {
+                                if (!demoMode) setShowSearch(true);
+                            }}
+                            onClick={() => {
+                                if (!demoMode) setShowSearch(true);
+                            }}
                         />
                     </div>
 
@@ -252,19 +275,21 @@ export default function MainLayout() {
                             <Icon name="search" />
                         </button>
 
-                        {/* Notifications */}
+                        {/* Notifications (en demo sólo icono, sin contador real) */}
                         <button 
                             className="action-button" 
                             aria-label="Notificaciones"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setShowNotifications(!showNotifications);
-                                setShowUserMenu(false);
+                                if (!demoMode) {
+                                    setShowNotifications(!showNotifications);
+                                    setShowUserMenu(false);
+                                }
                             }}
                             style={{ position: 'relative' }}
                         >
                             <Icon name="bell" />
-                            {notificationsCount > 0 && (
+                            {!demoMode && notificationsCount > 0 && (
                                 <span 
                                     className={`notification-badge ${notificationsCount > 9 ? 'multi-digit' : ''}`}
                                     style={{ 
@@ -334,53 +359,75 @@ export default function MainLayout() {
                                             zIndex: 1100
                                         }}
                                     >
-                                        <button 
-                                            className="user-menu-item"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                setShowProfile(true);
-                                                setShowUserMenu(false);
-                                            }}
-                                            style={{
-                                                width: '100%',
-                                                background: 'none',
-                                                border: 'none',
-                                                textAlign: 'left',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            Mi Perfil
-                                        </button>
-                                        <button 
-                                            className="user-menu-item"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                setShowSettings(true);
-                                                setShowUserMenu(false);
-                                            }}
-                                            style={{
-                                                width: '100%',
-                                                background: 'none',
-                                                border: 'none',
-                                                textAlign: 'left',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            Configuración
-                                        </button>
-                                        <button 
-                                            className="user-menu-item"
-                                            onClick={handleLogout}
-                                            style={{
-                                                width: '100%',
-                                                background: 'none',
-                                                border: 'none',
-                                                textAlign: 'left',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            Cerrar Sesión
-                                        </button>
+                                        {demoMode ? (
+                                            <button 
+                                                className="user-menu-item"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    navigate('/login');
+                                                    setShowUserMenu(false);
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    textAlign: 'left',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Ir al login real
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button 
+                                                    className="user-menu-item"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setShowProfile(true);
+                                                        setShowUserMenu(false);
+                                                    }}
+                                                    style={{
+                                                        width: '100%',
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        textAlign: 'left',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Mi Perfil
+                                                </button>
+                                                <button 
+                                                    className="user-menu-item"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setShowSettings(true);
+                                                        setShowUserMenu(false);
+                                                    }}
+                                                    style={{
+                                                        width: '100%',
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        textAlign: 'left',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Configuración
+                                                </button>
+                                                <button 
+                                                    className="user-menu-item"
+                                                    onClick={handleLogout}
+                                                    style={{
+                                                        width: '100%',
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        textAlign: 'left',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Cerrar Sesión
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </>,
                                 document.body
@@ -448,6 +495,9 @@ export default function MainLayout() {
                 <Outlet />
             </main>
 
+            {/* Footer */}
+            <Footer demoMode={demoMode} />
+
             {/* Settings Modal */}
             {showSettings && (
                 <Settings onClose={() => setShowSettings(false)} />
@@ -467,7 +517,7 @@ export default function MainLayout() {
             )}
 
             {/* Notifications Dropdown */}
-            {showNotifications && (
+            {!demoMode && showNotifications && (
                 <Notifications 
                     onClose={() => setShowNotifications(false)}
                     onCountChange={(count) => setNotificationsCount(count)}
@@ -475,10 +525,12 @@ export default function MainLayout() {
             )}
 
             {/* Search Modal */}
-            <SearchModal 
-                isOpen={showSearch}
-                onClose={() => setShowSearch(false)}
-            />
+            {!demoMode && (
+                <SearchModal 
+                    isOpen={showSearch}
+                    onClose={() => setShowSearch(false)}
+                />
+            )}
         </div>
     );
 }

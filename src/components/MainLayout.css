@@ -33,6 +33,12 @@
   max-width: 100vw;
 }
 
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 /* NAVBAR MOBILE-FIRST - GLASSMORPHISM */
 .navbar {
   background: rgba(255, 255, 255, 0.7);

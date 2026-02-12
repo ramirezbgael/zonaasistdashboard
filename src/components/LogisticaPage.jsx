@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
-import AddPedidoModal from './AddPedidoModal.jsx';
 import PedidoModal from './PedidoModal.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css';
@@ -9,8 +8,55 @@ import './EquipoCard.css'; // Reutilizar estilos de cards
 import './ClientesPage.css'; // Usar los mismos estilos que clientes
 import './LogisticaPage.css'; // Estilos específicos para pedidos (mínimos)
 
-export default function LogisticaPage() {
-    const [showAddModal, setShowAddModal] = useState(false);
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_PEDIDOS = [
+    {
+        id: 'demo-p1',
+        nombre_pieza: 'SSD 500GB NVMe',
+        cantidad: 2,
+        estado: 'pendiente',
+        fecha_estimada_llegada: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        proveedores: { nombre: 'Amazon' },
+        equipos: {
+            id: 'demo-e1',
+            marca: 'Dell',
+            modelo: 'Inspiron 15',
+            nota: '123',
+            cliente_id: null,
+            clientes: {
+                id: 'demo-c1',
+                nombre: 'Juan Pérez',
+                telefono: '5512345678',
+                email: 'juan@example.com'
+            }
+        }
+    },
+    {
+        id: 'demo-p2',
+        nombre_pieza: 'Teclado Lenovo',
+        cantidad: 1,
+        estado: 'recibido',
+        fecha_estimada_llegada: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        proveedores: { nombre: 'Mayorista XYZ' },
+        equipos: {
+            id: 'demo-e2',
+            marca: 'Lenovo',
+            modelo: 'IdeaPad 3',
+            nota: '140',
+            cliente_id: null,
+            clientes: {
+                id: 'demo-c2',
+                nombre: 'Ana López',
+                telefono: '5522334455',
+                email: 'ana@example.com'
+            }
+        }
+    }
+];
+
+export default function LogisticaPage({ demoMode = false }) {
     const [showPedidoModal, setShowPedidoModal] = useState(false);
     const [selectedPedido, setSelectedPedido] = useState(null);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -23,10 +69,10 @@ export default function LogisticaPage() {
     useEffect(() => {
         const shouldAdd = searchParams.get('add');
         if (shouldAdd === 'true') {
-            setShowAddModal(true);
+            navigate('/logistica/nuevo');
             setSearchParams({}, { replace: true });
         }
-    }, [searchParams, setSearchParams]);
+    }, [searchParams, setSearchParams, navigate]);
 
     // Detectar si hay un pedido_id en la URL (desde notificación)
     useEffect(() => {
@@ -51,11 +97,21 @@ export default function LogisticaPage() {
     }, [searchParams, pedidos, pedidosRecibidos, setSearchParams]);
 
     useEffect(() => {
+        if (demoMode) {
+            const pendientes = DEMO_PEDIDOS.filter(p => p.estado === 'pendiente');
+            const recibidos = DEMO_PEDIDOS.filter(p => p.estado === 'recibido' || p.estado === 'completado');
+            setPedidos(pendientes);
+            setPedidosRecibidos(recibidos);
+            setLoading(false);
+            return;
+        }
+
         fetchPedidos();
-    }, [activeTab]);
+    }, [activeTab, demoMode]);
 
     const fetchPedidos = async () => {
         try {
+            if (demoMode) return;
             setLoading(true);
             
             const { data, error } = await supabase
@@ -156,6 +212,10 @@ export default function LogisticaPage() {
 
                             const handleMarcarRecibido = async (e) => {
                                 e.stopPropagation();
+                                if (demoMode) {
+                                    alert('En el modo demo no se modifican pedidos reales. Esto es solo una vista de ejemplo.');
+                                    return;
+                                }
                                 if (!confirm('¿Confirmas que el pedido ha sido recibido?')) {
                                     return;
                                 }
@@ -287,22 +347,14 @@ export default function LogisticaPage() {
                 )}
             </main>
 
-            <button
-                className="add-equipo-fab"
-                onClick={() => setShowAddModal(true)}
-                title="Agregar nuevo pedido"
-            >
-                <Icon name="plus" />
-            </button>
-
-            {showAddModal && (
-                <AddPedidoModal
-                    onClose={() => setShowAddModal(false)}
-                    onPedidoAdded={() => {
-                        setShowAddModal(false);
-                        fetchPedidos();
-                    }}
-                />
+            {!demoMode && (
+                <button
+                    className="add-equipo-fab"
+                    onClick={() => navigate('/logistica/nuevo')}
+                    title="Agregar nuevo pedido"
+                >
+                    <Icon name="plus" />
+                </button>
             )}
 
             {showPedidoModal && selectedPedido && (

@@ -6,7 +6,29 @@ import ClienteHistorialModal from './ClienteHistorialModal.jsx';
 import Icon from './Icon.jsx';
 import './ClientesPage.css';
 
-export default function ClientesPage() {
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_CLIENTES = [
+    {
+        id: 'demo-c1',
+        nombre: 'Juan Pérez',
+        telefono: '5512345678',
+        email: 'juan@example.com'
+    },
+    {
+        id: 'demo-c2',
+        nombre: 'Ana López',
+        telefono: '5522334455',
+        email: 'ana@example.com'
+    },
+    {
+        id: 'demo-c3',
+        nombre: 'Empresa XYZ',
+        telefono: '5544556677',
+        email: 'contacto@empresa-xyz.com'
+    }
+];
+
+export default function ClientesPage({ demoMode = false }) {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showHistorialModal, setShowHistorialModal] = useState(false);
     const [selectedCliente, setSelectedCliente] = useState(null);
@@ -24,8 +46,14 @@ export default function ClientesPage() {
     }, [searchParams, setSearchParams]);
 
     useEffect(() => {
+        if (demoMode) {
+            setClientes(DEMO_CLIENTES);
+            setLoading(false);
+            return;
+        }
+
         fetchClientes();
-    }, []);
+    }, [demoMode]);
 
     const fetchClientes = async () => {
         try {
@@ -94,6 +122,10 @@ export default function ClientesPage() {
                             key={cliente.id} 
                             className="cliente-card"
                             onClick={() => {
+                                if (demoMode) {
+                                    alert('En el modo demo esta tarjeta solo es ilustrativa, no abre el historial real.');
+                                    return;
+                                }
                                 setSelectedCliente(cliente);
                                 setShowHistorialModal(true);
                             }}
@@ -178,16 +210,18 @@ export default function ClientesPage() {
                 </div>
             )}
 
-            <button
-                className="add-cliente-fab"
-                onClick={() => setShowAddModal(true)}
-                title="Agregar nuevo cliente"
-                aria-label="Agregar nuevo cliente"
-            >
-                <Icon name="plus" />
-            </button>
+            {!demoMode && (
+                <button
+                    className="add-cliente-fab"
+                    onClick={() => setShowAddModal(true)}
+                    title="Agregar nuevo cliente"
+                    aria-label="Agregar nuevo cliente"
+                >
+                    <Icon name="plus" />
+                </button>
+            )}
 
-            {showAddModal && (
+            {!demoMode && showAddModal && (
                 <AddClienteModal
                     onClose={() => setShowAddModal(false)}
                     onClienteAdded={() => {

@@ -8,7 +8,9 @@ import NotaPDF from './NotaPDF.jsx';
 import Icon from './Icon.jsx';
 import './AddEquipoModalTypeform.css';
 
-export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
+const PROCESO_OTRO_ID = 'otro';
+
+export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 'modal' }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color, 3: cargador
   const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_datos (nombre/email), 3: detalle
@@ -33,6 +35,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     cargador: null, // null = no seleccionado, true = sí se queda, false = no se queda
     problema: '',
     contraseña: '',
+    otro_detalles: '',
     proceso_ids: [], // Array de IDs de procesos seleccionados
     cliente_telefono: '',
     cliente_nombre: '',
@@ -194,6 +197,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
+    if (mode !== 'modal') return;
     // Guardar el valor original del overflow
     const originalOverflow = document.body.style.overflow;
     const originalPosition = document.body.style.position;
@@ -545,6 +549,14 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
   // Avanzar en información adicional
   const handleAdditionalFieldComplete = async (field) => {
     if (field === 'proceso' && formData.proceso_ids.length > 0) {
+      // Si selecciona "Otro", pedir detalles obligatorios
+      if (formData.proceso_ids.includes(PROCESO_OTRO_ID)) {
+        const detalles = String(formData.otro_detalles || '').trim();
+        if (!detalles) {
+          alert('Por favor escribe los detalles del proceso "Otro".');
+          return;
+        }
+      }
       setTimeout(() => setAdditionalSubStep(1), 300); // Ir a teléfono
     } else if (field === 'cliente_telefono' && formData.cliente_telefono.trim()) {
       // Buscar cliente y determinar qué falta
@@ -599,6 +611,17 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         alert('Por favor completa todos los campos requeridos (incluyendo si se queda el cargador y al menos un proceso)');
         setLoading(false);
         return;
+      }
+
+      // Si incluye "Otro", validar detalles
+      if (formData.proceso_ids.includes(PROCESO_OTRO_ID)) {
+        const detalles = String(formData.otro_detalles || '').trim();
+        if (!detalles) {
+          alert('Por favor escribe los detalles del proceso "Otro".');
+          setLoading(false);
+          setAdditionalSubStep(0);
+          return;
+        }
       }
 
       // Obtener o crear/actualizar cliente primero para verificar datos
@@ -704,12 +727,19 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
       }
 
       // Si no hay problema, usar una cadena vacía en lugar de null para evitar error en pendientes
+      const otroSeleccionado = formData.proceso_ids.includes(PROCESO_OTRO_ID);
+      const otroDetalles = String(formData.otro_detalles || '').trim();
+      const problemaBase = String(formData.problema || '').trim();
+      const problemaFinal = otroSeleccionado && otroDetalles
+        ? (problemaBase ? `${problemaBase}\nOtro: ${otroDetalles}` : `Otro: ${otroDetalles}`)
+        : (problemaBase || '');
+
       const equipoData = {
         marca: formData.marca.trim(),
         modelo: formData.modelo.trim(),
         color: formData.color.trim(),
         nota: notaGenerada.toString(),
-        problema: formData.problema.trim() || '',
+        problema: problemaFinal,
         contraseña: formData.contraseña?.trim() || null,
         cargador: formData.cargador !== null ? formData.cargador : false,
         cliente_id: clienteId
@@ -740,20 +770,24 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
       }
 
       if (data && data[0]) {
+        const procesoIdsNumericos = formData.proceso_ids
+          .map((id) => parseInt(id, 10))
+          .filter((n) => Number.isFinite(n));
+
         // Crear estado inicial (usar el primer proceso como proceso_actual_id para compatibilidad)
-        const primerProcesoId = formData.proceso_ids[0];
+        const primerProcesoId = procesoIdsNumericos[0] ?? null;
         await supabase.from('estado_equipos').insert({
           equipo_id: data[0].id,
           estado: 'en_proceso',
-          proceso_actual_id: parseInt(primerProcesoId),
+          proceso_actual_id: primerProcesoId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
 
         // Insertar múltiples procesos en equipo_procesos
-        const procesosSeleccionados = formData.proceso_ids.map(procesoId => ({
+        const procesosSeleccionados = procesoIdsNumericos.map((procesoId) => ({
           equipo_id: data[0].id,
-          proceso_id: parseInt(procesoId),
+          proceso_id: procesoId,
           created_at: new Date().toISOString()
         }));
         
@@ -762,11 +796,11 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
         }
 
         // Registrar en historial para cada proceso
-        const procesosParaHistorial = formData.proceso_ids.map(procesoId => {
-          const proceso = procesos.find(p => p.id === parseInt(procesoId));
+        const procesosParaHistorial = procesoIdsNumericos.map((procesoId) => {
+          const proceso = procesos.find(p => p.id === procesoId);
           return {
             equipo_id: data[0].id,
-            proceso_id: parseInt(procesoId),
+            proceso_id: procesoId,
             notas: `Proceso iniciado: ${proceso?.nombre}`,
             fecha_inicio: new Date().toISOString()
           };
@@ -851,14 +885,14 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
     }
   ];
 
-  return createPortal(
-    <div 
-      className="typeform-modal-overlay" 
-      onClick={handleClose}
+  const content = (
+    <div
+      className={mode === 'modal' ? 'typeform-modal-overlay' : 'typeform-page'}
+      onClick={mode === 'modal' ? handleClose : undefined}
     >
-      <div 
-        className="typeform-modal" 
-        onClick={(e) => e.stopPropagation()}
+      <div
+        className={mode === 'modal' ? 'typeform-modal' : 'typeform-modal typeform-page-inner'}
+        onClick={mode === 'modal' ? (e) => e.stopPropagation() : undefined}
       >
         <button onClick={handleClose} className="typeform-close-btn">×</button>
         
@@ -1337,7 +1371,43 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                         </button>
                       );
                     })}
+                    {/* Proceso local: Otro */}
+                    {(() => {
+                      const isSelected = formData.proceso_ids.includes(PROCESO_OTRO_ID);
+                      return (
+                        <button
+                          key={PROCESO_OTRO_ID}
+                          type="button"
+                          className={`proceso-picker-square ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            setFormData(prev => {
+                              const newIds = isSelected
+                                ? prev.proceso_ids.filter(id => id !== PROCESO_OTRO_ID)
+                                : [...prev.proceso_ids, PROCESO_OTRO_ID];
+                              return { ...prev, proceso_ids: newIds, otro_detalles: isSelected ? '' : prev.otro_detalles };
+                            });
+                          }}
+                          title="Otro (especificar detalles)"
+                        >
+                          {isSelected && <Icon name="check" className="proceso-check-icon" />}
+                          <span className="proceso-name">Otro</span>
+                        </button>
+                      );
+                    })()}
                   </div>
+                  {formData.proceso_ids.includes(PROCESO_OTRO_ID) && (
+                    <div style={{ marginTop: '1rem' }}>
+                      <textarea
+                        name="otro_detalles"
+                        value={formData.otro_detalles}
+                        onChange={handleInputChange}
+                        placeholder="Describe el proceso/servicio 'Otro'..."
+                        className="typeform-large-textarea"
+                        rows="4"
+                        required
+                      />
+                    </div>
+                  )}
                   {formData.proceso_ids.length > 0 && (
                     <div className="proceso-total">
                       <span className="proceso-total-label">Total:</span>
@@ -1546,7 +1616,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
                 <p className="typeform-description">Si el equipo tiene contraseña, ingrésala aquí. Este campo es opcional.</p>
                 <div className="typeform-field-wrapper">
                   <input
-                    type="password"
+                    type="text"
                     name="contraseña"
                     value={formData.contraseña}
                     onChange={handleInputChange}
@@ -1594,8 +1664,9 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded }) {
           />
         )}
       </div>
-    </div>,
-    document.body
+    </div>
   );
+
+  return mode === 'modal' ? createPortal(content, document.body) : content;
 }
 

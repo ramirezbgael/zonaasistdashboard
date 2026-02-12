@@ -5,13 +5,16 @@ import useClienteSearch from '../hooks/useClienteSearch.js';
 import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
-export default function AddPedidoModal({ onClose, onPedidoAdded }) {
+export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal' }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
+    // Proveedor ya no se pide en el formulario, pero dejamos
+    // la propiedad para compatibilidad con lógica existente.
     proveedor: '',
     cliente_telefono: '',
     cliente_nombre: '',
     cliente_email: '',
+    equipo_nota: '',
     producto: '',
     cantidad: '',
     precio_total: '',
@@ -22,6 +25,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
   });
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [buscandoEquipo, setBuscandoEquipo] = useState(false);
+  const [equipoRelacionado, setEquipoRelacionado] = useState(null);
   const [showNotaPDF, setShowNotaPDF] = useState(false);
   const [pedidoGuardado, setPedidoGuardado] = useState(null);
   const [proveedorGuardado, setProveedorGuardado] = useState(null);
@@ -31,6 +36,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
+    if (mode !== 'modal') return;
     const originalOverflow = document.body.style.overflow;
     const originalPosition = document.body.style.position;
     const originalHeight = document.body.style.height;
@@ -50,6 +56,10 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
+    if (name === 'equipo_nota') {
+      setEquipoRelacionado(null);
+    }
+
     // Si cambia el teléfono, buscar cliente automáticamente
     if (name === 'cliente_telefono') {
       const cliente = await buscarCliente(value);
@@ -70,27 +80,57 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     }
   };
 
+  const buscarEquipoPorNota = async () => {
+    const nota = String(formData.equipo_nota || '').trim();
+    if (!nota) {
+      setEquipoRelacionado(null);
+      return;
+    }
+
+    setBuscandoEquipo(true);
+    try {
+      const { data, error } = await supabase
+        .from('equipos')
+        .select('id, nota, marca, modelo, cliente_id')
+        .eq('nota', nota)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        alert(`No se encontró un equipo con la nota #${nota}`);
+        setEquipoRelacionado(null);
+        return;
+      }
+
+      setEquipoRelacionado(data);
+    } catch (err) {
+      console.error('Error buscando equipo por nota:', err);
+      alert('Error buscando el equipo. Intenta de nuevo.');
+    } finally {
+      setBuscandoEquipo(false);
+    }
+  };
+
   // Avanzar al siguiente paso
   const handleFieldComplete = async (field) => {
-    if (field === 'proveedor' && formData.proveedor.trim()) {
-      setTimeout(() => setCurrentStep(1), 300);
-    } else if (field === 'cliente_telefono' && formData.cliente_telefono.trim()) {
+    if (field === 'cliente_telefono' && formData.cliente_telefono.trim()) {
       // Buscar cliente y determinar qué falta
       const cliente = await buscarCliente(formData.cliente_telefono);
       if (!cliente) {
         // Cliente no existe, pedir nombre y email
         setDatosFaltantes(['nombre', 'email']);
-        setTimeout(() => setCurrentStep(2), 300);
+        setTimeout(() => setCurrentStep(1), 300);
       } else {
         // Cliente existe, verificar qué datos faltan
         const verificacion = verificarDatosCompletos(cliente);
         setDatosFaltantes(verificacion.faltantes);
         if (verificacion.faltantes.length > 0) {
           // Faltan datos, pedir completarlos
-          setTimeout(() => setCurrentStep(2), 300);
+          setTimeout(() => setCurrentStep(1), 300);
         } else {
-          // Todo completo, ir a producto
-          setTimeout(() => setCurrentStep(3), 300);
+          // Todo completo, ir a la nota de equipo (opcional)
+          setTimeout(() => setCurrentStep(2), 300);
         }
       }
     } else if (field === 'cliente_datos') {
@@ -114,12 +154,16 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
           formData.cliente_email
         );
         if (cliente) {
-          setTimeout(() => setCurrentStep(3), 300);
+          // Después de completar datos del cliente, ir a la nota de equipo
+          setTimeout(() => setCurrentStep(2), 300);
         }
       } catch (error) {
         console.error('Error guardando cliente:', error);
         alert('Error al guardar los datos del cliente. Por favor intenta de nuevo.');
       }
+    } else if (field === 'equipo_nota') {
+      // Nota de equipo es opcional, siempre avanzamos
+      setTimeout(() => setCurrentStep(3), 300);
     } else if (field === 'producto' && formData.producto.trim()) {
       setTimeout(() => setCurrentStep(4), 300);
     } else if (field === 'cantidad' && formData.cantidad.trim()) {
@@ -145,31 +189,21 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     setLoading(true);
 
     try {
-      // Buscar o crear proveedor
+      // Ya no se requiere capturar proveedor, dejamos proveedor_id en null
       let proveedorId = null;
-      if (formData.proveedor) {
-        const { data: proveedorExistente } = await supabase
-          .from('proveedores')
-          .select('id')
-          .eq('nombre', formData.proveedor.trim())
-          .single();
 
-        if (proveedorExistente) {
-          proveedorId = proveedorExistente.id;
-        } else {
-          // Crear nuevo proveedor
-          const { data: nuevoProveedor, error: proveedorError } = await supabase
-            .from('proveedores')
-            .insert({
-              nombre: formData.proveedor.trim()
-            })
-            .select()
-            .single();
-
-          if (proveedorError) {
-            throw new Error(`Error al crear proveedor: ${proveedorError.message}`);
-          }
-          proveedorId = nuevoProveedor.id;
+      // Obtener o crear cliente si se proporcionó teléfono (se usa para ligar el pedido al cliente)
+      let clienteFinal = null;
+      if (formData.cliente_telefono && formData.cliente_telefono.trim()) {
+        try {
+          clienteFinal = await obtenerOCrearCliente(
+            formData.cliente_telefono,
+            formData.cliente_nombre || null,
+            formData.cliente_email || null
+          );
+        } catch (clienteError) {
+          console.error('Error obteniendo/creando cliente:', clienteError);
+          // Continuar sin cliente si hay error
         }
       }
 
@@ -178,8 +212,9 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
       const cantidad = parseInt(formData.cantidad) || 1;
       const precioUnitario = cantidad > 0 ? precioTotal / cantidad : 0;
 
-      // Insertar pedido
+      // Insertar pedido (sin cliente_id: la tabla pedidos_piezas en muchos proyectos no tiene esa columna)
       const pedidoData = {
+        equipo_id: equipoRelacionado?.id || null,
         proveedor_id: proveedorId,
         nombre_pieza: formData.producto,
         cantidad: cantidad,
@@ -198,21 +233,6 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
         throw new Error(`Error al guardar pedido: ${error.message}`);
       }
 
-      // Obtener o crear cliente si se proporcionó teléfono
-      let clienteFinal = null;
-      if (formData.cliente_telefono && formData.cliente_telefono.trim()) {
-        try {
-          clienteFinal = await obtenerOCrearCliente(
-            formData.cliente_telefono,
-            formData.cliente_nombre || null,
-            formData.cliente_email || null
-          );
-        } catch (clienteError) {
-          console.error('Error obteniendo/creando cliente:', clienteError);
-          // Continuar sin cliente si hay error
-        }
-      }
-
       // Crear notificación
       if (data && data[0]) {
         try {
@@ -221,10 +241,33 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
           console.error('Error creando notificación (no crítico):', notifError);
         }
 
-        // Calcular restante
+        // Calcular montos para el pedido
         const precioTotal = parseFloat(formData.precio_total) || 0;
         const adelanto = parseFloat(formData.adelanto) || 0;
         const restante = precioTotal - adelanto;
+
+        // Si el pedido está ligado a un equipo, sumar este adelanto al adelanto del equipo
+        if (equipoRelacionado?.id && (adelanto > 0)) {
+          try {
+            const { data: eq } = await supabase
+              .from('equipos')
+              .select('adelanto')
+              .eq('id', equipoRelacionado.id)
+              .maybeSingle();
+            const adelantoActual = parseFloat(eq?.adelanto || 0);
+            const nuevoAdelanto = adelantoActual + adelanto;
+            const { error: equipoError } = await supabase
+              .from('equipos')
+              .update({ adelanto: nuevoAdelanto })
+              .eq('id', equipoRelacionado.id);
+
+            if (equipoError) {
+              console.error('Error actualizando adelanto del equipo:', equipoError);
+            }
+          } catch (updateError) {
+            console.error('Error sumando adelanto al equipo:', updateError);
+          }
+        }
 
         // Guardar datos para mostrar nota PDF
         setPedidoGuardado({
@@ -241,11 +284,16 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
           created_at: data[0].created_at,
           tipo: 'pedido' // Marcar como pedido
         });
-        setProveedorGuardado({
-          nombre: formData.proveedor,
-          telefono: '',
-          email: ''
-        });
+        // Proveedor es opcional; si no se capturó, simplemente se deja vacío en la nota
+        setProveedorGuardado(
+          formData.proveedor
+            ? {
+                nombre: formData.proveedor,
+                telefono: '',
+                email: ''
+              }
+            : null
+        );
         // Guardar cliente si existe
         if (clienteFinal) {
           setClienteGuardado(clienteFinal);
@@ -260,6 +308,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
     } catch (error) {
       console.error('Error:', error);
       alert(`Error: ${error.message}`);
+    } finally {
+      // IMPORTANT: siempre liberar estados para que el botón no quede bloqueado
       setIsSubmitting(false);
       setLoading(false);
     }
@@ -267,16 +317,16 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
 
   const steps = [
     {
-      title: '🏢 Proveedor',
-      description: 'Ingresa el nombre del proveedor'
-    },
-    {
       title: '👤 Cliente',
       description: 'Ingresa el número de teléfono del cliente'
     },
     {
       title: '📋 Datos del Cliente',
       description: 'Completa los datos del cliente'
+    },
+    {
+      title: '💻 Equipo (opcional)',
+      description: 'Si quieres ligar el pedido a una nota de equipo, búscala aquí'
     },
     {
       title: '📦 Producto/Pieza',
@@ -311,9 +361,9 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
 
   return (
     <div 
-      className="typeform-modal-overlay" 
-      onClick={onClose}
-      style={{
+      className={mode === 'modal' ? 'typeform-modal-overlay' : 'typeform-page'}
+      onClick={mode === 'modal' ? onClose : undefined}
+      style={mode === 'modal' ? {
         position: 'fixed',
         top: 0,
         left: 0,
@@ -327,11 +377,11 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
         justifyContent: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.6)',
         padding: '1rem'
-      }}
+      } : undefined}
     >
       <div 
-        className="typeform-modal" 
-        onClick={(e) => e.stopPropagation()}
+        className={mode === 'modal' ? 'typeform-modal' : 'typeform-modal typeform-page-inner'}
+        onClick={mode === 'modal' ? (e) => e.stopPropagation() : undefined}
         style={{
           position: 'relative',
           zIndex: 1060,
@@ -357,47 +407,11 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
           Paso {currentStep + 1} de {totalSteps}
         </div>
 
-        {/* Step 0: Proveedor */}
+        {/* Step 0: Cliente - Teléfono */}
         {currentStep === 0 && (
           <div className="typeform-step typeform-single-field">
-            <h2 className="typeform-question">¿De qué proveedor es el pedido?</h2>
-            <p className="typeform-description">{steps[0].description}</p>
-            <div className="typeform-field-wrapper">
-            <input
-              type="text"
-              name="proveedor"
-              value={formData.proveedor}
-              onChange={handleInputChange}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && formData.proveedor.trim()) {
-                    e.preventDefault();
-                    handleFieldComplete('proveedor');
-                  }
-                }}
-              placeholder="Nombre del proveedor"
-              required
-                autoFocus
-                className="typeform-large-input"
-              />
-            </div>
-            {formData.proveedor && (
-              <button
-                type="button"
-                onClick={() => handleFieldComplete('proveedor')}
-                className="typeform-btn-primary typeform-next-btn"
-                disabled={loading || isSubmitting}
-              >
-                Continuar →
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Step 1: Cliente - Teléfono */}
-        {currentStep === 1 && (
-          <div className="typeform-step typeform-single-field">
             <h2 className="typeform-question">¿Cuál es el número de teléfono del cliente?</h2>
-            <p className="typeform-description">{steps[1].description}</p>
+            <p className="typeform-description">{steps[0].description}</p>
             <div className="typeform-field-wrapper">
               <input
                 type="tel"
@@ -431,26 +445,16 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
                 Continuar →
               </button>
             )}
-            <div className="typeform-buttons-horizontal" style={{ marginTop: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => setCurrentStep(0)}
-                className="typeform-btn-secondary"
-                disabled={loading || isSubmitting}
-              >
-                ← Volver
-              </button>
-            </div>
           </div>
         )}
 
-        {/* Step 2: Cliente - Datos completos */}
-        {currentStep === 2 && (
+        {/* Step 1: Cliente - Datos completos */}
+        {currentStep === 1 && (
           <div className="typeform-step typeform-single-field">
             <h2 className="typeform-question">
               {clienteEncontrado ? 'Completa los datos faltantes del cliente' : 'Ingresa los datos del cliente'}
             </h2>
-            <p className="typeform-description">{steps[2].description}</p>
+            <p className="typeform-description">{steps[1].description}</p>
             <div className="typeform-field-wrapper">
               <input
                 type="text"
@@ -476,7 +480,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
             <div className="typeform-buttons-horizontal">
               <button
                 type="button"
-                onClick={() => setCurrentStep(1)}
+                onClick={() => setCurrentStep(0)}
                 className="typeform-btn-secondary"
                 disabled={loading || isSubmitting}
               >
@@ -494,25 +498,98 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
           </div>
         )}
 
+        {/* Step 2: Nota de equipo (opcional) */}
+        {currentStep === 2 && (
+          <div className="typeform-step typeform-single-field">
+            <h2 className="typeform-question">¿Quieres ligar este pedido a un equipo? (Opcional)</h2>
+            <p className="typeform-description">{steps[2].description}</p>
+            <div className="typeform-field-wrapper">
+              <input
+                type="text"
+                name="equipo_nota"
+                value={formData.equipo_nota}
+                onChange={handleInputChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    buscarEquipoPorNota();
+                  }
+                }}
+                placeholder="Nota del equipo (opcional) Ej: 123"
+                className="typeform-large-input"
+                style={{ marginBottom: '1rem' }}
+              />
+
+              <button
+                type="button"
+                onClick={buscarEquipoPorNota}
+                className="typeform-btn-secondary"
+                disabled={buscandoEquipo || loading || isSubmitting}
+                style={{ marginBottom: '1.25rem' }}
+              >
+                {buscandoEquipo ? 'Buscando...' : 'Buscar equipo por nota'}
+              </button>
+
+              {equipoRelacionado && (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  borderRadius: '12px',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1.25rem',
+                  color: '#059669',
+                  textAlign: 'left'
+                }}>
+                  ✓ Ligado a equipo #{equipoRelacionado.nota}: {equipoRelacionado.marca} {equipoRelacionado.modelo}
+                </div>
+              )}
+            </div>
+            <div className="typeform-buttons-horizontal">
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentStep(
+                    clienteEncontrado && verificarDatosCompletos(clienteEncontrado).faltantes.length === 0
+                      ? 0
+                      : 1
+                  )
+                }
+                className="typeform-btn-secondary"
+                disabled={loading || isSubmitting}
+              >
+                ← Volver
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFieldComplete('equipo_nota')}
+                className="typeform-btn-primary"
+                disabled={loading || isSubmitting || buscandoEquipo}
+              >
+                {formData.equipo_nota ? 'Continuar →' : 'Omitir →'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Step 3: Producto/Pieza */}
         {currentStep === 3 && (
           <div className="typeform-step typeform-single-field">
             <h2 className="typeform-question">¿Qué producto o pieza vas a pedir?</h2>
             <p className="typeform-description">{steps[3].description}</p>
             <div className="typeform-field-wrapper">
-            <input
-              type="text"
-              name="producto"
-              value={formData.producto}
-              onChange={handleInputChange}
+              <input
+                type="text"
+                name="producto"
+                value={formData.producto}
+                onChange={handleInputChange}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && formData.producto.trim()) {
                     e.preventDefault();
                     handleFieldComplete('producto');
                   }
                 }}
-              placeholder="Ej: Disco SSD 500GB, RAM 8GB..."
-              required
+                placeholder="Ej: Disco SSD 500GB, RAM 8GB..."
+                required
                 autoFocus
                 className="typeform-large-input"
               />
@@ -520,7 +597,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded }) {
             <div className="typeform-buttons-horizontal">
               <button
                 type="button"
-                onClick={() => setCurrentStep(clienteEncontrado && verificarDatosCompletos(clienteEncontrado).faltantes.length === 0 ? 1 : 2)}
+                onClick={() => setCurrentStep(2)}
                 className="typeform-btn-secondary"
                 disabled={loading || isSubmitting}
               >

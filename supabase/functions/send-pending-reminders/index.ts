@@ -223,13 +223,107 @@ serve(async (req) => {
       })
     }
 
+    // 4. RECORDATORIOS DE LICENCIAS DE SOFTWARE (para clientes)
+    const hoyFecha = new Date().toISOString().split('T')[0]
+
+    const { data: licenciasPorVencer, error: licError } = await supabase
+      .from('licencias_software')
+      .select('id, cliente_id, equipo_id, producto, clave, fecha_expira, fecha_recordatorio, recordatorio_enviado')
+      .eq('recordatorio_enviado', false)
+      .lte('fecha_recordatorio', hoyFecha)
+
+    const licenciasResultados: any[] = []
+
+    if (!licError && licenciasPorVencer && licenciasPorVencer.length > 0) {
+      for (const lic of licenciasPorVencer) {
+        if (!lic.cliente_id) {
+          continue
+        }
+
+        // Obtener datos del cliente
+        const { data: cliente, error: clienteError } = await supabase
+          .from('clientes')
+          .select('id, nombre, telefono, email')
+          .eq('id', lic.cliente_id)
+          .maybeSingle()
+
+        if (clienteError || !cliente) {
+          continue
+        }
+
+        const telefono = cliente.telefono
+        const nombreCliente = cliente.nombre || 'cliente'
+
+        if (!telefono) {
+          // Sin teléfono no se puede mandar WhatsApp, pero igual marcamos como enviado para no repetir
+          await supabase
+            .from('licencias_software')
+            .update({
+              recordatorio_enviado: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', lic.id)
+
+          continue
+        }
+
+        // Construir mensaje para el cliente
+        const mensajeLicencia = [
+          `Hola ${nombreCliente}!`,
+          '',
+          `Tu licencia de ${lic.producto} está por vencer pronto.`,
+          `Fecha de expiración: ${lic.fecha_expira}`,
+          '',
+          'Si quieres renovarla, contáctanos para mantener tu Office al día.'
+        ].join('\n')
+
+        // Crear notificación específica para licencias por vencer
+        const { data: notifLic } = await supabase
+          .from('notificaciones')
+          .insert({
+            usuario_id: null, // notificación pensada para consumo externo hacia el cliente
+            tipo: 'licencia_por_vencer',
+            titulo: `Licencia de ${lic.producto} por vencer`,
+            mensaje: mensajeLicencia,
+            datos: {
+              licencia_id: lic.id,
+              cliente_id: cliente.id,
+              equipo_id: lic.equipo_id,
+              fecha_expira: lic.fecha_expira,
+              telefono: telefono,
+              nombre_cliente: nombreCliente
+            }
+          })
+          .select()
+          .single()
+
+        // Marcar licencia como ya notificada
+        await supabase
+          .from('licencias_software')
+          .update({
+            recordatorio_enviado: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', lic.id)
+
+        licenciasResultados.push({
+          licencia_id: lic.id,
+          notificacion_id: notifLic?.id ?? null,
+          cliente_id: cliente.id,
+          telefono: telefono
+        })
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         horario: horarioActual,
         usuarios_notificados: resultados.length,
         total_notificaciones: resultados.reduce((sum, r) => sum + (r.items_count || 0), 0),
-        resultados 
+        resultados,
+        licencias_notificadas: licenciasResultados.length,
+        licencias_detalle: licenciasResultados
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )

@@ -4,11 +4,63 @@ import { supabase } from '../supabase.js';
 import EquipoCard from './EquipoCard.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css';
-import AddEquipoModalTypeform from './AddEquipoModalTypeform.jsx';
 
+// Datos de ejemplo para modo demo (sin Supabase)
+const DEMO_EQUIPOS = [
+    {
+        id: 'demo-e1',
+        marca: 'Dell',
+        modelo: 'Inspiron 15',
+        color: 'negro',
+        nota: '123',
+        problema: 'No enciende',
+        created_at: new Date().toISOString(),
+        cliente_id: null,
+        clientes: { nombre: 'Juan Pérez', telefono: '5512345678' },
+        estadoActual: 'pendiente',
+        siguienteSubproceso: { nombre: 'Diagnóstico inicial' },
+        totalSubprocesos: 3,
+        tieneProcesoValido: true,
+        procesoNombre: 'Reparación estándar',
+        estado_equipos: []
+    },
+    {
+        id: 'demo-e2',
+        marca: 'HP',
+        modelo: 'Pavilion 14',
+        color: 'gris',
+        nota: '130',
+        problema: 'Lento y se traba',
+        created_at: new Date().toISOString(),
+        cliente_id: null,
+        clientes: { nombre: 'Ana López', telefono: '5522334455' },
+        estadoActual: 'listo',
+        siguienteSubproceso: null,
+        totalSubprocesos: 4,
+        tieneProcesoValido: true,
+        procesoNombre: 'Mantenimiento completo',
+        estado_equipos: []
+    },
+    {
+        id: 'demo-e3',
+        marca: 'Lenovo',
+        modelo: 'IdeaPad 3',
+        color: 'azul',
+        nota: '140',
+        problema: 'Pantalla rota',
+        created_at: new Date().toISOString(),
+        cliente_id: null,
+        clientes: { nombre: 'Mario Díaz', telefono: '5544556677' },
+        estadoActual: 'finalizado',
+        siguienteSubproceso: null,
+        totalSubprocesos: 2,
+        tieneProcesoValido: true,
+        procesoNombre: 'Cambio de pantalla',
+        estado_equipos: []
+    }
+];
 
-export default function Dashboard() {
-    const [showAddModal, setShowAddModal] = useState(false);
+export default function Dashboard({ demoMode = false }) {
     const [activeTab, setActiveTab] = useState('pendientes'); // 'pendientes', 'listos', 'finalizados'
 
     const [data, setData] = useState([]);
@@ -19,15 +71,15 @@ export default function Dashboard() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Detectar si viene del dashboard principal para abrir el modal
+    // Detectar si viene del dashboard principal para crear (antes abría modal)
     useEffect(() => {
         const shouldAdd = searchParams.get('add');
         if (shouldAdd === 'true') {
-            setShowAddModal(true);
+            navigate('/equipos/nuevo');
             // Limpiar el parámetro de la URL
             setSearchParams({}, { replace: true });
         }
-    }, [searchParams, setSearchParams]);
+    }, [searchParams, setSearchParams, navigate]);
 
     // Detectar si hay un equipo_id en la URL (desde notificación)
     useEffect(() => {
@@ -285,12 +337,26 @@ export default function Dashboard() {
     };
 
     useEffect(() => {
+        if (demoMode) {
+            // En modo demo, usar datos estáticos y no tocar Supabase
+            const pendientes = DEMO_EQUIPOS.filter(e => e.estadoActual === 'pendiente');
+            const listos = DEMO_EQUIPOS.filter(e => e.estadoActual === 'listo');
+            const finalizados = DEMO_EQUIPOS.filter(e => e.estadoActual === 'finalizado');
+
+            setData(DEMO_EQUIPOS);
+            setEquiposPendientes(pendientes);
+            setEquiposListos(listos);
+            setEquiposFinalizados(finalizados);
+            setLoading(false);
+            return;
+        }
+
         fetchData();
-    }, []);
+    }, [demoMode]);
 
     if (loading) {
         return (
-            <div className={`dashboard ${showAddModal ? 'modal-active' : ''}`}>
+            <div className="dashboard">
                 <section className="dashboard-summary">
                     <div className="summary-cards">
                         {[1, 2, 3, 4].map(i => (
@@ -326,7 +392,7 @@ export default function Dashboard() {
     }
 
     return (
-        <div className={`dashboard ${showAddModal ? 'modal-active' : ''}`}>
+        <div className="dashboard">
             {/* Sección de Resumen */}
             <section className="dashboard-summary">
                 <div className="summary-cards">
@@ -385,9 +451,16 @@ export default function Dashboard() {
                             <EquipoCard
                                 key={equipo.id}
                                 equipo={equipo}
-                                reload={fetchData}
-                                onClick={() => navigate(`/equipos/${equipo.id}`)}
+                                reload={demoMode ? () => {} : fetchData}
+                                onClick={() => {
+                                    if (demoMode) {
+                                        navigate(`/demo/equipos/${equipo.id}`);
+                                    } else {
+                                        navigate(`/equipos/${equipo.id}`);
+                                    }
+                                }}
                                 activeTab={activeTab}
+                                demoMode={demoMode}
                             />
                         ))
                     ) : (
@@ -408,19 +481,14 @@ export default function Dashboard() {
                 </div>
             </main>
 
-            <button 
-                className="add-equipo-fab" 
-                onClick={() => setShowAddModal(true)}
-                title="Agregar nuevo equipo"
-            >
-                <Icon name="plus" />
-            </button>
-            
-            {showAddModal && (
-                <AddEquipoModalTypeform
-                    onClose={() => setShowAddModal(false)}
-                    onEquipoAdded={fetchData}
-                />
+            {!demoMode && (
+                <button 
+                    className="add-equipo-fab" 
+                    onClick={() => navigate('/equipos/nuevo')}
+                    title="Agregar nuevo equipo"
+                >
+                    <Icon name="plus" />
+                </button>
             )}
         </div>
     );

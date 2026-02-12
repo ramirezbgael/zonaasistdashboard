@@ -15,7 +15,13 @@ export default function ProcesosPage() {
   const [expandedProcesos, setExpandedProcesos] = useState({});
   
   // Form data
-  const [procesoForm, setProcesoForm] = useState({ nombre: '', descripcion: '', precio: '' });
+  const [procesoForm, setProcesoForm] = useState({ 
+    nombre: '', 
+    descripcion: '', 
+    precio: '',
+    requiere_recordatorio: false,
+    meses_vigencia: ''
+  });
   const [subprocesoForm, setSubprocesoForm] = useState({ nombre: '', descripcion: '', orden: 1 });
 
   useEffect(() => {
@@ -73,14 +79,29 @@ export default function ProcesosPage() {
 
   const handleCreateProceso = () => {
     setEditingProceso(null);
-    setProcesoForm({ nombre: '', descripcion: '', precio: '' });
+    setProcesoForm({ 
+      nombre: '', 
+      descripcion: '', 
+      precio: '',
+      requiere_recordatorio: false,
+      meses_vigencia: ''
+    });
     setShowProcesoModal(true);
   };
 
   const handleEditProceso = (proceso) => {
     setEditingProceso(proceso);
     const precio = proceso.precio != null && proceso.precio !== '' ? String(proceso.precio) : '';
-    setProcesoForm({ nombre: proceso.nombre, descripcion: proceso.descripcion || '', precio });
+    const meses_vigencia = proceso.meses_vigencia != null && proceso.meses_vigencia !== '' 
+      ? String(proceso.meses_vigencia) 
+      : '';
+    setProcesoForm({ 
+      nombre: proceso.nombre, 
+      descripcion: proceso.descripcion || '', 
+      precio,
+      requiere_recordatorio: !!proceso.requiere_recordatorio,
+      meses_vigencia
+    });
     setShowProcesoModal(true);
   };
 
@@ -94,6 +115,16 @@ export default function ProcesosPage() {
       ? 0
       : parseFloat(String(procesoForm.precio).replace(',', '.')) || 0;
 
+    const requiereRecordatorio = !!procesoForm.requiere_recordatorio;
+    const mesesVigenciaVal = procesoForm.meses_vigencia === '' || procesoForm.meses_vigencia == null
+      ? null
+      : parseInt(String(procesoForm.meses_vigencia), 10) || null;
+
+    if (requiereRecordatorio && (!mesesVigenciaVal || mesesVigenciaVal <= 0)) {
+      alert('Si activas recordatorio, debes indicar los meses de vigencia (ej. 6 para barato, 12 para caro).');
+      return;
+    }
+
     try {
       if (editingProceso) {
         // Actualizar
@@ -102,7 +133,9 @@ export default function ProcesosPage() {
           .update({
             nombre: procesoForm.nombre.trim(),
             descripcion: procesoForm.descripcion.trim() || null,
-            precio: precioVal
+            precio: precioVal,
+            requiere_recordatorio: requiereRecordatorio,
+            meses_vigencia: mesesVigenciaVal
           })
           .eq('id', editingProceso.id);
 
@@ -114,7 +147,9 @@ export default function ProcesosPage() {
           .insert({
             nombre: procesoForm.nombre.trim(),
             descripcion: procesoForm.descripcion.trim() || null,
-            precio: precioVal
+            precio: precioVal,
+            requiere_recordatorio: requiereRecordatorio,
+            meses_vigencia: mesesVigenciaVal
           });
 
         if (error) throw error;
@@ -337,7 +372,14 @@ export default function ProcesosPage() {
                         {procesoSubs.length} {procesoSubs.length === 1 ? 'paso' : 'pasos'}
                       </span>
                       {proceso.precio != null && Number(proceso.precio) > 0 && (
-                        <span className="proceso-precio-badge">${Number(proceso.precio).toLocaleString('es-MX')}</span>
+                        <span className="proceso-precio-badge">
+                          ${Number(proceso.precio).toLocaleString('es-MX')}
+                        </span>
+                      )}
+                      {proceso.requiere_recordatorio && proceso.meses_vigencia && (
+                        <span className="proceso-precio-badge proceso-recordatorio-badge">
+                          🔔 {proceso.meses_vigencia} meses
+                        </span>
                       )}
                     </span>
                   </div>
@@ -485,6 +527,44 @@ export default function ProcesosPage() {
                 />
                 <small>Precio del proceso para notas de entrega. Opcional.</small>
               </div>
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={procesoForm.requiere_recordatorio}
+                    onChange={(e) => setProcesoForm({ 
+                      ...procesoForm, 
+                      requiere_recordatorio: e.target.checked 
+                    })}
+                    style={{ marginRight: '0.5rem' }}
+                  />
+                  Este proceso lleva recordatorio (ej. licencias de Office)
+                </label>
+                <small>
+                  Activa esto para procesos que caducan (por ejemplo, Office barato 6 meses, Office caro 12 meses).
+                </small>
+              </div>
+              {procesoForm.requiere_recordatorio && (
+                <div className="form-group">
+                  <label htmlFor="proceso-meses-vigencia">Meses de vigencia *</label>
+                  <input
+                    type="number"
+                    id="proceso-meses-vigencia"
+                    min="1"
+                    step="1"
+                    value={procesoForm.meses_vigencia}
+                    onChange={(e) => setProcesoForm({ 
+                      ...procesoForm, 
+                      meses_vigencia: e.target.value 
+                    })}
+                    placeholder="Ej: 6 para barato, 12 para caro"
+                    required
+                  />
+                  <small>
+                    Se usará para calcular cuándo vence y cuándo mandar el recordatorio automático.
+                  </small>
+                </div>
+              )}
               <div className="modal-actions">
                 <button className="btn-secondary" onClick={() => setShowProcesoModal(false)}>
                   Cancelar

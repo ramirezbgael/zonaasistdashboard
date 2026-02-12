@@ -5,7 +5,7 @@ import PendienteItem from './PendienteItem.jsx';
 import Icon from './Icon.jsx';
 import './EquipoCard.css';
 
-export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
+export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMode = false }) {
   const navigate = useNavigate();
   const nota = equipo.nota.toString();
   const [showContactModal, setShowContactModal] = useState(false);
@@ -61,6 +61,12 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
   // Funciones para botones de equipos listos
   const handleLlamarCliente = async (e) => {
     e.stopPropagation(); // Evitar que abra el modal
+    if (demoMode) {
+      // En modo demo no se consulta Supabase ni se registran cambios reales
+      setContactData({ telefono: '5551234567', nombreCliente: 'Cliente demo' });
+      setShowContactModal(true);
+      return;
+    }
     
     let telefono = null;
     let nombreCliente = 'el cliente';
@@ -144,6 +150,12 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab }) {
   };
 
   const confirmarEntrega = async () => {
+    if (demoMode) {
+      // Solo mostrar un mensaje en modo demo, sin tocar Supabase
+      alert('En el modo demo no se marcan equipos como entregados. Esto es solo una vista de ejemplo.');
+      setShowEntregaModal(false);
+      return;
+    }
     setEntregaLoading(true);
     try {
       // Importar supabase

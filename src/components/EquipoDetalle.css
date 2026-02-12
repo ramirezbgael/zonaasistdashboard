@@ -1053,6 +1053,7 @@
 .equipo-detalle-timeline {
   background: var(--bg-primary, #ffffff);
   padding: 2rem;
+  padding-bottom: 4rem;
   overflow-y: auto;
   overflow-x: hidden;
   height: calc(100vh - 152px);
@@ -1100,6 +1101,7 @@
   max-width: 800px;
   position: relative;
   padding-left: 2rem;
+  padding-bottom: 3rem;
 }
 
 .timeline-container::before {
