@@ -15,10 +15,10 @@ export default function SearchModal({ isOpen, onClose }) {
     const navigate = useNavigate();
 
     const filters = [
-        { id: 'atrasados', label: 'Atrasados', icon: 'exclamation-triangle', color: '#ef4444' },
-        { id: 'listos', label: 'Listos', icon: 'check-circle', color: '#10b981' },
-        { id: 'sin_presupuesto', label: 'Sin Presupuesto', icon: 'file-invoice', color: '#f59e0b' },
-        { id: 'hoy', label: 'Hoy', icon: 'calendar-alt', color: '#3b82f6' }
+        { id: 'atrasados', label: 'Atrasados', labelShort: 'Atras.', icon: 'exclamation-triangle', color: '#ef4444' },
+        { id: 'listos', label: 'Listos', labelShort: 'Listos', icon: 'check-circle', color: '#10b981' },
+        { id: 'sin_presupuesto', label: 'Sin Presupuesto', labelShort: 'Sin Presup.', icon: 'file-invoice', color: '#f59e0b' },
+        { id: 'hoy', label: 'Hoy', labelShort: 'Hoy', icon: 'calendar-alt', color: '#3b82f6' }
     ];
 
     useEffect(() => {
@@ -379,9 +379,11 @@ export default function SearchModal({ isOpen, onClose }) {
                             className={`search-filter-btn ${activeFilter === filter.id ? 'active' : ''}`}
                             onClick={() => setActiveFilter(activeFilter === filter.id ? null : filter.id)}
                             style={activeFilter === filter.id ? { borderColor: filter.color, color: filter.color } : {}}
+                            title={filter.label}
                         >
                             <Icon name={filter.icon} />
-                            <span>{filter.label}</span>
+                            <span className="search-filter-label-full">{filter.label}</span>
+                            <span className="search-filter-label-short">{filter.labelShort}</span>
                         </button>
                     ))}
                 </div>
@@ -398,25 +400,29 @@ export default function SearchModal({ isOpen, onClose }) {
                         className={`search-type-tab ${searchType === 'equipos' ? 'active' : ''}`}
                         onClick={() => setSearchType('equipos')}
                     >
-                        Equipos
+                        <span className="search-tab-full">Equipos</span>
+                        <span className="search-tab-short">Eq.</span>
                     </button>
                     <button
                         className={`search-type-tab ${searchType === 'clientes' ? 'active' : ''}`}
                         onClick={() => setSearchType('clientes')}
                     >
-                        Clientes
+                        <span className="search-tab-full">Clientes</span>
+                        <span className="search-tab-short">Cli.</span>
                     </button>
                     <button
                         className={`search-type-tab ${searchType === 'documentos' ? 'active' : ''}`}
                         onClick={() => setSearchType('documentos')}
                     >
-                        Documentos
+                        <span className="search-tab-full">Documentos</span>
+                        <span className="search-tab-short">Docs</span>
                     </button>
                     <button
                         className={`search-type-tab ${searchType === 'pedidos' ? 'active' : ''}`}
                         onClick={() => setSearchType('pedidos')}
                     >
-                        Pedidos
+                        <span className="search-tab-full">Pedidos</span>
+                        <span className="search-tab-short">Ped.</span>
                     </button>
                 </div>
 

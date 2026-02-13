@@ -35,7 +35,7 @@
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: slideUp 0.25s ease-out;
 }
 
 @keyframes slideUp {
@@ -96,6 +96,164 @@
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem;
+}
+
+/* Sección Cuenta: clara, con códigos de color */
+.cuenta-section {
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.cuenta-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.cuenta-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.cuenta-saldo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  transition: color 0.2s ease;
+}
+
+.cuenta-saldo.saldo-positivo {
+  color: #22c55e;
+}
+
+.cuenta-saldo.saldo-negativo {
+  color: #ef4444;
+}
+
+.cuenta-saldo.saldo-cero {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.cuenta-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-cuenta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cuenta-deposito {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.btn-cuenta-deposito:hover {
+  background: rgba(34, 197, 94, 0.3);
+  border-color: #22c55e;
+  transform: translateY(-1px);
+}
+
+.btn-cuenta-cargo {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.btn-cuenta-cargo:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+  transform: translateY(-1px);
+}
+
+/* Modal de movimiento: acento visual según tipo */
+.cuenta-modal-overlay {
+  z-index: 2100;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.cuenta-movimiento-modal.cuenta-movimiento-deposito {
+  border-left: 4px solid #22c55e;
+}
+
+.cuenta-movimiento-modal.cuenta-movimiento-cargo {
+  border-left: 4px solid #ef4444;
+}
+
+.cuenta-movimiento-saldo {
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.cuenta-movimiento-saldo .saldo-positivo {
+  color: #22c55e;
+}
+
+.cuenta-movimiento-saldo .saldo-negativo {
+  color: #ef4444;
+}
+
+.cuenta-movimiento-saldo .saldo-cero {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.btn-cuenta-movimiento {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
+}
+
+.btn-cuenta-movimiento.btn-cuenta-deposito {
+  background: #22c55e;
+  color: white;
+}
+
+.btn-cuenta-movimiento.btn-cuenta-deposito:hover:not(:disabled) {
+  background: #16a34a;
+  transform: translateY(-1px);
+}
+
+.btn-cuenta-movimiento.btn-cuenta-cargo {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-cuenta-movimiento.btn-cuenta-cargo:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.btn-cuenta-movimiento:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Historial actualizándose (transición React) */
+.cliente-historial-list.historial-updating {
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .cliente-historial-loading,

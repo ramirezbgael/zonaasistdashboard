@@ -1,7 +1,77 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition, memo } from 'react';
 import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import './ClienteHistorialModal.css';
+
+const HistorialItem = memo(function HistorialItem({ equipo, formatDate, getEstadoBadgeClass, getEstadoLabel }) {
+  const estadoEquipo = equipo.estado_equipos?.[0];
+  const estado = estadoEquipo?.estado || 'pendiente';
+  const fechaEstado = estadoEquipo?.updated_at || equipo.created_at;
+  const proceso = estadoEquipo?.procesos;
+
+  return (
+    <div className="historial-item">
+      <div className="historial-item-header">
+        <div className="historial-item-main">
+          <div className="historial-item-title">
+            <h3>
+              {equipo.marca} {equipo.modelo}
+            </h3>
+            {equipo.nota && (
+              <span className="historial-item-nota">#{equipo.nota}</span>
+            )}
+          </div>
+          {equipo.color && (
+            <div className="historial-item-color">
+              <span
+                className="color-dot"
+                style={{
+                  backgroundColor: equipo.color || '#10b981',
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  marginRight: '0.5rem'
+                }}
+              />
+              <span>{equipo.color}</span>
+            </div>
+          )}
+        </div>
+        <span className={`historial-estado-badge ${getEstadoBadgeClass(estado)}`}>
+          {getEstadoLabel(estado)}
+        </span>
+      </div>
+
+      {equipo.problema && (
+        <div className="historial-item-problema">
+          <Icon name="exclamation-circle" />
+          <span>{equipo.problema}</span>
+        </div>
+      )}
+
+      {proceso && (
+        <div className="historial-item-proceso">
+          <Icon name="cog" />
+          <span>{proceso.nombre}</span>
+        </div>
+      )}
+
+      <div className="historial-item-footer">
+        <div className="historial-item-date">
+          <Icon name="calendar" />
+          <span>Recibido: {formatDate(equipo.created_at)}</span>
+        </div>
+        {fechaEstado && fechaEstado !== equipo.created_at && (
+          <div className="historial-item-date">
+            <Icon name="clock" />
+            <span>Última actualización: {formatDate(fechaEstado)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function ClienteHistorialModal({ cliente, onClose }) {
   const [equipos, setEquipos] = useState([]);
@@ -9,6 +79,7 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
   const [error, setError] = useState(null);
   const [saldoCuenta, setSaldoCuenta] = useState(0);
   const [loadingSaldo, setLoadingSaldo] = useState(true);
+  const [isPending, startTransition] = useTransition();
   const [showCuentaModal, setShowCuentaModal] = useState(false);
   const [tipoMovimiento, setTipoMovimiento] = useState('deposito'); // 'deposito' | 'cargo'
   const [montoMovimiento, setMontoMovimiento] = useState('');
@@ -16,19 +87,22 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
   const [procesandoMovimiento, setProcesandoMovimiento] = useState(false);
 
   useEffect(() => {
-    if (cliente?.id) {
+    if (!cliente?.id) return;
+    // Saldo primero (consulta ligera) - UI usable de inmediato
+    fetchSaldo();
+    // Historial diferido para no bloquear el primer paint del modal
+    const id = requestAnimationFrame(() => {
       fetchHistorial();
-      fetchSaldo();
-    }
+    });
+    return () => cancelAnimationFrame(id);
   }, [cliente?.id]);
 
   const fetchHistorial = async () => {
+    if (!cliente?.id) return;
     try {
       setLoading(true);
       setError(null);
 
-      // Obtener todos los equipos del cliente con su estado
-      // El proceso se obtiene a través de estado_equipos, no directamente desde equipos
       const { data, error: equiposError } = await supabase
         .from('equipos')
         .select(`
@@ -50,18 +124,17 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
           )
         `)
         .eq('cliente_id', cliente.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-      if (equiposError) {
-        console.error('Error en consulta de equipos:', equiposError);
-        throw equiposError;
-      }
-
-      setEquipos(data || []);
+      if (equiposError) throw equiposError;
+      startTransition(() => {
+        setEquipos(data || []);
+        setLoading(false);
+      });
     } catch (err) {
       console.error('Error fetching historial:', err);
       setError(`Error al cargar el historial: ${err.message || 'Error desconocido'}`);
-    } finally {
       setLoading(false);
     }
   };
@@ -219,33 +292,23 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
         </div>
 
         <div className="cliente-historial-content">
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '1rem',
-              gap: '1rem',
-              flexWrap: 'wrap'
-            }}
-          >
-            <div style={{ fontSize: '0.95rem' }}>
-              <span style={{ color: '#555', marginRight: '0.25rem' }}>Saldo en cuenta:</span>
-              <strong>
+          {/* Sección Cuenta: visible de inmediato, no bloqueada por historial */}
+          <div className="cuenta-section">
+            <div className="cuenta-section-header">
+              <span className="cuenta-label">Saldo en cuenta</span>
+              <span className={`cuenta-saldo ${loadingSaldo ? '' : saldoCuenta > 0 ? 'saldo-positivo' : saldoCuenta < 0 ? 'saldo-negativo' : 'saldo-cero'}`}>
                 {loadingSaldo ? 'Cargando...' : `$${(saldoCuenta || 0).toFixed(2)}`}
-              </strong>
+              </span>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="cuenta-buttons">
               <button
-                className="btn-secondary"
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                className="btn-cuenta btn-cuenta-deposito"
                 onClick={() => abrirCuentaModal('deposito')}
               >
                 <Icon name="plus-circle" /> Agregar a cuenta
               </button>
               <button
-                className="btn-secondary"
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                className="btn-cuenta btn-cuenta-cargo"
                 onClick={() => abrirCuentaModal('cargo')}
               >
                 <Icon name="minus-circle" /> Descontar de cuenta
@@ -253,6 +316,7 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
             </div>
           </div>
 
+          {/* Historial: carga en segundo plano */}
           {loading ? (
             <div className="cliente-historial-loading">
               <div className="loading-spinner"></div>
@@ -270,85 +334,29 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
               <p>Este cliente aún no tiene equipos o servicios registrados</p>
             </div>
           ) : (
-            <div className="cliente-historial-list">
-              {equipos.map((equipo) => {
-                const estadoEquipo = equipo.estado_equipos?.[0];
-                const estado = estadoEquipo?.estado || 'pendiente';
-                const fechaEstado = estadoEquipo?.updated_at || equipo.created_at;
-                const proceso = estadoEquipo?.procesos;
-
-                return (
-                  <div key={equipo.id} className="historial-item">
-                    <div className="historial-item-header">
-                      <div className="historial-item-main">
-                        <div className="historial-item-title">
-                          <h3>
-                            {equipo.marca} {equipo.modelo}
-                          </h3>
-                          {equipo.nota && (
-                            <span className="historial-item-nota">#{equipo.nota}</span>
-                          )}
-                        </div>
-                        {equipo.color && (
-                          <div className="historial-item-color">
-                            <span
-                              className="color-dot"
-                              style={{
-                                backgroundColor: equipo.color || '#10b981',
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                display: 'inline-block',
-                                marginRight: '0.5rem'
-                              }}
-                            />
-                            <span>{equipo.color}</span>
-                          </div>
-                        )}
-                      </div>
-                      <span className={`historial-estado-badge ${getEstadoBadgeClass(estado)}`}>
-                        {getEstadoLabel(estado)}
-                      </span>
-                    </div>
-
-                    {equipo.problema && (
-                      <div className="historial-item-problema">
-                        <Icon name="exclamation-circle" />
-                        <span>{equipo.problema}</span>
-                      </div>
-                    )}
-
-                    {proceso && (
-                      <div className="historial-item-proceso">
-                        <Icon name="cog" />
-                        <span>{proceso.nombre}</span>
-                      </div>
-                    )}
-
-                    <div className="historial-item-footer">
-                      <div className="historial-item-date">
-                        <Icon name="calendar" />
-                        <span>Recibido: {formatDate(equipo.created_at)}</span>
-                      </div>
-                      {fechaEstado && fechaEstado !== equipo.created_at && (
-                        <div className="historial-item-date">
-                          <Icon name="clock" />
-                          <span>Última actualización: {formatDate(fechaEstado)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className={`cliente-historial-list ${isPending ? 'historial-updating' : ''}`}>
+              {equipos.map((equipo) => (
+                <HistorialItem
+                  key={equipo.id}
+                  equipo={equipo}
+                  formatDate={formatDate}
+                  getEstadoBadgeClass={getEstadoBadgeClass}
+                  getEstadoLabel={getEstadoLabel}
+                />
+              ))}
             </div>
           )}
         </div>
 
         <div className="cliente-historial-footer">
           <div className="cliente-historial-stats">
-            <span>
-              <strong>{equipos.length}</strong> {equipos.length === 1 ? 'servicio' : 'servicios'} registrado{equipos.length === 1 ? '' : 's'}
-            </span>
+            {loading ? (
+              <span>Cargando historial...</span>
+            ) : (
+              <span>
+                <strong>{equipos.length}</strong> {equipos.length === 1 ? 'servicio' : 'servicios'} registrado{equipos.length === 1 ? '' : 's'}
+              </span>
+            )}
           </div>
           <button className="btn-secondary" onClick={onClose}>
             Cerrar
@@ -358,12 +366,12 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
 
       {/* Modal para movimientos de cuenta */}
       {showCuentaModal && (
-        <div className="cliente-historial-overlay" onClick={(e) => {
+        <div className="cliente-historial-overlay cuenta-modal-overlay" onClick={(e) => {
           if (e.target === e.currentTarget && !procesandoMovimiento) {
             setShowCuentaModal(false);
           }
         }}>
-          <div className="cliente-historial-modal" onClick={(e) => e.stopPropagation()}>
+          <div className={`cliente-historial-modal cuenta-movimiento-modal cuenta-movimiento-${tipoMovimiento}`} onClick={(e) => e.stopPropagation()}>
             <div className="cliente-historial-header">
               <div className="cliente-historial-header-info">
                 <h2>
@@ -383,9 +391,11 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
               </button>
             </div>
             <div className="cliente-historial-content">
-              <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: '#555' }}>
+              <div className="cuenta-movimiento-saldo">
                 Saldo actual:{' '}
-                <strong>${(saldoCuenta || 0).toFixed(2)}</strong>
+                <strong className={saldoCuenta > 0 ? 'saldo-positivo' : saldoCuenta < 0 ? 'saldo-negativo' : 'saldo-cero'}>
+                  ${(saldoCuenta || 0).toFixed(2)}
+                </strong>
               </div>
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
@@ -431,8 +441,7 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
                 Cancelar
               </button>
               <button
-                className="btn-secondary"
-                style={{ marginLeft: '0.5rem' }}
+                className={`btn-cuenta-movimiento btn-cuenta-${tipoMovimiento}`}
                 onClick={guardarMovimientoCuenta}
                 disabled={procesandoMovimiento}
               >
