@@ -1250,16 +1250,21 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   return (
     <div className="equipo-detalle">
-      {/* Top Header */}
-      <header className="equipo-detalle-header">
-        <button onClick={() => navigate('/equipos')} className="header-back-btn">
-          <Icon name="arrow-left" />
-        </button>
-        <div className="header-content">
-          <div className="header-equipo-number">#{equipo.nota}</div>
-          <div className="header-equipo-model">{equipo.marca} {equipo.modelo}</div>
-        </div>
-        <div className="header-actions">
+      {/* Top Header - Datos fijos arriba */}
+      <header className="equipo-detalle-header equipo-detalle-header-expanded">
+        <div className="header-top-row">
+          <button onClick={() => navigate('/equipos')} className="header-back-btn">
+            <Icon name="arrow-left" />
+          </button>
+          <div className="header-main">
+            <div className="header-equipo-number">#{equipo.nota}</div>
+            <div className="header-equipo-model">{equipo.marca} {equipo.modelo}</div>
+            <span className={`status-badge status-badge-header ${estadoEquipo?.estado || 'pendiente'}`}>
+              {estadoEquipo?.estado === 'en_proceso' ? 'EN PROCESO' : 
+               estadoEquipo?.estado === 'finalizado' ? 'FINALIZADO' :
+               estadoEquipo?.estado === 'listo' ? 'LISTO' : 'PENDIENTE'}
+            </span>
+          </div>
           <button 
             onClick={() => setShowOpcionesEspeciales(true)}
             className="header-options-btn"
@@ -1267,12 +1272,113 @@ export default function EquipoDetalle({ demoMode = false }) {
           >
             <Icon name="cog" />
           </button>
-          <div className="header-status">
-            <span className={`status-badge status-badge-header ${estadoEquipo?.estado || 'pendiente'}`}>
-              {estadoEquipo?.estado === 'en_proceso' ? 'EN PROCESO' : 
-               estadoEquipo?.estado === 'finalizado' ? 'FINALIZADO' :
-               estadoEquipo?.estado === 'listo' ? 'LISTO' : 'PENDIENTE'}
-            </span>
+        </div>
+        <div className="header-data-grid">
+          <div className="header-data-block">
+            <div className="header-data-label">Equipo</div>
+            <div className="header-data-values">
+              {equipo.color && (
+                <span className="header-info-pill header-info-color" style={{ backgroundColor: getColorHex(equipo.color), color: getContrastColor(equipo.color) }}>
+                  <Icon name="palette" /> {equipo.color}
+                </span>
+              )}
+              {equipo.cargador !== undefined && equipo.cargador !== null && (
+                <span className={`header-info-pill ${equipo.cargador ? 'header-info-yes' : 'header-info-no'}`}>
+                  <Icon name="plug" /> Cargador
+                </span>
+              )}
+              {equipo.contraseña && equipo.contraseña.trim() && (
+                <span 
+                  className="header-info-pill header-info-password"
+                  onClick={() => setShowPassword(p => !p)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Icon name={showPassword ? 'eye-slash' : 'lock'} /> {showPassword ? equipo.contraseña : 'Contraseña'}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="header-data-block">
+            <div className="header-data-label">Cliente</div>
+            <div className="header-data-values header-data-cliente">
+              {cliente ? (
+                <>
+                  <span className="header-cliente-nombre">{cliente.nombre || 'Sin nombre'}</span>
+                  {cliente.telefono && (
+                    <span className="header-cliente-row">
+                      <Icon name="phone" /> {cliente.telefono}
+                      <button 
+                        onClick={handleContactarCliente}
+                        className="header-btn-whatsapp"
+                        title="Contactar por WhatsApp"
+                      >
+                        <Icon name="comment" />
+                      </button>
+                    </span>
+                  )}
+                  {cliente.email && (
+                    <span className="header-cliente-row"><Icon name="envelope" /> {cliente.email}</span>
+                  )}
+                </>
+              ) : (
+                <span className="header-cliente-empty">Sin cliente asignado</span>
+              )}
+            </div>
+          </div>
+          <div className="header-data-block header-data-block-proceso">
+            <div className="header-data-label">Proceso</div>
+            <div className="header-data-values">
+              {procesoInfo && <span className="header-proceso-nombre">{procesoInfo.nombre}</span>}
+              {subprocesos.length > 0 && (
+                <span className="header-proceso-pasos">{subprocesosCompletados.length} de {subprocesos.length} pasos</span>
+              )}
+              <span className={`status-badge-inline ${estadoEquipo?.estado || 'pendiente'}`}>
+                {estadoEquipo?.estado === 'en_proceso' ? 'En Proceso' : 
+                 estadoEquipo?.estado === 'finalizado' ? 'Finalizado' :
+                 estadoEquipo?.estado === 'listo' ? 'Listo' : 'Pendiente'}
+              </span>
+              <span className="header-proceso-fecha">
+                <Icon name="calendar-alt" /> {formatDate(equipo.created_at)}
+              </span>
+            </div>
+            {/* Siguiente Paso - dentro de la misma box de Proceso */}
+            {siguienteSubproceso && estadoEquipo?.estado !== 'finalizado' && (
+              <div className="header-siguiente-paso">
+                <div className="header-siguiente-paso-label">
+                  <Icon name="arrow-right" />
+                  Siguiente Paso
+                </div>
+                <div className="header-siguiente-paso-content">
+                  <div className="header-step-title">{siguienteSubproceso.nombre}</div>
+                  {siguienteSubproceso.descripcion && (
+                    <div className="header-step-desc">{siguienteSubproceso.descripcion}</div>
+                  )}
+                  <div className="header-step-input-wrapper">
+                    <input
+                      type="text"
+                      className="header-step-input"
+                      placeholder="Resultado o comentario..."
+                      value={respuestaPaso}
+                      onChange={(e) => setRespuestaPaso(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && respuestaPaso.trim()) {
+                          e.preventDefault();
+                          marcarSubprocesoCompletado(siguienteSubproceso.id, respuestaPaso);
+                        }
+                      }}
+                      disabled={completandoPaso}
+                    />
+                    <button
+                      className="header-btn-step-complete"
+                      onClick={() => marcarSubprocesoCompletado(siguienteSubproceso.id, respuestaPaso)}
+                      disabled={completandoPaso || !respuestaPaso.trim()}
+                    >
+                      {completandoPaso ? <Icon name="sync" className="spinning" /> : <Icon name="check" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -1282,7 +1388,7 @@ export default function EquipoDetalle({ demoMode = false }) {
         {/* Left Column - Fixed Width, Sticky */}
         <aside className="equipo-detalle-sidebar">
           {/* Equipment Photo */}
-          <section className="sidebar-section">
+          <section className="sidebar-card sidebar-card-photo">
             {fotos.length > 0 ? (
               <>
                 <div className="equipo-photo-main" onClick={() => setSelectedPhoto(fotos[0])}>
@@ -1316,7 +1422,7 @@ export default function EquipoDetalle({ demoMode = false }) {
 
           {/* Problema destacado */}
           {equipo.problema && equipo.problema.trim() && (
-            <section className="sidebar-section problema-section">
+            <section className="sidebar-card sidebar-card-problema">
               <div className="problema-content">
                 <Icon name="exclamation-triangle" className="problema-icon" />
                 <div className="problema-text">
@@ -1327,144 +1433,13 @@ export default function EquipoDetalle({ demoMode = false }) {
             </section>
           )}
 
-          {/* Equipment Info - Botones cuadrados */}
-          <section className="sidebar-section">
-            <h3 className="section-title">Información del Equipo</h3>
-            <div className="section-content info-buttons-grid">
-              {equipo.color && (
-                <button 
-                  className="info-button-square info-button-color"
-                  style={{ 
-                    backgroundColor: getColorHex(equipo.color),
-                    color: getContrastColor(equipo.color)
-                  }}
-                >
-                  <Icon name="palette" className="info-button-icon" />
-                  <span className="info-button-label">Color</span>
-                </button>
-              )}
-              {equipo.cargador !== undefined && equipo.cargador !== null && (
-                <button 
-                  className={`info-button-square ${equipo.cargador ? 'info-button-cargador-yes' : 'info-button-cargador-no'}`}
-                >
-                  <Icon name="plug" className="info-button-icon" />
-                  <span className="info-button-label">Cargador</span>
-                </button>
-              )}
-              {equipo.contraseña && equipo.contraseña.trim() && (
-                <button 
-                  className={`info-button-square info-button-password ${showPassword ? 'password-visible' : ''}`}
-                  onClick={() => setShowPassword(p => !p)}
-                >
-                  <Icon name={showPassword ? 'eye-slash' : 'lock'} className="info-button-icon" />
-                  <span className="info-button-label">
-                    {showPassword ? equipo.contraseña : 'Contraseña'}
-                  </span>
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* Client Info */}
-          <section className="sidebar-section">
-            <h3 className="section-title">Cliente</h3>
-            <div className="section-content">
-              {cliente ? (
-                <>
-                  <div className="client-name">{cliente.nombre || 'Sin nombre'}</div>
-                  {cliente.telefono && (
-                    <div className="client-phone">
-                      <Icon name="phone" />
-                      <span>{cliente.telefono}</span>
-                      <button 
-                        onClick={handleContactarCliente}
-                        className="btn-call"
-                        title="Contactar por WhatsApp"
-                      >
-                        <Icon name="comment" />
-                      </button>
-                    </div>
-                  )}
-                  {cliente.email && (
-                    <div className="client-email">
-                      <Icon name="envelope" />
-                      <span>{cliente.email}</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="client-empty">
-                  <Icon name="user" />
-                  <span>Sin cliente asignado</span>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Process Summary */}
-          {procesoInfo && (
-            <section className="sidebar-section">
-              <h3 className="section-title">Proceso</h3>
-              <div className="section-content">
-                <div className="process-name">{procesoInfo.nombre}</div>
-                {subprocesos.length > 0 && (
-                  <div className="process-progress">
-                    <div className="progress-label">
-                      {subprocesosCompletados.length} de {subprocesos.length} pasos
-                    </div>
-                    <div className="progress-bar-container">
-                      <div 
-                        className="progress-bar-fill" 
-                        style={{ width: `${progressPercentage}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Status & Dates */}
-          <section className="sidebar-section">
-            <h3 className="section-title">Estado y Fechas</h3>
-            <div className="section-content">
-              <div className="status-item">
-                <span className="status-label">Estado:</span>
-                <span className={`status-badge-inline ${estadoEquipo?.estado || 'pendiente'}`}>
-                  {estadoEquipo?.estado === 'en_proceso' ? 'En Proceso' : 
-                   estadoEquipo?.estado === 'finalizado' ? 'Finalizado' :
-                   estadoEquipo?.estado === 'listo' ? 'Listo' : 'Pendiente'}
-                </span>
-              </div>
-              <div className="date-item">
-                <Icon name="calendar-alt" />
-                <div>
-                  <div className="date-label">Creado</div>
-                  <div className="date-value">{formatDate(equipo.created_at)}</div>
-                </div>
-              </div>
-              {estadoEquipo?.updated_at && (
-                <div className="date-item">
-                  <Icon name="sync-alt" />
-                  <div>
-                    <div className="date-label">Actualizado</div>
-                    <div className="date-value">{formatRelativeTime(estadoEquipo.updated_at)}</div>
-                  </div>
-                </div>
-              )}
-              <div className="status-item">
-                <span className="status-label">Adelanto acumulado:</span>
-                <span className="date-value">
-                  ${parseFloat(equipo.adelanto || 0).toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Costos: total calculado + extra */}
+          {/* Costos y Entrega - Unificado con botones */}
           {equipo && (
-            <section className="sidebar-section costos-section">
-              <h3 className="section-title">Costos</h3>
+            <section className="sidebar-card costos-section">
+              <div className="sidebar-card-row">
+                <Icon name="dollar-sign" className="sidebar-card-icon" />
+                <span className="sidebar-card-title">Costos y entrega</span>
+              </div>
               <div className="section-content costos-content">
                 {(() => {
                   const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
@@ -1527,134 +1502,66 @@ export default function EquipoDetalle({ demoMode = false }) {
                   );
                 })()}
               </div>
-            </section>
-          )}
-
-          {/* Current Step */}
-          {siguienteSubproceso && estadoEquipo?.estado !== 'finalizado' && (
-            <section className="sidebar-section current-step-section">
-              <h3 className="section-title">Siguiente Paso</h3>
-              <div className="section-content">
-                <div className="step-title">{siguienteSubproceso.nombre}</div>
-                {siguienteSubproceso.descripcion && (
-                  <div className="step-desc">{siguienteSubproceso.descripcion}</div>
-                )}
-                <div className="step-input-wrapper">
-                  <input
-                    type="text"
-                    className="step-input-field"
-                    placeholder="Resultado o comentario..."
-                    value={respuestaPaso}
-                    onChange={(e) => setRespuestaPaso(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey && respuestaPaso.trim()) {
-                        e.preventDefault();
-                        marcarSubprocesoCompletado(siguienteSubproceso.id, respuestaPaso);
-                      }
-                    }}
-                    disabled={completandoPaso}
-                  />
+              {/* Botones de notas y acciones - junto a costos */}
+              <div className="costos-actions">
+                <button 
+                  className="costos-action-btn"
+                  onClick={async () => {
+                    try {
+                      const { data: pedidosData } = await supabase
+                        .from('pedidos_piezas')
+                        .select('id, nombre_pieza, cantidad, precio_unitario, estado')
+                        .eq('equipo_id', equipo.id);
+                      const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
+                      const pTotal = pedidos.reduce((s, p) => s + (parseFloat(p?.cantidad) || 0) * (parseFloat(p?.precio_unitario) || 0), 0);
+                      setEquipoParaNotaPDF({
+                        ...equipo,
+                        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+                        pedidos_ligados: pedidos,
+                        pedidos_total: pTotal
+                      });
+                    } catch (err) {
+                      setEquipoParaNotaPDF({ ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) });
+                    } finally {
+                      setTipoNotaPDF('recepcion');
+                      setShowNotaPDFModal(true);
+                    }
+                  }}
+                >
+                  <Icon name="file-alt" /> Nota de Recepción
+                </button>
+                {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
                   <button 
-                    className="btn-step-complete"
-                    onClick={() => marcarSubprocesoCompletado(siguienteSubproceso.id, respuestaPaso)}
-                    disabled={completandoPaso || !respuestaPaso.trim()}
+                    className="costos-action-btn costos-action-btn-primary"
+                    onClick={() => {
+                      const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+                      const extra = parseFloat(precioExtra) || 0;
+                      setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
+                      setShowConfirmarTotalModal(true);
+                    }}
                   >
-                    {completandoPaso ? (
-                      <Icon name="sync" className="spinning" />
-                    ) : (
-                      <Icon name="check" />
-                    )}
+                    <Icon name="file-alt" /> Nota de Entrega
                   </button>
-                </div>
+                )}
+                {procesosConRecordatorio.length > 0 && (
+                  <button className="costos-action-btn" onClick={openLicenciaModal}>
+                    <Icon name="key" /> Registrar licencia
+                  </button>
+                )}
+                {estadoEquipo?.estado === 'en_proceso' && subprocesosCompletados.length === subprocesos.length && subprocesos.length > 0 && (
+                  <button className="costos-action-btn costos-action-btn-success" onClick={marcarComoListo}>
+                    <Icon name="check-circle" /> Marcar como Listo
+                  </button>
+                )}
+                {estadoEquipo?.estado === 'listo' && (
+                  <button className="costos-action-btn costos-action-btn-success" onClick={marcarComoFinalizado}>
+                    <Icon name="flag-checkered" /> Marcar como Entregado
+                  </button>
+                )}
               </div>
             </section>
           )}
 
-          {/* Actions */}
-          <section className="sidebar-section">
-            <h3 className="section-title">Acciones</h3>
-            <div className="section-content actions-list">
-              <button 
-                className="action-btn"
-                onClick={async () => {
-                  try {
-                    const { data: pedidosData } = await supabase
-                      .from('pedidos_piezas')
-                      .select('id, nombre_pieza, cantidad, precio_unitario, estado')
-                      .eq('equipo_id', equipo.id);
-
-                    const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
-                    const pedidosTotal = pedidos.reduce((sum, p) => {
-                      const qty = parseFloat(p?.cantidad) || 0;
-                      const unit = parseFloat(p?.precio_unitario) || 0;
-                      return sum + qty * unit;
-                    }, 0);
-
-                    setEquipoParaNotaPDF({
-                      ...equipo,
-                      procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
-                      pedidos_ligados: pedidos,
-                      pedidos_total: pedidosTotal
-                    });
-                  } catch (err) {
-                    console.error('Error cargando pedidos ligados:', err);
-                    setEquipoParaNotaPDF({
-                      ...equipo,
-                      procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
-                    });
-                  } finally {
-                    setTipoNotaPDF('recepcion');
-                    setShowNotaPDFModal(true);
-                  }
-                }}
-              >
-                <Icon name="file-alt" />
-                Nota de Recepción
-              </button>
-              {procesosConRecordatorio.length > 0 && (
-                <button
-                  className="action-btn"
-                  onClick={openLicenciaModal}
-                >
-                  <Icon name="key" />
-                  Registrar licencia
-                </button>
-              )}
-              {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
-                <button 
-                  className="action-btn"
-                  onClick={() => {
-                    const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
-                    const extra = parseFloat(precioExtra) || 0;
-                    const totalCalc = serviciosTot + pedidosTotal + extra;
-                    setTotalConfirmado(String(totalCalc));
-                    setShowConfirmarTotalModal(true);
-                  }}
-                >
-                  <Icon name="file-alt" />
-                  Nota de Entrega
-                </button>
-              )}
-              {estadoEquipo?.estado === 'en_proceso' && subprocesosCompletados.length === subprocesos.length && subprocesos.length > 0 && (
-                <button 
-                  className="action-btn action-btn-primary"
-                  onClick={marcarComoListo}
-                >
-                  <Icon name="check-circle" />
-                  Marcar como Listo
-                </button>
-              )}
-              {estadoEquipo?.estado === 'listo' && (
-                <button 
-                  className="action-btn action-btn-success"
-                  onClick={marcarComoFinalizado}
-                >
-                  <Icon name="flag-checkered" />
-                  Marcar como Entregado
-                </button>
-              )}
-            </div>
-          </section>
         </aside>
 
         {/* Right Column - Scrollable Timeline */}
