@@ -165,6 +165,11 @@ export default function EquipoDetalle({ demoMode = false }) {
     clave: '',
     fecha_activacion: '',
   });
+  const [pedidosLigados, setPedidosLigados] = useState([]);
+  const [pedidosTotal, setPedidosTotal] = useState(0);
+  const [precioExtra, setPrecioExtra] = useState('');
+  const [showConfirmarTotalModal, setShowConfirmarTotalModal] = useState(false);
+  const [totalConfirmado, setTotalConfirmado] = useState('');
 
   useEffect(() => {
     loadCurrentUser();
@@ -191,6 +196,16 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
     loadProcesosDisponibles();
   }, [id, demoMode]);
+
+  useEffect(() => {
+    const estado = estadoEquipo?.estado;
+    if (id && (estado === 'en_proceso' || estado === 'listo' || estado === 'finalizado') && !demoMode) {
+      loadPedidosLigados();
+    } else {
+      setPedidosLigados([]);
+      setPedidosTotal(0);
+    }
+  }, [id, estadoEquipo?.estado, demoMode]);
 
   const loadProcesosDisponibles = async () => {
     try {
@@ -315,6 +330,29 @@ export default function EquipoDetalle({ demoMode = false }) {
       console.error('Error loading equipo:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPedidosLigados = async () => {
+    if (!id || demoMode) return;
+    try {
+      const { data, error } = await supabase
+        .from('pedidos_piezas')
+        .select('id, nombre_pieza, cantidad, precio_unitario, estado')
+        .eq('equipo_id', id);
+      if (error) throw error;
+      const pedidos = (data || []).filter(p => p.estado !== 'cancelado');
+      const total = pedidos.reduce((sum, p) => {
+        const qty = parseFloat(p?.cantidad) || 0;
+        const unit = parseFloat(p?.precio_unitario) || 0;
+        return sum + qty * unit;
+      }, 0);
+      setPedidosLigados(pedidos);
+      setPedidosTotal(total);
+    } catch (err) {
+      console.error('Error loading pedidos ligados:', err);
+      setPedidosLigados([]);
+      setPedidosTotal(0);
     }
   };
 
@@ -1423,6 +1461,75 @@ export default function EquipoDetalle({ demoMode = false }) {
             </div>
           </section>
 
+          {/* Costos: total calculado + extra */}
+          {equipo && (
+            <section className="sidebar-section costos-section">
+              <h3 className="section-title">Costos</h3>
+              <div className="section-content costos-content">
+                {(() => {
+                  const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+                  const extra = parseFloat(precioExtra) || 0;
+                  const totalCalculado = serviciosTot + pedidosTotal + extra;
+                  const adelanto = parseFloat(equipo.adelanto || 0);
+                  const adeudo = totalCalculado - adelanto;
+                  return (
+                    <>
+                      <div className="costos-row">
+                        <span className="costos-label">Servicios:</span>
+                        <span className="costos-value">${serviciosTot.toFixed(2)}</span>
+                      </div>
+                      {pedidosTotal > 0 && (
+                        <div className="costos-row">
+                          <span className="costos-label">Refacciones:</span>
+                          <span className="costos-value">${pedidosTotal.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="costos-row costos-extra">
+                        <span className="costos-label">Extra (opcional):</span>
+                        <input
+                          type="number"
+                          className="costos-extra-input"
+                          placeholder="0"
+                          min="0"
+                          step="0.01"
+                          value={precioExtra}
+                          onChange={(e) => setPrecioExtra(e.target.value)}
+                          title="Agregar monto extra si llevó algo más o cambió el precio"
+                        />
+                      </div>
+                      <div className="costos-row costos-total">
+                        <span className="costos-label">Total calculado:</span>
+                        <span className="costos-value costos-total-value">${totalCalculado.toFixed(2)}</span>
+                      </div>
+                      <div className="costos-row costos-adelanto-row">
+                        <span className="costos-label">Adelanto:</span>
+                        <span className="costos-value">${adelanto.toFixed(2)}</span>
+                        <button
+                          type="button"
+                          className="costos-btn-adelanto"
+                          onClick={() => {
+                            setNuevoAdelanto('');
+                            setShowPagoModal(true);
+                          }}
+                          title="Agregar adelanto"
+                        >
+                          <Icon name="plus-circle" />
+                          <span>Agregar</span>
+                        </button>
+                      </div>
+                      <div className="costos-row costos-adeudo">
+                        <span className="costos-label">Adeudo:</span>
+                        <span className={`costos-value ${adeudo > 0 ? 'costos-adeudo-pendiente' : 'costos-adeudo-cero'}`}>
+                          ${adeudo.toFixed(2)}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </section>
+          )}
+
           {/* Current Step */}
           {siguienteSubproceso && estadoEquipo?.estado !== 'finalizado' && (
             <section className="sidebar-section current-step-section">
@@ -1504,16 +1611,6 @@ export default function EquipoDetalle({ demoMode = false }) {
                 <Icon name="file-alt" />
                 Nota de Recepción
               </button>
-              <button
-                className="action-btn"
-                onClick={() => {
-                  setNuevoAdelanto('');
-                  setShowPagoModal(true);
-                }}
-              >
-                <Icon name="dollar-sign" />
-                Registrar adelanto
-              </button>
               {procesosConRecordatorio.length > 0 && (
                 <button
                   className="action-btn"
@@ -1526,36 +1623,12 @@ export default function EquipoDetalle({ demoMode = false }) {
               {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
                 <button 
                   className="action-btn"
-                  onClick={async () => {
-                    try {
-                      const { data: pedidosData } = await supabase
-                        .from('pedidos_piezas')
-                        .select('id, nombre_pieza, cantidad, precio_unitario, estado')
-                        .eq('equipo_id', equipo.id);
-
-                      const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
-                      const pedidosTotal = pedidos.reduce((sum, p) => {
-                        const qty = parseFloat(p?.cantidad) || 0;
-                        const unit = parseFloat(p?.precio_unitario) || 0;
-                        return sum + qty * unit;
-                      }, 0);
-
-                      setEquipoParaNotaPDF({
-                        ...equipo,
-                        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
-                        pedidos_ligados: pedidos,
-                        pedidos_total: pedidosTotal
-                      });
-                    } catch (err) {
-                      console.error('Error cargando pedidos ligados:', err);
-                      setEquipoParaNotaPDF({
-                        ...equipo,
-                        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
-                      });
-                    } finally {
-                      setTipoNotaPDF('entrega');
-                      setShowNotaPDFModal(true);
-                    }
+                  onClick={() => {
+                    const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+                    const extra = parseFloat(precioExtra) || 0;
+                    const totalCalc = serviciosTot + pedidosTotal + extra;
+                    setTotalConfirmado(String(totalCalc));
+                    setShowConfirmarTotalModal(true);
                   }}
                 >
                   <Icon name="file-alt" />
@@ -1735,6 +1808,81 @@ export default function EquipoDetalle({ demoMode = false }) {
           </div>
         </main>
       </div>
+
+      {/* Modal de confirmación de total antes de generar Nota de Entrega */}
+      {showConfirmarTotalModal && (
+        <div className="confirmar-total-overlay" onClick={() => setShowConfirmarTotalModal(false)}>
+          <div className="confirmar-total-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirmar-total-header">
+              <h2>Confirmar precio antes de generar nota</h2>
+              <button
+                className="confirmar-total-close"
+                onClick={() => setShowConfirmarTotalModal(false)}
+              >
+                <Icon name="times" />
+              </button>
+            </div>
+            <div className="confirmar-total-body">
+              <p className="confirmar-total-desc">
+                Revisa y confirma el monto total. Puedes corregirlo si el precio cambió o se agregó algo más.
+              </p>
+              <div className="confirmar-total-display">
+                <label>Total a cobrar</label>
+                <input
+                  type="number"
+                  className="confirmar-total-input"
+                  min="0"
+                  step="0.01"
+                  value={totalConfirmado}
+                  onChange={(e) => setTotalConfirmado(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="confirmar-total-resumen">
+                <div className="confirmar-total-row">
+                  <span>Adelanto:</span>
+                  <span>${parseFloat(equipo?.adelanto || 0).toFixed(2)}</span>
+                </div>
+                <div className="confirmar-total-row confirmar-total-adeudo">
+                  <span>Adeudo:</span>
+                  <span>
+                    ${(parseFloat(totalConfirmado || 0) - parseFloat(equipo?.adelanto || 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="confirmar-total-footer">
+              <button className="btn-cancel" onClick={() => setShowConfirmarTotalModal(false)}>
+                Cancelar
+              </button>
+              <button
+                className="btn-confirmar-total"
+                onClick={() => {
+                  const total = parseFloat(totalConfirmado || 0);
+                  if (total < 0) {
+                    alert('El total no puede ser negativo.');
+                    return;
+                  }
+                  const eqParaNota = {
+                    ...equipo,
+                    procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+                    pedidos_ligados: pedidosLigados,
+                    pedidos_total: pedidosTotal,
+                    precio_total_confirmado: total
+                  };
+                  setEquipoParaNotaPDF(eqParaNota);
+                  setShowConfirmarTotalModal(false);
+                  setTipoNotaPDF('entrega');
+                  setShowNotaPDFModal(true);
+                }}
+              >
+                <Icon name="check" />
+                Confirmar y generar nota
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Nota PDF Modal */}
       {showNotaPDFModal && tipoNotaPDF && (

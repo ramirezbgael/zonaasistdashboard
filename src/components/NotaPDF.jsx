@@ -235,30 +235,48 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
 
       // ─── BLOQUE 4: COSTOS (destacado) ───────────────────────────────
       if (tipo === 'entrega') {
-        // Calcular total: primero intentar precio_total, luego sumar precios de procesos
-        let tot = equipo.precio_total;
-        if (!tot && procesosList.length > 0) {
-          tot = procesosList.reduce((sum, p) => {
-            const precio = parseFloat(p?.precio) || 0;
-            return sum + precio;
-          }, 0);
+        // Si hay total confirmado por el usuario, usarlo directamente
+        const confirmado = parseFloat(equipo?.precio_total_confirmado);
+        let totFinal;
+        let tot;
+        let pedidosTot;
+        if (!isNaN(confirmado) && confirmado >= 0) {
+          totFinal = confirmado;
+          tot = equipo.precio_total;
+          if (!tot && procesosList.length > 0) {
+            tot = procesosList.reduce((sum, p) => sum + (parseFloat(p?.precio) || 0), 0);
+          }
+          tot = tot || 0;
+          pedidosTot = (() => {
+            if (typeof equipo?.pedidos_total === 'number') return equipo.pedidos_total;
+            const pedidos = Array.isArray(equipo?.pedidos_ligados) ? equipo.pedidos_ligados : [];
+            return pedidos.reduce((sum, p) => {
+              const qty = parseFloat(p?.cantidad) || 0;
+              const unit = parseFloat(p?.precio_unitario) || 0;
+              return sum + qty * unit;
+            }, 0);
+          })();
+        } else {
+          tot = equipo.precio_total;
+          if (!tot && procesosList.length > 0) {
+            tot = procesosList.reduce((sum, p) => {
+              const precio = parseFloat(p?.precio) || 0;
+              return sum + precio;
+            }, 0);
+          }
+          tot = tot || 0;
+          pedidosTot = (() => {
+            if (typeof equipo?.pedidos_total === 'number') return equipo.pedidos_total;
+            const pedidos = Array.isArray(equipo?.pedidos_ligados) ? equipo.pedidos_ligados : [];
+            return pedidos.reduce((sum, p) => {
+              const qty = parseFloat(p?.cantidad) || 0;
+              const unit = parseFloat(p?.precio_unitario) || 0;
+              return sum + qty * unit;
+            }, 0);
+          })();
+          totFinal = (parseFloat(tot) || 0) + (parseFloat(pedidosTot) || 0);
         }
-        // Si aún no hay total, usar 0
-        tot = tot || 0;
 
-        // Sumar pedidos ligados (refacciones/piezas) si existen
-        const pedidosTot = (() => {
-          if (typeof equipo?.pedidos_total === 'number') return equipo.pedidos_total;
-          const pedidos = Array.isArray(equipo?.pedidos_ligados) ? equipo.pedidos_ligados : [];
-          return pedidos.reduce((sum, p) => {
-            const qty = parseFloat(p?.cantidad) || 0;
-            const unit = parseFloat(p?.precio_unitario) || 0;
-            return sum + qty * unit;
-          }, 0);
-        })();
-
-        const totFinal = (parseFloat(tot) || 0) + (parseFloat(pedidosTot) || 0);
-        
         const ant = equipo.adelanto || 0;
         const ade = totFinal - ant;
         const estado = equipo.pago_full ? 'Pagado' : 'Pendiente';

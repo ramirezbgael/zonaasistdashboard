@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase.js';
 import { addPedido as addPedidoDemo } from '../utils/demoStorage.js';
 import { notificarPedidoNuevo } from '../utils/notifications.js';
@@ -34,6 +34,7 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
   const [clienteGuardado, setClienteGuardado] = useState(null);
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
+  const guardadoExitoso = useRef(false);
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
@@ -180,12 +181,10 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Prevenir múltiples submits
-    if (isSubmitting || loading) {
-      return;
-    }
-    
+
+    if (guardadoExitoso.current) return;
+    if (isSubmitting || loading) return;
+
     setIsSubmitting(true);
     setLoading(true);
 
@@ -252,6 +251,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
       if (error) {
         throw new Error(`Error al guardar pedido: ${error.message}`);
       }
+
+      guardadoExitoso.current = true;
 
       // Crear notificación
       if (data && data[0]) {
@@ -322,8 +323,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
         }
         setShowNotaPDF(true);
       } else {
-      onPedidoAdded();
-      onClose();
+        onPedidoAdded?.();
+        onClose?.();
       }
     } catch (error) {
       console.error('Error:', error);
@@ -901,8 +902,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
           </div>
         )}
 
-        {/* Modal de Nota PDF */}
-        {showNotaPDF && pedidoGuardado && proveedorGuardado && (
+        {/* Modal de Nota PDF: mostrar aunque no haya proveedor (es opcional) */}
+        {showNotaPDF && pedidoGuardado && (
           <NotaPDF
             equipo={pedidoGuardado}
             cliente={clienteGuardado}
@@ -913,8 +914,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
               setPedidoGuardado(null);
               setProveedorGuardado(null);
               setClienteGuardado(null);
-              onPedidoAdded();
-              onClose();
+              onPedidoAdded?.();
+              onClose?.();
             }}
           />
         )}
