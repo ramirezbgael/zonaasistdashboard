@@ -7,7 +7,7 @@ import './EquipoCard.css';
 
 export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMode = false }) {
   const navigate = useNavigate();
-  const nota = equipo.nota.toString();
+  const nota = equipo.nota != null ? String(equipo.nota) : '?';
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
   const [showEntregaModal, setShowEntregaModal] = useState(false);
@@ -252,7 +252,8 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
 
   const getInitials = (marca) => {
     if (!marca) return '?';
-    return marca.substring(0, 2).toUpperCase();
+    const m = String(marca).trim();
+    return m.length >= 2 ? m.substring(0, 2).toUpperCase() : m.toUpperCase();
   };
 
   const handleCardClick = () => {
@@ -281,10 +282,10 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
         </div>
         <div className="equipo-info">
           <div className="equipo-title-row">
-            <h3 className="equipo-marca">{equipo.marca}</h3>
-            <span className="equipo-nota-badge">#{equipo.nota}</span>
+            <h3 className="equipo-marca">{equipo.marca ?? '—'}</h3>
+            <span className="equipo-nota-badge">#{equipo.nota ?? '?'}</span>
           </div>
-          <p className="equipo-modelo">{equipo.modelo}</p>
+          <p className="equipo-modelo">{equipo.modelo ?? '—'}</p>
           {equipo.color && (
             <div className={`equipo-color-info ${equipo.color.toLowerCase().includes('blanco') ? 'color-claro' : ''}`}>
               <span 

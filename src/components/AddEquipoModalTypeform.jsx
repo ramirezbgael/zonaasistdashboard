@@ -4,13 +4,14 @@ import { supabase } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
 import { uploadEquipoPhoto } from '../services/photoUpload.service.js';
+import { addEquipo as addEquipoDemo } from '../utils/demoStorage.js';
 import NotaPDF from './NotaPDF.jsx';
 import Icon from './Icon.jsx';
 import './AddEquipoModalTypeform.css';
 
 const PROCESO_OTRO_ID = 'otro';
 
-export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 'modal' }) {
+export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 'modal', demoMode = false }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color, 3: cargador
   const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_datos (nombre/email), 3: detalle
@@ -609,6 +610,32 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
       // Validar campos requeridos
       if (!formData.marca || !formData.modelo || !formData.color || formData.cargador === null || formData.proceso_ids.length === 0 || !formData.cliente_telefono) {
         alert('Por favor completa todos los campos requeridos (incluyendo si se queda el cargador y al menos un proceso)');
+        setLoading(false);
+        return;
+      }
+
+      if (demoMode) {
+        const otroSeleccionado = formData.proceso_ids.includes(PROCESO_OTRO_ID);
+        const otroDetalles = String(formData.otro_detalles || '').trim();
+        const problemaBase = String(formData.problema || '').trim();
+        const problemaFinal = otroSeleccionado && otroDetalles
+          ? (problemaBase ? `${problemaBase}\nOtro: ${otroDetalles}` : `Otro: ${otroDetalles}`)
+          : (problemaBase || '');
+        addEquipoDemo({
+          marca: formData.marca.trim(),
+          modelo: formData.modelo.trim(),
+          color: formData.color.trim(),
+          problema: problemaFinal,
+          contraseña: formData.contraseña?.trim() || null,
+          cargador: formData.cargador,
+          clientes: {
+            nombre: formData.cliente_nombre?.trim() || 'Cliente',
+            telefono: formData.cliente_telefono.trim(),
+            email: formData.cliente_email?.trim() || null,
+          },
+        });
+        onEquipoAdded();
+        onClose();
         setLoading(false);
         return;
       }

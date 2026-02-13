@@ -33,9 +33,12 @@ export default function App() {
             >
               <Route index element={<MainDashboard demoMode />} />
               <Route path="equipos" element={<Dashboard demoMode />} />
+              <Route path="equipos/nuevo" element={<NuevoEquipoPage demoMode />} />
               <Route path="equipos/:id" element={<EquipoDetalle demoMode />} />
               <Route path="documentos" element={<DocumentosPage demoMode />} />
+              <Route path="documentos/nuevo" element={<NuevoDocumentoPage demoMode />} />
               <Route path="logistica" element={<LogisticaPage demoMode />} />
+              <Route path="logistica/nuevo" element={<NuevoPedidoPage demoMode />} />
               <Route path="clientes" element={<ClientesPage demoMode />} />
               <Route path="inventario" element={<InventarioPage demoMode />} />
               <Route path="reportes" element={<ReportesPage demoMode />} />

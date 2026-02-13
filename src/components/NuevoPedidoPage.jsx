@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import AddPedidoModal from './AddPedidoModal.jsx';
 
-export default function NuevoPedidoPage() {
+export default function NuevoPedidoPage({ demoMode = false }) {
   const navigate = useNavigate();
+  const basePath = demoMode ? '/demo' : '';
 
   return (
     <AddPedidoModal
       mode="page"
-      onClose={() => navigate('/logistica')}
+      demoMode={demoMode}
+      onClose={() => navigate(`${basePath}/logistica`)}
       onPedidoAdded={() => {
-        navigate('/logistica');
+        navigate(`${basePath}/logistica`);
       }}
     />
   );

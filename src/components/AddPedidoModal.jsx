@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase.js';
+import { addPedido as addPedidoDemo } from '../utils/demoStorage.js';
 import { notificarPedidoNuevo } from '../utils/notifications.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
-export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal' }) {
+export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal', demoMode = false }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     // Proveedor ya no se pide en el formulario, pero dejamos
@@ -189,6 +190,25 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal' 
     setLoading(true);
 
     try {
+      if (demoMode) {
+        const cantidad = parseInt(formData.cantidad) || 1;
+        addPedidoDemo({
+          nombre_pieza: formData.producto || 'Producto',
+          cantidad,
+          producto: formData.producto,
+          proveedor: formData.proveedor || 'Proveedor demo',
+          equipos: equipoRelacionado
+            ? { ...equipoRelacionado, clientes: equipoRelacionado.clientes || { nombre: formData.cliente_nombre, telefono: formData.cliente_telefono } }
+            : null,
+          fecha_estimada_llegada: formData.fecha_esperada || null,
+        });
+        onPedidoAdded();
+        onClose();
+        setIsSubmitting(false);
+        setLoading(false);
+        return;
+      }
+
       // Ya no se requiere capturar proveedor, dejamos proveedor_id en null
       let proveedorId = null;
 

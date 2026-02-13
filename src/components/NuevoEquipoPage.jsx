@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import AddEquipoModalTypeform from './AddEquipoModalTypeform.jsx';
 
-export default function NuevoEquipoPage() {
+export default function NuevoEquipoPage({ demoMode = false }) {
   const navigate = useNavigate();
+  const basePath = demoMode ? '/demo' : '';
 
   return (
     <AddEquipoModalTypeform
       mode="page"
-      onClose={() => navigate('/equipos')}
+      demoMode={demoMode}
+      onClose={() => navigate(`${basePath}/equipos`)}
       onEquipoAdded={() => {
-        navigate('/equipos');
+        navigate(`${basePath}/equipos`);
       }}
     />
   );

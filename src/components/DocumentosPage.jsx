@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
+import { getDocumentos, updateDocumento } from '../utils/demoStorage.js';
 import DocumentoModal from './DocumentoModal.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css'; // Reutilizar estilos similares
@@ -30,61 +31,6 @@ const obtenerNombreUsuario = async (userId) => {
     }
 };
 
-// Datos de ejemplo para modo demo (sin Supabase)
-const DEMO_DOCUMENTOS = [
-    {
-        id: 'demo-d1',
-        tipo_servicio: 'transcripcion',
-        descripcion: 'Conferencia marketing 2h',
-        precio: 650,
-        estado: 'pendiente',
-        fecha_inicio: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        asignado_a: null,
-        usuarioAsignado: 'Tú (demo)',
-        clientes: {
-            id: 'demo-c1',
-            nombre: 'Universidad X',
-            telefono: '5511122233',
-            email: 'contacto@universidadx.mx'
-        }
-    },
-    {
-        id: 'demo-d2',
-        tipo_servicio: 'factura',
-        descripcion: 'Factura servicios de impresión',
-        precio: 320,
-        estado: 'pendiente',
-        fecha_inicio: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        asignado_a: null,
-        usuarioAsignado: 'Tú (demo)',
-        clientes: {
-            id: 'demo-c2',
-            nombre: 'Empresa ABC',
-            telefono: '5544455566',
-            email: 'facturacion@empresaabc.com'
-        }
-    },
-    {
-        id: 'demo-d3',
-        tipo_servicio: 'transcripcion',
-        descripcion: 'Podcast episodio 10',
-        precio: 500,
-        estado: 'completado',
-        fecha_inicio: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        asignado_a: null,
-        usuarioAsignado: 'Tú (demo)',
-        clientes: {
-            id: 'demo-c3',
-            nombre: 'Cliente frecuente',
-            telefono: '5577788899',
-            email: 'cliente@ejemplo.com'
-        }
-    }
-];
-
 export default function DocumentosPage({ demoMode = false }) {
     const [showDocumentoModal, setShowDocumentoModal] = useState(false);
     const [selectedDocumento, setSelectedDocumento] = useState(null);
@@ -96,13 +42,14 @@ export default function DocumentosPage({ demoMode = false }) {
     const navigate = useNavigate();
 
     // Detectar si viene del dashboard principal para crear (antes abría modal)
+    const basePath = demoMode ? '/demo' : '';
     useEffect(() => {
         const shouldAdd = searchParams.get('add');
         if (shouldAdd === 'true') {
-            navigate('/documentos/nuevo');
+            navigate(`${basePath}/documentos/nuevo`);
             setSearchParams({}, { replace: true });
         }
-    }, [searchParams, setSearchParams, navigate]);
+    }, [searchParams, setSearchParams, navigate, basePath]);
 
     // Detectar si hay un documento_id en la URL (desde notificación)
     useEffect(() => {
@@ -128,9 +75,9 @@ export default function DocumentosPage({ demoMode = false }) {
 
     useEffect(() => {
         if (demoMode) {
-            // En modo demo usar datos estáticos y no tocar Supabase
-            const pendientes = DEMO_DOCUMENTOS.filter(d => d.estado === 'pendiente');
-            const completados = DEMO_DOCUMENTOS.filter(d => d.estado === 'completado');
+            const docs = getDocumentos();
+            const pendientes = docs.filter(d => d.estado === 'pendiente');
+            const completados = docs.filter(d => d.estado === 'completado');
             setDocumentos(pendientes);
             setDocumentosCompletados(completados);
             setLoading(false);
@@ -266,7 +213,9 @@ export default function DocumentosPage({ demoMode = false }) {
                             const handleMarcarCompletado = async (e) => {
                                 e.stopPropagation();
                                 if (demoMode) {
-                                    alert('En el modo demo no se modifican documentos reales. Esto es solo una vista de ejemplo.');
+                                    updateDocumento(doc.id, { estado: 'completado', fecha_entrega: new Date().toISOString() });
+                                    setDocumentos(prev => prev.filter(d => d.id !== doc.id));
+                                    setDocumentosCompletados(prev => [...prev, { ...doc, estado: 'completado', fecha_entrega: new Date().toISOString() }]);
                                     return;
                                 }
                                 if (!confirm('¿Confirmas que el documento ha sido completado?')) {
@@ -410,7 +359,7 @@ export default function DocumentosPage({ demoMode = false }) {
 
             <button
                 className="add-equipo-fab"
-                onClick={() => navigate('/documentos/nuevo')}
+                onClick={() => navigate(`${basePath}/documentos/nuevo`)}
                 title="Agregar nuevo documento"
             >
                 <Icon name="plus" />
@@ -424,7 +373,13 @@ export default function DocumentosPage({ demoMode = false }) {
                         setSelectedDocumento(null);
                     }}
                     onDocumentoUpdated={() => {
-                        fetchDocumentos();
+                        if (demoMode) {
+                            const docs = getDocumentos();
+                            setDocumentos(docs.filter(d => d.estado === 'pendiente'));
+                            setDocumentosCompletados(docs.filter(d => d.estado === 'completado'));
+                        } else {
+                            fetchDocumentos();
+                        }
                     }}
                 />
             )}

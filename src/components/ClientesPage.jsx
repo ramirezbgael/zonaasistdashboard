@@ -1,32 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
+import { getClientes as getClientesDemo } from '../utils/demoStorage.js';
 import AddClienteModal from './AddClienteModal.jsx';
 import ClienteHistorialModal from './ClienteHistorialModal.jsx';
 import Icon from './Icon.jsx';
 import './ClientesPage.css';
-
-// Datos de ejemplo para modo demo (sin Supabase)
-const DEMO_CLIENTES = [
-    {
-        id: 'demo-c1',
-        nombre: 'Juan Pérez',
-        telefono: '5512345678',
-        email: 'juan@example.com'
-    },
-    {
-        id: 'demo-c2',
-        nombre: 'Ana López',
-        telefono: '5522334455',
-        email: 'ana@example.com'
-    },
-    {
-        id: 'demo-c3',
-        nombre: 'Empresa XYZ',
-        telefono: '5544556677',
-        email: 'contacto@empresa-xyz.com'
-    }
-];
 
 export default function ClientesPage({ demoMode = false }) {
     const [showAddModal, setShowAddModal] = useState(false);
@@ -45,14 +24,17 @@ export default function ClientesPage({ demoMode = false }) {
         }
     }, [searchParams, setSearchParams]);
 
-    useEffect(() => {
+    const loadClientes = () => {
         if (demoMode) {
-            setClientes(DEMO_CLIENTES);
+            setClientes(getClientesDemo());
             setLoading(false);
             return;
         }
-
         fetchClientes();
+    };
+
+    useEffect(() => {
+        loadClientes();
     }, [demoMode]);
 
     const fetchClientes = async () => {
@@ -122,10 +104,6 @@ export default function ClientesPage({ demoMode = false }) {
                             key={cliente.id} 
                             className="cliente-card"
                             onClick={() => {
-                                if (demoMode) {
-                                    alert('En el modo demo esta tarjeta solo es ilustrativa, no abre el historial real.');
-                                    return;
-                                }
                                 setSelectedCliente(cliente);
                                 setShowHistorialModal(true);
                             }}
@@ -210,24 +188,23 @@ export default function ClientesPage({ demoMode = false }) {
                 </div>
             )}
 
-            {!demoMode && (
-                <button
-                    className="add-cliente-fab"
-                    onClick={() => setShowAddModal(true)}
-                    title="Agregar nuevo cliente"
-                    aria-label="Agregar nuevo cliente"
-                >
-                    <Icon name="plus" />
-                </button>
-            )}
+            <button
+                className="add-cliente-fab"
+                onClick={() => setShowAddModal(true)}
+                title="Agregar nuevo cliente"
+                aria-label="Agregar nuevo cliente"
+            >
+                <Icon name="plus" />
+            </button>
 
-            {!demoMode && showAddModal && (
+            {showAddModal && (
                 <AddClienteModal
                     onClose={() => setShowAddModal(false)}
                     onClienteAdded={() => {
-                        fetchClientes();
+                        loadClientes();
                         setShowAddModal(false);
                     }}
+                    demoMode={demoMode}
                 />
             )}
 

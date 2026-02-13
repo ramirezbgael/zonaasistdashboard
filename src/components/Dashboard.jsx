@@ -1,64 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
+import { getEquipos as getEquiposDemo } from '../utils/demoStorage.js';
 import EquipoCard from './EquipoCard.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css';
-
-// Datos de ejemplo para modo demo (sin Supabase)
-const DEMO_EQUIPOS = [
-    {
-        id: 'demo-e1',
-        marca: 'Dell',
-        modelo: 'Inspiron 15',
-        color: 'negro',
-        nota: '123',
-        problema: 'No enciende',
-        created_at: new Date().toISOString(),
-        cliente_id: null,
-        clientes: { nombre: 'Juan Pérez', telefono: '5512345678' },
-        estadoActual: 'pendiente',
-        siguienteSubproceso: { nombre: 'Diagnóstico inicial' },
-        totalSubprocesos: 3,
-        tieneProcesoValido: true,
-        procesoNombre: 'Reparación estándar',
-        estado_equipos: []
-    },
-    {
-        id: 'demo-e2',
-        marca: 'HP',
-        modelo: 'Pavilion 14',
-        color: 'gris',
-        nota: '130',
-        problema: 'Lento y se traba',
-        created_at: new Date().toISOString(),
-        cliente_id: null,
-        clientes: { nombre: 'Ana López', telefono: '5522334455' },
-        estadoActual: 'listo',
-        siguienteSubproceso: null,
-        totalSubprocesos: 4,
-        tieneProcesoValido: true,
-        procesoNombre: 'Mantenimiento completo',
-        estado_equipos: []
-    },
-    {
-        id: 'demo-e3',
-        marca: 'Lenovo',
-        modelo: 'IdeaPad 3',
-        color: 'azul',
-        nota: '140',
-        problema: 'Pantalla rota',
-        created_at: new Date().toISOString(),
-        cliente_id: null,
-        clientes: { nombre: 'Mario Díaz', telefono: '5544556677' },
-        estadoActual: 'finalizado',
-        siguienteSubproceso: null,
-        totalSubprocesos: 2,
-        tieneProcesoValido: true,
-        procesoNombre: 'Cambio de pantalla',
-        estado_equipos: []
-    }
-];
 
 export default function Dashboard({ demoMode = false }) {
     const [activeTab, setActiveTab] = useState('pendientes'); // 'pendientes', 'listos', 'finalizados'
@@ -210,7 +156,11 @@ export default function Dashboard({ demoMode = false }) {
                 return;
             }
 
-            const allEquipos = equipos || [];
+            const allEquipos = (equipos || []).map((e) => {
+                // Normalizar clientes: Supabase puede devolverlo como objeto o como array
+                const clientes = Array.isArray(e.clientes) ? (e.clientes[0] || null) : (e.clientes ?? null);
+                return { ...e, clientes };
+            });
             
             // Ordenar equipos por nota numérica (PEPS correcto)
             const equiposOrdenados = allEquipos.sort((a, b) => {
@@ -260,13 +210,14 @@ export default function Dashboard({ demoMode = false }) {
 
             // Procesar equipos en memoria (sin queries adicionales)
             const equiposConSubproceso = equiposOrdenados.map((equipo) => {
-                // Obtener procesoId del estado
+                // Obtener procesoId del estado (tabla estado_equipos o relación embebida)
                 const estadosEquipo = estadosMap.get(equipo.id) || [];
-                const estadoMasReciente = estadosEquipo.sort((a, b) => 
-                    new Date(b.updated_at) - new Date(a.updated_at)
-                )[0];
-                const procesoId = estadoMasReciente?.proceso_actual_id ?? equipo.estado_equipos?.[0]?.proceso_actual_id;
-                const estadoActual = estadoMasReciente?.estado ?? 'sin_estado';
+                const estadoMasReciente = estadosEquipo.length > 0
+                    ? estadosEquipo.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0]
+                    : null;
+                const estadoEmbebido = Array.isArray(equipo.estado_equipos) ? equipo.estado_equipos[0] : equipo.estado_equipos;
+                const procesoId = estadoMasReciente?.proceso_actual_id ?? estadoEmbebido?.proceso_actual_id;
+                const estadoActual = estadoMasReciente?.estado ?? estadoEmbebido?.estado ?? 'sin_estado';
 
                 if (!procesoId) {
                     return { 
@@ -336,17 +287,20 @@ export default function Dashboard({ demoMode = false }) {
         }
     };
 
+    const loadEquiposDemo = () => {
+        const equipos = getEquiposDemo();
+        const pendientes = equipos.filter(e => e.estadoActual === 'pendiente');
+        const listos = equipos.filter(e => e.estadoActual === 'listo');
+        const finalizados = equipos.filter(e => e.estadoActual === 'finalizado');
+        setData(equipos);
+        setEquiposPendientes(pendientes);
+        setEquiposListos(listos);
+        setEquiposFinalizados(finalizados);
+    };
+
     useEffect(() => {
         if (demoMode) {
-            // En modo demo, usar datos estáticos y no tocar Supabase
-            const pendientes = DEMO_EQUIPOS.filter(e => e.estadoActual === 'pendiente');
-            const listos = DEMO_EQUIPOS.filter(e => e.estadoActual === 'listo');
-            const finalizados = DEMO_EQUIPOS.filter(e => e.estadoActual === 'finalizado');
-
-            setData(DEMO_EQUIPOS);
-            setEquiposPendientes(pendientes);
-            setEquiposListos(listos);
-            setEquiposFinalizados(finalizados);
+            loadEquiposDemo();
             setLoading(false);
             return;
         }
@@ -481,15 +435,13 @@ export default function Dashboard({ demoMode = false }) {
                 </div>
             </main>
 
-            {!demoMode && (
-                <button 
-                    className="add-equipo-fab" 
-                    onClick={() => navigate('/equipos/nuevo')}
-                    title="Agregar nuevo equipo"
-                >
-                    <Icon name="plus" />
-                </button>
-            )}
+            <button 
+                className="add-equipo-fab" 
+                onClick={() => navigate(demoMode ? '/demo/equipos/nuevo' : '/equipos/nuevo')}
+                title="Agregar nuevo equipo"
+            >
+                <Icon name="plus" />
+            </button>
         </div>
     );
 }

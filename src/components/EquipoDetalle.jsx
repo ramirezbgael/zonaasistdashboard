@@ -240,7 +240,6 @@ export default function EquipoDetalle({ demoMode = false }) {
           problema,
           contraseña,
           cargador,
-          adelanto,
           cliente_id,
           created_at,
           clientes (
@@ -254,11 +253,15 @@ export default function EquipoDetalle({ demoMode = false }) {
         .single();
 
       if (equipoError) throw equipoError;
+      // Normalizar clientes (Supabase puede devolverlo como objeto o como array)
+      const clienteFromRelation = Array.isArray(equipoData.clientes)
+        ? (equipoData.clientes[0] || null)
+        : (equipoData.clientes ?? null);
       setEquipo(equipoData);
       
       // Set cliente - handle both nested and separate loading
-      if (equipoData.clientes) {
-        setCliente(equipoData.clientes);
+      if (clienteFromRelation) {
+        setCliente(clienteFromRelation);
       } else if (equipoData.cliente_id) {
         // If cliente not loaded via relation, load it separately
         const { data: clienteData, error: clienteError } = await supabase
@@ -310,7 +313,8 @@ export default function EquipoDetalle({ demoMode = false }) {
       setEstadoEquipo(data);
       
       if (data?.proceso_actual_id) {
-        setProcesoInfo(data.procesos);
+        const proceso = Array.isArray(data.procesos) ? data.procesos[0] : data.procesos;
+        setProcesoInfo(proceso || null);
         await loadSubprocesos(data.proceso_actual_id);
       }
     } catch (error) {
@@ -1138,7 +1142,11 @@ export default function EquipoDetalle({ demoMode = false }) {
       setNuevoAdelanto('');
     } catch (error) {
       console.error('Error registrando adelanto:', error);
-      alert('Error al registrar el adelanto. Por favor intenta de nuevo.');
+      if (error?.code === '42703') {
+        alert('La tabla equipos no tiene la columna "adelanto". Ejecuta en Supabase el script add_adelanto_equipo.sql para habilitar adelantos.');
+      } else {
+        alert('Error al registrar el adelanto. Por favor intenta de nuevo.');
+      }
     } finally {
       setActualizandoAdelanto(false);
     }

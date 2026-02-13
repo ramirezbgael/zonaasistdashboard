@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import AddDocumentoModal from './AddDocumentoModal.jsx';
 
-export default function NuevoDocumentoPage() {
+export default function NuevoDocumentoPage({ demoMode = false }) {
   const navigate = useNavigate();
+  const basePath = demoMode ? '/demo' : '';
 
   return (
     <AddDocumentoModal
       mode="page"
-      onClose={() => navigate('/documentos')}
+      demoMode={demoMode}
+      onClose={() => navigate(`${basePath}/documentos`)}
       onDocumentoAdded={() => {
-        navigate('/documentos');
+        navigate(`${basePath}/documentos`);
       }}
     />
   );

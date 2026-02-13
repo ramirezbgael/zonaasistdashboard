@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabase.js';
+import { updateInventarioProducto } from '../utils/demoStorage.js';
 import Icon from './Icon.jsx';
 import './AddInventarioModal.css';
 
-export default function AgregarStockModal({ isOpen, onClose, onSuccess, producto = null, productos = [] }) {
+export default function AgregarStockModal({ isOpen, onClose, onSuccess, producto = null, productos = [], demoMode = false }) {
     const [loading, setLoading] = useState(false);
     const [productoSeleccionado, setProductoSeleccionado] = useState(producto);
     const [cantidad, setCantidad] = useState(0);
@@ -39,6 +40,25 @@ export default function AgregarStockModal({ isOpen, onClose, onSuccess, producto
 
         setLoading(true);
         try {
+            if (demoMode) {
+                const stockAnterior = productoSeleccionado.stock_actual || 0;
+                const costoAnterior = productoSeleccionado.costo_promedio || 0;
+                const nuevoStock = stockAnterior + cantidad;
+                let nuevoCostoPromedio = costoUnitario;
+                if (stockAnterior > 0 && costoAnterior > 0) {
+                    nuevoCostoPromedio = ((stockAnterior * costoAnterior) + (cantidad * costoUnitario)) / nuevoStock;
+                }
+                updateInventarioProducto(productoSeleccionado.id, {
+                    stock_actual: nuevoStock,
+                    costo_promedio: nuevoCostoPromedio
+                });
+                alert(`Se agregaron ${cantidad} unidades al inventario`);
+                onSuccess?.();
+                onClose();
+                setLoading(false);
+                return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
 
             // Intentar usar la nueva tabla profesional

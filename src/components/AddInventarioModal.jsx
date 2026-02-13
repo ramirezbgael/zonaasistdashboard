@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabase.js';
+import { addInventarioProducto, updateInventarioProducto } from '../utils/demoStorage.js';
 import Icon from './Icon.jsx';
 import CustomSelect from './CustomSelect.jsx';
 import './AddInventarioModal.css';
 
-export default function AddInventarioModal({ isOpen, onClose, onSuccess, editingProduct = null }) {
+export default function AddInventarioModal({ isOpen, onClose, onSuccess, editingProduct = null, demoMode = false }) {
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [proveedores, setProveedores] = useState([]);
@@ -215,9 +216,6 @@ export default function AddInventarioModal({ isOpen, onClose, onSuccess, editing
 
         setLoading(true);
         try {
-            // Obtener usuario actual
-            const { data: { user } } = await supabase.auth.getUser();
-
             const productData = {
                 codigo_sku: formData.codigo_sku || null,
                 tipo: formData.tipo,
@@ -235,6 +233,22 @@ export default function AddInventarioModal({ isOpen, onClose, onSuccess, editing
                 activo: formData.activo !== undefined ? formData.activo : true
             };
 
+            if (demoMode) {
+                if (editingProduct) {
+                    updateInventarioProducto(editingProduct.id, productData);
+                    alert('Producto actualizado exitosamente');
+                } else {
+                    addInventarioProducto(productData);
+                    alert('Producto agregado al inventario exitosamente');
+                }
+                onSuccess?.();
+                onClose();
+                setLoading(false);
+                return;
+            }
+
+            // Obtener usuario actual para Supabase
+            const { data: { user } } = await supabase.auth.getUser();
             let productoId;
 
             if (editingProduct) {

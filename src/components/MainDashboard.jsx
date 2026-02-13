@@ -599,7 +599,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                     <button 
                         className="quick-action-btn"
                         onClick={() => {
-                            navigate(demoMode ? '/demo/equipos' : '/equipos/nuevo');
+                            navigate(demoMode ? '/demo/equipos/nuevo' : '/equipos/nuevo');
                         }}
                         title="Nuevo Equipo"
                     >
@@ -610,7 +610,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                     <button 
                         className="quick-action-btn"
                         onClick={() => {
-                            navigate(demoMode ? '/demo/documentos' : '/documentos/nuevo');
+                            navigate(demoMode ? '/demo/documentos/nuevo' : '/documentos/nuevo');
                         }}
                         title="Nuevo Documento"
                     >
@@ -621,7 +621,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                     <button 
                         className="quick-action-btn"
                         onClick={() => {
-                            navigate(demoMode ? '/demo/logistica' : '/logistica/nuevo');
+                            navigate(demoMode ? '/demo/logistica/nuevo' : '/logistica/nuevo');
                         }}
                         title="Nuevo Pedido"
                     >

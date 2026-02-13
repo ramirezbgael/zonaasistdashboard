@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarDocumentoNuevo } from '../utils/notifications.js';
+import { addDocumento as addDocumentoDemo } from '../utils/demoStorage.js';
 import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
@@ -40,7 +41,7 @@ function getSteps(tipo_documento) {
   ];
 }
 
-export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'modal' }) {
+export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'modal', demoMode = false }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     tipo_documento: '',
@@ -194,6 +195,27 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'm
       const totalDocumento = parseFloat(formData.precio_total);
       if (Number.isNaN(totalDocumento) || totalDocumento < 0) {
         throw new Error('El total del documento no es válido');
+      }
+
+      if (demoMode) {
+        addDocumentoDemo({
+          tipo_documento: formData.tipo_documento,
+          precio_total: totalDocumento,
+          descripcion: formData.descripcion || '',
+          cliente_nombre: formData.cliente_nombre?.trim() || '',
+          cliente_telefono: formData.cliente_telefono?.trim() || '',
+          cliente_email: formData.cliente_email?.trim() || '',
+          clientes: {
+            nombre: formData.cliente_nombre?.trim() || '',
+            telefono: formData.cliente_telefono?.trim() || '',
+            email: formData.cliente_email?.trim() || '',
+          },
+        });
+        onDocumentoAdded();
+        onClose();
+        setIsSubmitting(false);
+        setLoading(false);
+        return;
       }
 
       // Obtener o crear/actualizar cliente

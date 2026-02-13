@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { supabase } from '../supabase.js';
+import { addCliente as addClienteDemo } from '../utils/demoStorage.js';
 import './AddEquipoModalTypeform.css';
 import Icon from './Icon.jsx';
 
-export default function AddClienteModal({ onClose, onClienteAdded }) {
+export default function AddClienteModal({ onClose, onClienteAdded, demoMode = false }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     nombre: '',
@@ -37,6 +38,19 @@ export default function AddClienteModal({ onClose, onClienteAdded }) {
     try {
       if (!formData.nombre || !formData.telefono) {
         alert('Por favor completa nombre y teléfono');
+        setLoading(false);
+        return;
+      }
+
+      if (demoMode) {
+        addClienteDemo({
+          nombre: formData.nombre.trim(),
+          telefono: formData.telefono.trim(),
+          email: formData.email.trim() || null,
+          direccion: formData.direccion.trim() || null,
+        });
+        onClienteAdded();
+        onClose();
         setLoading(false);
         return;
       }
