@@ -57,21 +57,37 @@ export default function MainLayout({ demoMode = false }) {
         setShowNotifications(false);
     };
 
-    // Atajo de teclado para búsqueda
+    // Atajo de teclado para búsqueda + bloquear scroll del body cuando menú móvil abierto
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                setShowSearch(true);
+                if (!demoMode) setShowSearch(true);
             }
-            if (e.key === 'Escape' && showSearch) {
-                setShowSearch(false);
+            if (e.key === 'Escape') {
+                if (showSearch) setShowSearch(false);
+                else if (showMobileMenu) setShowMobileMenu(false);
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showSearch]);
+    }, [showSearch, showMobileMenu, demoMode]);
+
+    // Bloquear scroll del body cuando el menú móvil está abierto
+    useEffect(() => {
+        if (showMobileMenu) {
+            document.body.style.overflow = 'hidden';
+            document.body.style.touchAction = 'none';
+        } else {
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
+        };
+    }, [showMobileMenu]);
 
     // Cargar foto de perfil (omitido en modo demo)
     useEffect(() => {
@@ -266,11 +282,16 @@ export default function MainLayout({ demoMode = false }) {
 
                     {/* Actions */}
                     <div className="navbar-actions">
-                        {/* Mobile Search Button (only visible on mobile) */}
+                        {/* Mobile Search Button - abre el modal de búsqueda */}
                         <button 
                             className="action-button search-mobile" 
                             aria-label="Buscar"
-                            style={{ display: 'none' }}
+                            onClick={() => {
+                                if (!demoMode) {
+                                    setShowSearch(true);
+                                    setShowMobileMenu(false);
+                                }
+                            }}
                         >
                             <Icon name="search" />
                         </button>
@@ -455,14 +476,37 @@ export default function MainLayout({ demoMode = false }) {
                             onClick={() => setShowMobileMenu(false)}
                         />
                         <div className="mobile-menu-content">
-                            {/* Mobile Search */}
+                            {/* Header móvil con botón cerrar */}
+                            <div className="mobile-menu-header">
+                                <button
+                                    className="mobile-menu-close"
+                                    onClick={() => setShowMobileMenu(false)}
+                                    aria-label="Cerrar menú"
+                                >
+                                    <Icon name="times" />
+                                </button>
+                            </div>
+                            {/* Mobile Search - al tocar abre el modal de búsqueda */}
                             <div className="mobile-search">
                                 <input
                                     type="text"
-                                    placeholder="Buscar..."
+                                    placeholder="Buscar equipos, clientes... (Cmd/Ctrl + K)"
                                     className="search-input"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
+                                    onFocus={() => {
+                                        if (!demoMode) {
+                                            setShowSearch(true);
+                                            setShowMobileMenu(false);
+                                        }
+                                    }}
+                                    onClick={() => {
+                                        if (!demoMode) {
+                                            setShowSearch(true);
+                                            setShowMobileMenu(false);
+                                        }
+                                    }}
+                                    readOnly
                                 />
                             </div>
 

@@ -229,9 +229,28 @@ export default function EquipoDetalle({ demoMode = false }) {
     setLoading(true);
     try {
       // Load equipo with cliente - explicitly select all fields including contraseña
-      const { data: equipoData, error: equipoError } = await supabase
-        .from('equipos')
-        .select(`
+      let equipoData;
+      let equipoError;
+      const selectConAdelanto = `
+          id,
+          nota,
+          marca,
+          modelo,
+          color,
+          problema,
+          contraseña,
+          cargador,
+          adelanto,
+          cliente_id,
+          created_at,
+          clientes (
+            id,
+            nombre,
+            telefono,
+            email
+          )
+        `;
+      const selectSinAdelanto = `
           id,
           nota,
           marca,
@@ -248,10 +267,16 @@ export default function EquipoDetalle({ demoMode = false }) {
             telefono,
             email
           )
-        `)
-        .eq('id', id)
-        .single();
-
+        `;
+      let result = await supabase.from('equipos').select(selectConAdelanto).eq('id', id).single();
+      equipoData = result.data;
+      equipoError = result.error;
+      if (equipoError && (equipoError.code === '42703' || (equipoError.message || '').toLowerCase().includes('adelanto'))) {
+        result = await supabase.from('equipos').select(selectSinAdelanto).eq('id', id).single();
+        equipoData = result.data;
+        equipoError = result.error;
+        if (equipoData) equipoData.adelanto = 0;
+      }
       if (equipoError) throw equipoError;
       // Normalizar clientes (Supabase puede devolverlo como objeto o como array)
       const clienteFromRelation = Array.isArray(equipoData.clientes)
@@ -420,46 +445,56 @@ export default function EquipoDetalle({ demoMode = false }) {
       
       if (error) throw error;
       
-      const historialConProfiles = await Promise.all(
-        (data || []).map(async (evento) => {
-          if (!evento.usuario_id) return { ...evento, profiles: null };
+      const eventos = data || [];
+      const otrosUsuarioIds = [...new Set(
+        eventos
+          .filter((e) => e.usuario_id && e.usuario_id !== currentUser?.id)
+          .map((e) => e.usuario_id)
+      )];
 
-          // Si es el usuario actual, usar su metadata directamente (más rápido y confiable)
-          if (currentUser?.id === evento.usuario_id) {
-            const nombre = currentUser.user_metadata?.nombre 
-              || currentUser.user_metadata?.full_name 
-              || currentUser.email?.split('@')[0] 
-              || 'Yo';
-            return { 
-              ...evento, 
-              profiles: { 
-                id: currentUser.id, 
-                nombre, 
-                email: currentUser.email, 
-                foto_url: currentUser.user_metadata?.avatar_url ?? null 
-              }
-            };
-          }
+      let profilesMap = new Map();
+      if (otrosUsuarioIds.length > 0) {
+        const { data: profilesList, error: rpcError } = await supabase
+          .rpc('get_profiles_for_historial', { user_ids: otrosUsuarioIds });
+        if (!rpcError && Array.isArray(profilesList)) {
+          profilesList.forEach((p) => {
+            if (p?.id) profilesMap.set(p.id, { id: p.id, nombre: p.nombre || '', email: p.email || '', foto_url: p.foto_url || null });
+          });
+        } else {
+          // Fallback: cargar perfil por perfil (puede fallar por RLS)
+          await Promise.all(otrosUsuarioIds.map(async (uid) => {
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('id, nombre, email, foto_url')
+                .eq('id', uid)
+                .maybeSingle();
+              if (profile) profilesMap.set(uid, profile);
+            } catch (_) {}
+          }));
+        }
+      }
 
-          // Para otros usuarios, intentar cargar el perfil (puede fallar por RLS)
-          try {
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('id, nombre, email, foto_url')
-              .eq('id', evento.usuario_id)
-              .maybeSingle();
-            
-            if (profile && !profileError) {
-              return { ...evento, profiles: profile };
+      const historialConProfiles = eventos.map((evento) => {
+        if (!evento.usuario_id) return { ...evento, profiles: null };
+        if (currentUser?.id === evento.usuario_id) {
+          const nombre = currentUser.user_metadata?.nombre
+            || currentUser.user_metadata?.full_name
+            || currentUser.email?.split('@')[0]
+            || 'Yo';
+          return {
+            ...evento,
+            profiles: {
+              id: currentUser.id,
+              nombre,
+              email: currentUser.email,
+              foto_url: currentUser.user_metadata?.avatar_url ?? null
             }
-          } catch (err) {
-            // Silenciosamente ignorar errores de RLS (400, 403, etc.)
-            // El perfil quedará como null y se mostrará "Sistema"
-          }
-          
-          return { ...evento, profiles: null };
-        })
-      );
+          };
+        }
+        const profile = profilesMap.get(evento.usuario_id) || null;
+        return { ...evento, profiles: profile };
+      });
       
       setHistorial(historialConProfiles);
     } catch (error) {
@@ -1142,10 +1177,12 @@ export default function EquipoDetalle({ demoMode = false }) {
       setNuevoAdelanto('');
     } catch (error) {
       console.error('Error registrando adelanto:', error);
-      if (error?.code === '42703') {
-        alert('La tabla equipos no tiene la columna "adelanto". Ejecuta en Supabase el script add_adelanto_equipo.sql para habilitar adelantos.');
+      const msg = (error?.message || String(error)).toLowerCase();
+      const isColumnaFalta = error?.code === '42703' || msg.includes('adelanto') || msg.includes('does not exist') || msg.includes('column');
+      if (isColumnaFalta) {
+        alert('La tabla equipos no tiene la columna "adelanto". Ejecuta en Supabase (SQL Editor) el script add_adelanto_equipo.sql del proyecto para habilitar adelantos.');
       } else {
-        alert('Error al registrar el adelanto. Por favor intenta de nuevo.');
+        alert('Error al registrar el adelanto: ' + (error?.message || error));
       }
     } finally {
       setActualizandoAdelanto(false);
@@ -1610,7 +1647,7 @@ export default function EquipoDetalle({ demoMode = false }) {
               historial.map((evento, index) => {
                 const agente = evento.profiles;
                 const avatarUrl = agente?.foto_url;
-                const agenteNombre = agente?.nombre || 'Sistema';
+                const agenteNombre = agente?.nombre?.trim() || agente?.email?.split('@')[0] || 'Sistema';
                 const initials = getInitials(agenteNombre);
                 
                 // Determine color based on event type or agent

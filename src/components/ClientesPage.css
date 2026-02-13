@@ -2,6 +2,7 @@
   min-height: 100vh;
   padding: 2rem;
   max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
   background: var(--gray-50, #fafafa);
 }
@@ -51,9 +52,10 @@
 
 .clientes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+  width: 100%;
 }
 
 .cliente-card {
@@ -371,7 +373,7 @@
   }
 
   .clientes-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 1rem;
   }
 

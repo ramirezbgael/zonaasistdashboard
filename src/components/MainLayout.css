@@ -341,12 +341,15 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   width: 280px;
+  max-width: 85vw;
   height: calc(100vh - 72px);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
   border-right: 1px solid rgba(255, 255, 255, 0.3);
   transform: translateX(-100%);
   transition: transform var(--transition-normal);
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   z-index: var(--z-mobile-menu, 1100);
 }
 
@@ -358,6 +361,47 @@
 
 .mobile-menu.active .mobile-menu-content {
   transform: translateX(0);
+}
+
+.mobile-menu-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.dark-mode .mobile-menu-header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.mobile-menu-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--spacing-sm);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dark-mode .mobile-menu-close {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.mobile-menu-close:hover {
+  background: var(--gray-100);
+  color: var(--primary-blue);
+}
+
+.dark-mode .mobile-menu-close:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .mobile-search {
@@ -372,6 +416,11 @@
 .mobile-search .search-input {
   background: var(--gray-50);
   color: var(--gray-900);
+  cursor: pointer;
+}
+
+.mobile-search .search-input[readonly] {
+  cursor: pointer;
 }
 
 .dark-mode .mobile-search .search-input {
