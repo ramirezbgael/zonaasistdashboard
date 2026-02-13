@@ -10,6 +10,7 @@ import Icon from './Icon.jsx';
 import './AddEquipoModalTypeform.css';
 
 const PROCESO_OTRO_ID = 'otro';
+const NOTA_EQUIPO_INICIAL = 13500; // Las notas de equipos empiezan en este número
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 'modal', demoMode = false }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -266,7 +267,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
           .order('id');
         setProcesos(procesosData || []);
 
-        // Cargar siguiente nota automáticamente (sin mostrarla en el form)
+        // Cargar siguiente nota automáticamente (las notas empiezan en NOTA_EQUIPO_INICIAL)
         const { data: equiposData } = await supabase
           .from('equipos')
           .select('nota')
@@ -274,10 +275,10 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
           .limit(1);
 
         if (equiposData && equiposData.length > 0) {
-          const siguiente = parseInt(equiposData[0].nota) + 1;
+          const siguiente = Math.max(parseInt(equiposData[0].nota) + 1, NOTA_EQUIPO_INICIAL);
           setSiguienteNota(siguiente);
         } else {
-          setSiguienteNota(1); // Primera nota
+          setSiguienteNota(NOTA_EQUIPO_INICIAL);
         }
 
       } catch (error) {
@@ -739,18 +740,18 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
 
       const clienteId = cliente.id;
 
-      // Generar nota automáticamente
+      // Generar nota automáticamente (las notas empiezan en NOTA_EQUIPO_INICIAL)
       let notaGenerada = siguienteNota;
       if (!notaGenerada) {
-        // Si no se calculó antes, calcular ahora
         const { data: ultimaNota } = await supabase
           .from('equipos')
           .select('nota')
           .order('nota', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
-        notaGenerada = ultimaNota ? parseInt(ultimaNota.nota) + 1 : 1;
+        notaGenerada = ultimaNota
+          ? Math.max(parseInt(ultimaNota.nota) + 1, NOTA_EQUIPO_INICIAL)
+          : NOTA_EQUIPO_INICIAL;
       }
 
       // Si no hay problema, usar una cadena vacía en lugar de null para evitar error en pendientes
@@ -786,7 +787,9 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
             .order('nota', { ascending: false })
             .limit(1);
           if (equiposData && equiposData.length > 0) {
-            setSiguienteNota(parseInt(equiposData[0].nota) + 1);
+            setSiguienteNota(Math.max(parseInt(equiposData[0].nota) + 1, NOTA_EQUIPO_INICIAL));
+          } else {
+            setSiguienteNota(NOTA_EQUIPO_INICIAL);
           }
           alert('Error: La nota ya existe. Se ha actualizado el número de nota, intenta de nuevo.');
         } else {
@@ -884,7 +887,9 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
         .order('nota', { ascending: false })
         .limit(1);
       if (equiposData && equiposData.length > 0) {
-        setSiguienteNota(parseInt(equiposData[0].nota) + 1);
+        setSiguienteNota(Math.max(parseInt(equiposData[0].nota) + 1, NOTA_EQUIPO_INICIAL));
+      } else {
+        setSiguienteNota(NOTA_EQUIPO_INICIAL);
       }
       alert('Error: No se pudo guardar el equipo. Intenta de nuevo.');
       setLoading(false);

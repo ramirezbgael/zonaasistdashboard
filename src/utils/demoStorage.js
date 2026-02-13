@@ -12,9 +12,9 @@ const KEYS = {
 };
 
 const SEED_EQUIPOS = [
-  { id: 'demo-e1', marca: 'Dell', modelo: 'Inspiron 15', color: 'negro', nota: '123', problema: 'No enciende', created_at: null, cliente_id: null, clientes: { nombre: 'Juan Pérez', telefono: '5512345678' }, estadoActual: 'pendiente', siguienteSubproceso: { nombre: 'Diagnóstico inicial' }, totalSubprocesos: 3, tieneProcesoValido: true, procesoNombre: 'Reparación estándar', estado_equipos: [] },
-  { id: 'demo-e2', marca: 'HP', modelo: 'Pavilion 14', color: 'gris', nota: '130', problema: 'Lento y se traba', created_at: null, cliente_id: null, clientes: { nombre: 'Ana López', telefono: '5522334455' }, estadoActual: 'listo', siguienteSubproceso: null, totalSubprocesos: 4, tieneProcesoValido: true, procesoNombre: 'Mantenimiento completo', estado_equipos: [] },
-  { id: 'demo-e3', marca: 'Lenovo', modelo: 'IdeaPad 3', color: 'azul', nota: '140', problema: 'Pantalla rota', created_at: null, cliente_id: null, clientes: { nombre: 'Mario Díaz', telefono: '5544556677' }, estadoActual: 'finalizado', siguienteSubproceso: null, totalSubprocesos: 2, tieneProcesoValido: true, procesoNombre: 'Cambio de pantalla', estado_equipos: [] },
+  { id: 'demo-e1', marca: 'Dell', modelo: 'Inspiron 15', color: 'negro', nota: '13500', problema: 'No enciende', created_at: null, cliente_id: null, clientes: { nombre: 'Juan Pérez', telefono: '5512345678' }, estadoActual: 'pendiente', siguienteSubproceso: { nombre: 'Diagnóstico inicial' }, totalSubprocesos: 3, tieneProcesoValido: true, procesoNombre: 'Reparación estándar', estado_equipos: [] },
+  { id: 'demo-e2', marca: 'HP', modelo: 'Pavilion 14', color: 'gris', nota: '13501', problema: 'Lento y se traba', created_at: null, cliente_id: null, clientes: { nombre: 'Ana López', telefono: '5522334455' }, estadoActual: 'listo', siguienteSubproceso: null, totalSubprocesos: 4, tieneProcesoValido: true, procesoNombre: 'Mantenimiento completo', estado_equipos: [] },
+  { id: 'demo-e3', marca: 'Lenovo', modelo: 'IdeaPad 3', color: 'azul', nota: '13502', problema: 'Pantalla rota', created_at: null, cliente_id: null, clientes: { nombre: 'Mario Díaz', telefono: '5544556677' }, estadoActual: 'finalizado', siguienteSubproceso: null, totalSubprocesos: 2, tieneProcesoValido: true, procesoNombre: 'Cambio de pantalla', estado_equipos: [] },
 ];
 
 const SEED_CLIENTES = [
@@ -30,8 +30,8 @@ const SEED_DOCUMENTOS = [
 ];
 
 const SEED_PEDIDOS = [
-  { id: 'demo-p1', nombre_pieza: 'SSD 500GB NVMe', cantidad: 2, estado: 'pendiente', fecha_estimada_llegada: null, created_at: null, proveedores: { nombre: 'Amazon' }, equipos: { id: 'demo-e1', marca: 'Dell', modelo: 'Inspiron 15', nota: '123', cliente_id: null, clientes: { id: 'demo-c1', nombre: 'Juan Pérez', telefono: '5512345678', email: 'juan@example.com' } } },
-  { id: 'demo-p2', nombre_pieza: 'Teclado Lenovo', cantidad: 1, estado: 'recibido', fecha_estimada_llegada: null, created_at: null, proveedores: { nombre: 'Mayorista XYZ' }, equipos: { id: 'demo-e2', marca: 'Lenovo', modelo: 'IdeaPad 3', nota: '140', cliente_id: null, clientes: { id: 'demo-c2', nombre: 'Ana López', telefono: '5522334455', email: 'ana@example.com' } } },
+  { id: 'demo-p1', nombre_pieza: 'SSD 500GB NVMe', cantidad: 2, estado: 'pendiente', fecha_estimada_llegada: null, created_at: null, proveedores: { nombre: 'Amazon' }, equipos: { id: 'demo-e1', marca: 'Dell', modelo: 'Inspiron 15', nota: '13500', cliente_id: null, clientes: { id: 'demo-c1', nombre: 'Juan Pérez', telefono: '5512345678', email: 'juan@example.com' } } },
+  { id: 'demo-p2', nombre_pieza: 'Teclado Lenovo', cantidad: 1, estado: 'recibido', fecha_estimada_llegada: null, created_at: null, proveedores: { nombre: 'Mayorista XYZ' }, equipos: { id: 'demo-e2', marca: 'Lenovo', modelo: 'IdeaPad 3', nota: '13501', cliente_id: null, clientes: { id: 'demo-c2', nombre: 'Ana López', telefono: '5522334455', email: 'ana@example.com' } } },
 ];
 
 const SEED_INVENTARIO = [
@@ -69,10 +69,13 @@ export function getEquipos() {
   return seedIfEmpty(KEYS.EQUIPOS, SEED_EQUIPOS);
 }
 
+const NOTA_EQUIPO_INICIAL = 13500;
+
 export function addEquipo(equipo) {
   const list = getEquipos();
   const id = generateId('demo-e');
-  const nota = equipo.nota || String(Math.max(...list.map((e) => parseInt(e.nota) || 0), 0) + 1);
+  const maxExistente = list.length ? Math.max(...list.map((e) => parseInt(e.nota) || 0)) : 0;
+  const nota = equipo.nota || String(Math.max(maxExistente + 1, NOTA_EQUIPO_INICIAL));
   const nuevo = {
     ...equipo,
     id,

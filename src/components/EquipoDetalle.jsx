@@ -12,7 +12,7 @@ const DEMO_EQUIPOS_DETALLE = {
   'demo-e1': {
     equipo: {
       id: 'demo-e1',
-      nota: '123',
+      nota: '13500',
       marca: 'Dell',
       modelo: 'Inspiron 15',
       color: 'negro',
@@ -83,7 +83,7 @@ const DEMO_EQUIPOS_DETALLE = {
   'demo-e2': {
     equipo: {
       id: 'demo-e2',
-      nota: '130',
+      nota: '13501',
       marca: 'HP',
       modelo: 'Pavilion 14',
       color: 'gris',

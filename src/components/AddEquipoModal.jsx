@@ -106,12 +106,18 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
             colores
           });
 
+          const NOTA_INICIAL = 13500;
           const ultimaNota = data[0].nota;
-          const siguienteNota = parseInt(ultimaNota) + 1;
+          const siguienteNota = Math.max(parseInt(ultimaNota) + 1, NOTA_INICIAL);
           
           setFormData(prev => ({
             ...prev,
             nota: siguienteNota.toString()
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            nota: '13500'
           }));
         }
       } catch (error) {
@@ -437,17 +443,6 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
                     ¿Se queda el cargador? <span className="text-red-400">*</span>
                   </label>
                   <select
-                    id="cargador"
-                    name="cargador"
-                    value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData(prev => ({
-                        ...prev,
-                        cargador: value === 'si' ? true : value === 'no' ? false : null
-                      }));
-                    }}
-                    required
                     id="cargador"
                     name="cargador"
                     value={formData.cargador === true ? 'si' : formData.cargador === false ? 'no' : ''}
