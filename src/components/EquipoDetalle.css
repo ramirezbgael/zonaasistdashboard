@@ -2063,7 +2063,90 @@
 .costos-content {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Desglose servicios y refacciones */
+.costos-desglose {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  padding: 0.75rem;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.dark-mode .costos-desglose {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.costos-desglose-titulo {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #059669;
+  margin-bottom: 0.5rem;
+}
+
+.dark-mode .costos-desglose-titulo {
+  color: #34d399;
+}
+
+.costos-desglose-titulo .fa,
+.costos-desglose-titulo i {
+  opacity: 0.9;
+}
+
+.costos-desglose-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0;
+}
+
+.costos-desglose-nombre {
+  color: var(--text-primary, #1a1a1a);
+  flex: 1;
+  min-width: 0;
+  padding-right: 0.5rem;
+}
+
+.dark-mode .costos-desglose-nombre {
+  color: #e2e8f0;
+}
+
+.costos-desglose-precio {
+  font-weight: 600;
+  color: var(--text-primary, #1a1a1a);
+  flex-shrink: 0;
+}
+
+.dark-mode .costos-desglose-precio {
+  color: #e2e8f0;
+}
+
+.costos-desglose-subtotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  border-top: 1px dashed rgba(16, 185, 129, 0.3);
+  color: #059669;
+}
+
+.dark-mode .costos-desglose-subtotal {
+  color: #34d399;
+}
+
+.costos-desglose-empty {
+  color: var(--text-secondary, #757575);
 }
 
 .costos-row {

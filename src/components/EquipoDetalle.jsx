@@ -1449,18 +1449,66 @@ export default function EquipoDetalle({ demoMode = false }) {
                   const adeudo = totalCalculado - adelanto;
                   return (
                     <>
-                      <div className="costos-row">
-                        <span className="costos-label">Servicios:</span>
-                        <span className="costos-value">${serviciosTot.toFixed(2)}</span>
+                      {/* Desglose Servicios */}
+                      <div className="costos-desglose">
+                        <div className="costos-desglose-titulo">
+                          <Icon name="wrench" />
+                          Servicios
+                        </div>
+                        {procesosEquipo.length > 0 ? (
+                          <>
+                            {procesosEquipo.map((p, i) => {
+                              const precio = parseFloat(p?.precio) || 0;
+                              return (
+                                <div key={p?.id || i} className="costos-desglose-item">
+                                  <span className="costos-desglose-nombre">{p?.nombre || 'Servicio'}</span>
+                                  <span className="costos-desglose-precio">${precio.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                            <div className="costos-desglose-subtotal">
+                              <span>Subtotal servicios</span>
+                              <span>${serviciosTot.toFixed(2)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="costos-desglose-item costos-desglose-empty">
+                            <span>Sin servicios</span>
+                            <span>$0.00</span>
+                          </div>
+                        )}
                       </div>
-                      {pedidosTotal > 0 && (
-                        <div className="costos-row">
-                          <span className="costos-label">Refacciones:</span>
-                          <span className="costos-value">${pedidosTotal.toFixed(2)}</span>
+                      {/* Desglose Refacciones */}
+                      {pedidosLigados.length > 0 && (
+                        <div className="costos-desglose">
+                          <div className="costos-desglose-titulo">
+                            <Icon name="box" />
+                            Refacciones
+                          </div>
+                          {pedidosLigados.map((p) => {
+                            const qty = parseFloat(p?.cantidad) || 0;
+                            const unit = parseFloat(p?.precio_unitario) || 0;
+                            const subtotal = qty * unit;
+                            return (
+                              <div key={p.id} className="costos-desglose-item">
+                                <span className="costos-desglose-nombre">
+                                  {p?.nombre_pieza || 'Refacción'} {qty > 1 ? `× ${qty}` : ''}
+                                </span>
+                                <span className="costos-desglose-precio">${subtotal.toFixed(2)}</span>
+                              </div>
+                            );
+                          })}
+                          <div className="costos-desglose-subtotal">
+                            <span>Subtotal refacciones</span>
+                            <span>${pedidosTotal.toFixed(2)}</span>
+                          </div>
                         </div>
                       )}
+                      {/* Extra */}
                       <div className="costos-row costos-extra">
-                        <span className="costos-label">Extra (opcional):</span>
+                        <span className="costos-label">
+                          <Icon name="plus" /> Extra (opcional)
+                        </span>
                         <input
                           type="number"
                           className="costos-extra-input"

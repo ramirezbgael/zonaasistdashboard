@@ -35,6 +35,29 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
   const guardadoExitoso = useRef(false);
+  const [notasDisponibles, setNotasDisponibles] = useState([]);
+
+  // Cargar notas disponibles al llegar al paso de equipo
+  useEffect(() => {
+    if (currentStep !== 2 || demoMode) return;
+    const cargarNotas = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('equipos')
+          .select('nota')
+          .not('nota', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!error && data) {
+          const notas = [...new Set(data.map((e) => String(e.nota).trim()).filter(Boolean))];
+          setNotasDisponibles(notas);
+        }
+      } catch (err) {
+        console.error('Error cargando notas:', err);
+      }
+    };
+    cargarNotas();
+  }, [currentStep, demoMode]);
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
@@ -82,8 +105,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
     }
   };
 
-  const buscarEquipoPorNota = async () => {
-    const nota = String(formData.equipo_nota || '').trim();
+  const buscarEquipoPorNota = async (notaOverride) => {
+    const nota = (notaOverride !== undefined ? String(notaOverride || '').trim() : String(formData.equipo_nota || '').trim());
     if (!nota) {
       setEquipoRelacionado(null);
       return;
@@ -164,7 +187,11 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
         alert('Error al guardar los datos del cliente. Por favor intenta de nuevo.');
       }
     } else if (field === 'equipo_nota') {
-      // Nota de equipo es opcional, siempre avanzamos
+      // Si hay nota escrita y no está ligado, buscar antes de avanzar
+      const nota = String(formData.equipo_nota || '').trim();
+      if (nota && !equipoRelacionado && !buscandoEquipo) {
+        await buscarEquipoPorNota(nota);
+      }
       setTimeout(() => setCurrentStep(3), 300);
     } else if (field === 'producto' && formData.producto.trim()) {
       setTimeout(() => setCurrentStep(4), 300);
@@ -525,18 +552,33 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
             <h2 className="typeform-question">¿Quieres ligar este pedido a un equipo? (Opcional)</h2>
             <p className="typeform-description">{steps[2].description}</p>
             <div className="typeform-field-wrapper">
+              <datalist id="notas-equipo">
+                {notasDisponibles.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
               <input
                 type="text"
                 name="equipo_nota"
                 value={formData.equipo_nota}
                 onChange={handleInputChange}
+                onBlur={(e) => {
+                  const v = e.target.value?.trim();
+                  if (v) buscarEquipoPorNota(v);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    buscarEquipoPorNota();
+                    const v = formData.equipo_nota?.trim();
+                    if (v) {
+                      buscarEquipoPorNota(v);
+                    } else {
+                      handleFieldComplete('equipo_nota');
+                    }
                   }
                 }}
-                placeholder="Nota del equipo (opcional) Ej: 123"
+                list="notas-equipo"
+                placeholder="Escribe o selecciona el número de nota"
                 className="typeform-large-input"
                 style={{ marginBottom: '1rem' }}
               />
