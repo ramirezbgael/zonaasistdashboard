@@ -1274,7 +1274,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           </button>
         </div>
         <div className="header-data-grid">
-          <div className="header-data-block">
+          <div className="header-data-block header-data-block-equipo">
             <div className="header-data-label">Equipo</div>
             <div className="header-data-values">
               {equipo.color && (
@@ -1297,6 +1297,30 @@ export default function EquipoDetalle({ demoMode = false }) {
                 </span>
               )}
             </div>
+            {/* Total debajo de Equipo */}
+            {(() => {
+              const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+              const extra = parseFloat(precioExtra) || 0;
+              const totalCalculado = serviciosTot + pedidosTotal + extra;
+              const adelanto = parseFloat(equipo.adelanto || 0);
+              const adeudo = totalCalculado - adelanto;
+              return (
+                <div className="header-equipo-total">
+                  <div className="header-total-row">
+                    <span>Total</span>
+                    <span className="header-total-valor">${totalCalculado.toFixed(2)}</span>
+                  </div>
+                  <div className="header-total-row">
+                    <span>Adelanto</span>
+                    <span>${adelanto.toFixed(2)}</span>
+                  </div>
+                  <div className="header-total-row">
+                    <span>Adeudo</span>
+                    <span className={adeudo > 0 ? 'header-adeudo-pendiente' : 'header-adeudo-cero'}>${adeudo.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           <div className="header-data-block">
             <div className="header-data-label">Cliente</div>
