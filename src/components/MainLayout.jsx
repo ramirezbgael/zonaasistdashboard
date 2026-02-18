@@ -57,7 +57,7 @@ export default function MainLayout({ demoMode = false }) {
         setShowNotifications(false);
     };
 
-    // Atajo de teclado para búsqueda + bloquear scroll del body cuando menú móvil abierto
+    // Atajo de teclado para búsqueda + evento desde dashboard "Buscar Nota"
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -69,9 +69,16 @@ export default function MainLayout({ demoMode = false }) {
                 else if (showMobileMenu) setShowMobileMenu(false);
             }
         };
+        const handleOpenSearch = () => {
+            if (!demoMode) setShowSearch(true);
+        };
 
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('openSearchModal', handleOpenSearch);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('openSearchModal', handleOpenSearch);
+        };
     }, [showSearch, showMobileMenu, demoMode]);
 
     // Bloquear scroll del body cuando el menú móvil está abierto

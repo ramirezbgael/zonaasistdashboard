@@ -455,15 +455,16 @@
   width: 100%;
   padding: var(--space-8) var(--space-6);
   font-size: var(--font-2xl);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--gray-300);
   border-radius: var(--radius-lg);
   font-family: inherit;
   transition: all var(--transition);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--white);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   text-align: center;
   min-height: 80px;
+  color: var(--gray-900);
   box-shadow: 
     0 4px 16px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -935,17 +936,18 @@
   width: 100%;
   padding: var(--space-6);
   font-size: var(--font-xl);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--gray-300);
   border-radius: var(--radius-lg);
   font-family: inherit;
   transition: all var(--transition);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--white);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   text-align: left;
   min-height: 150px;
   resize: vertical;
   line-height: 1.6;
+  color: var(--gray-900);
   box-shadow: 
     0 4px 16px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -1358,7 +1360,7 @@
 .dark-mode .typeform-large-input {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
-  color: var(--gray-900);
+  color: var(--white);
 }
 
 .dark-mode .typeform-large-input::placeholder {
@@ -1383,7 +1385,7 @@
 .dark-mode .typeform-large-textarea {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
-  color: var(--gray-900);
+  color: var(--white);
 }
 
 .dark-mode .typeform-large-textarea::placeholder {

@@ -196,7 +196,7 @@
 }
 
 .settings-section {
-  background: var(--slate-900, #18181b);
+  background: var(--white);
   border-radius: var(--radius-lg, 16px);
   padding: 2.5rem 2rem 2rem 2rem;
   box-shadow: 0 2px 16px 0 rgba(0,0,0,0.12);
@@ -205,6 +205,12 @@
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
+  border: 1px solid var(--gray-200);
+}
+
+.dark-mode .settings-section {
+  background: var(--slate-900, #18181b);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .settings-section:last-child {
@@ -218,6 +224,10 @@
   margin-bottom: 1.5rem;
   letter-spacing: 0.01em;
   text-align: center;
+}
+
+.dark-mode .settings-section-title {
+  color: var(--primary-blue, #3b82f6);
 }
 
 .settings-form-fields {
@@ -237,19 +247,23 @@
 }
 
 .settings-item label {
-  color: var(--slate-200, #e5e7eb);
+  color: var(--gray-700);
   font-weight: 500;
   font-size: 1rem;
   margin-bottom: 0.1rem;
+}
+
+.dark-mode .settings-item label {
+  color: var(--slate-200, #e5e7eb);
 }
 
 .settings-item input[type="text"],
 .settings-item input[type="number"],
 .settings-item input[type="email"],
 .settings-item input[type="password"] {
-  background: var(--slate-800, #23272f);
-  color: var(--slate-100, #f1f5f9);
-  border: 1.5px solid var(--slate-700, #334155);
+  background: var(--white);
+  color: var(--gray-900);
+  border: 1.5px solid var(--gray-300);
   border-radius: 7px;
   padding: 0.65rem 0.9rem;
   font-size: 1rem;
@@ -258,6 +272,16 @@
   width: 100%;
   box-sizing: border-box;
 }
+
+.dark-mode .settings-item input[type="text"],
+.dark-mode .settings-item input[type="number"],
+.dark-mode .settings-item input[type="email"],
+.dark-mode .settings-item input[type="password"] {
+  background: var(--slate-800, #23272f);
+  color: var(--slate-100, #f1f5f9);
+  border-color: var(--slate-700, #334155);
+}
+
 .settings-item input:focus {
   border-color: var(--primary-blue, #3b82f6);
 }
@@ -267,6 +291,31 @@
   width: 1.1rem;
   height: 1.1rem;
   margin-right: 0.5rem;
+}
+
+.settings-item-info {
+  flex: 1;
+}
+
+.settings-item-title {
+  color: var(--gray-900);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+}
+
+.dark-mode .settings-item-title {
+  color: var(--white);
+}
+
+.settings-item-description {
+  color: var(--gray-600);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.dark-mode .settings-item-description {
+  color: var(--gray-400);
 }
 
 .settings-save-btn {
@@ -371,7 +420,14 @@
 }
 
 .settings-procesos-section .procesos-header h1 {
-  font-size: 1.5rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -0.02em;
+}
+
+.dark-mode .settings-procesos-section .procesos-header h1 {
+  color: var(--white);
 }
 
 /* Mobile Responsive */

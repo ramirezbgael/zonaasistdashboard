@@ -17,8 +17,13 @@
 .procesos-header h1 {
   font-size: 2rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-900);
   margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.dark-mode .procesos-header h1 {
+  color: var(--text-primary, #ffffff);
 }
 
 .procesos-list {
@@ -28,16 +33,26 @@
 }
 
 .proceso-card {
-  background: var(--card-bg, rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  background: var(--white);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg, 12px);
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
 }
 
 .proceso-card:hover {
+  border-color: var(--primary-blue, #10b981);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
+}
+
+.dark-mode .proceso-card {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .proceso-card:hover {
   border-color: var(--primary-color, rgba(16, 185, 129, 0.3));
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
@@ -56,15 +71,23 @@
 .proceso-card-info h3 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-900);
   margin: 0 0 0.5rem 0;
 }
 
+.dark-mode .proceso-card-info h3 {
+  color: var(--text-primary, #ffffff);
+}
+
 .proceso-descripcion {
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: var(--gray-600);
   margin: 0.5rem 0;
   font-size: 0.95rem;
   line-height: 1.5;
+}
+
+.dark-mode .proceso-descripcion {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
 .proceso-stats {
@@ -104,7 +127,11 @@
 .proceso-subprocesos {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-top: 1px solid var(--gray-200);
+}
+
+.dark-mode .proceso-subprocesos {
+  border-top-color: var(--card-border, rgba(255, 255, 255, 0.1));
 }
 
 .subprocesos-header {
@@ -117,8 +144,12 @@
 .subprocesos-header h4 {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-800);
   margin: 0;
+}
+
+.dark-mode .subprocesos-header h4 {
+  color: var(--text-primary, #ffffff);
 }
 
 .subprocesos-list {
@@ -132,13 +163,23 @@
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  background: var(--card-bg, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.05));
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md, 8px);
   transition: all 0.2s ease;
 }
 
 .subproceso-item:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+.dark-mode .subproceso-item {
+  background: var(--card-bg, rgba(255, 255, 255, 0.03));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.05));
+}
+
+.dark-mode .subproceso-item:hover {
   background: var(--card-bg, rgba(255, 255, 255, 0.05));
   border-color: var(--card-border, rgba(255, 255, 255, 0.1));
 }
@@ -165,15 +206,23 @@
 .subproceso-content h5 {
   font-size: 1rem;
   font-weight: 500;
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-900);
   margin: 0 0 0.25rem 0;
+}
+
+.dark-mode .subproceso-content h5 {
+  color: var(--text-primary, #ffffff);
 }
 
 .subproceso-descripcion {
   font-size: 0.875rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: var(--gray-600);
   margin: 0;
   line-height: 1.4;
+}
+
+.dark-mode .subproceso-descripcion {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
 }
 
 .subproceso-actions {
@@ -186,6 +235,11 @@
 .empty-subprocesos {
   text-align: center;
   padding: 3rem 2rem;
+  color: var(--gray-600);
+}
+
+.dark-mode .empty-state,
+.dark-mode .empty-subprocesos {
   color: var(--text-secondary, rgba(255, 255, 255, 0.6));
 }
 
@@ -207,17 +261,26 @@
   align-items: center;
   justify-content: center;
   padding: 4rem 2rem;
+  color: var(--gray-600);
+}
+
+.dark-mode .loading-state {
   color: var(--text-secondary, rgba(255, 255, 255, 0.6));
 }
 
 .loading-spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid var(--card-border, rgba(255, 255, 255, 0.1));
-  border-top-color: var(--primary-color, #10b981);
+  border: 3px solid var(--gray-200);
+  border-top-color: var(--primary-blue, #10b981);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
+}
+
+.dark-mode .loading-spinner {
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
+  border-top-color: var(--primary-color, #10b981);
 }
 
 @keyframes spin {

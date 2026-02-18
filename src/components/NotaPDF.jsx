@@ -160,25 +160,32 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
       }
       y += h2 + 5;
 
-      // ─── BLOQUE 3: SERVICIO (mejorado visualmente) ──────────────────
-      const prob = equipo.problema?.trim() || null;
+      // ─── BLOQUE 3: SERVICIO (Problema, Detalle, Solución) ────────────
+      // Problema reportado = procesos (lo que se cotizó / reportó)
+      // Detalle = texto libre (equipo.problema: "Otro: Memoria de 8gb ddr3")
+      // Solución implementada = texto confirmado en la nota (por defecto igual a Problema reportado)
       const procesosList = Array.isArray(equipo.procesos) ? equipo.procesos : (equipo.procesos ? [equipo.procesos] : []);
-      const sol = procesosList.length ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ') : null;
+      const problema = procesosList.length ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ') : null;
+      const detalle = equipo.problema?.trim() || null;
+      const solucionImplementada = (equipo.solucion_implementada?.trim() || problema || null);
       
-      // Problema reportado = procesos (en recepción y entrega)
-      // Solución implementada = equipo.problema (solo en entrega)
-      const tieneProblema = sol && sol.length > 0; // Procesos siempre van en "Problema reportado"
-      const tieneSolucion = tipo === 'entrega' && prob && prob.length > 0; // equipo.problema solo en entrega
+      // 1) Problema reportado = procesos
+      // 2) Detalle = equipo.problema
+      // 3) Solución implementada = confirmado en modal (default = Problema reportado)
+      const tieneProblema = problema && problema.length > 0;
+      const tieneDetalle = detalle && detalle.length > 0;
+      const tieneSolucion = tipo === 'entrega' && solucionImplementada && solucionImplementada.length > 0;
       
-      if (tieneProblema || tieneSolucion) {
+      if (tieneProblema || tieneDetalle || tieneSolucion) {
         const lineH = 5;
-        const probLinesPreview = prob ? doc.splitTextToSize(prob, contentWidth - 20) : [];
-        const solLinesPreview = sol ? doc.splitTextToSize(sol, contentWidth - 20) : [];
+        const problemaLines = problema ? doc.splitTextToSize(problema, contentWidth - 20) : [];
+        const detalleLines = detalle ? doc.splitTextToSize(detalle, contentWidth - 20) : [];
+        const solucionLines = tieneSolucion ? doc.splitTextToSize(solucionImplementada, contentWidth - 20) : [];
         
-        // Calcular altura: problema = procesos (sol); solución = equipo.problema (prob) solo en entrega
-        const probBlockH = tieneProblema ? (4 + 5.5 + solLinesPreview.length * lineH + 4) : 0;
-        const solBlockH = tieneSolucion ? (4 + 5.5 + probLinesPreview.length * lineH + 4) : 0;
-        const h3 = 9 + 1 + 2 + probBlockH + solBlockH + 3;
+        const problemaBlockH = tieneProblema ? (4 + 5.5 + problemaLines.length * lineH + 4) : 0;
+        const detalleBlockH = tieneDetalle ? (4 + 5.5 + detalleLines.length * lineH + 4) : 0;
+        const solucionBlockH = tieneSolucion ? (4 + 5.5 + solucionLines.length * lineH + 4) : 0;
+        const h3 = 9 + 1 + 2 + problemaBlockH + detalleBlockH + solucionBlockH + 3;
         
         // Fondo con tinte sutil
         doc.setFillColor(250, 250, 250);
@@ -203,8 +210,8 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
         const innerX = margin + 10;
         let innerY = y + 12;
         
-        // Problema reportado = procesos (en recepción y entrega)
-        if (tieneProblema && solLinesPreview.length > 0) {
+        // 1) Problema reportado
+        if (tieneProblema && problemaLines.length > 0) {
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...colors.grayDark);
@@ -213,12 +220,26 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
           doc.setFontSize(10);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(...colors.black);
-          solLinesPreview.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
-          innerY += solLinesPreview.length * lineH + 4;
+          problemaLines.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
+          innerY += problemaLines.length * lineH + 4;
         }
 
-        // Solución implementada = equipo.problema (solo en entrega)
-        if (tieneSolucion && probLinesPreview.length > 0) {
+        // 2) Detalle (procesos realizados)
+        if (tieneDetalle && detalleLines.length > 0) {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...colors.grayDark);
+          doc.text('Detalle:', innerX, innerY);
+          innerY += 5.5;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...colors.black);
+          detalleLines.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
+          innerY += detalleLines.length * lineH + 4;
+        }
+
+        // 3) Solución implementada (solo en entrega)
+        if (tieneSolucion && solucionLines.length > 0) {
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...colors.accent);
@@ -227,7 +248,7 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
           doc.setFontSize(10);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(...colors.black);
-          probLinesPreview.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
+          solucionLines.forEach((line, i) => { doc.text(line, innerX + 2, innerY + i * lineH); });
         }
         
         y += h3 + 5;

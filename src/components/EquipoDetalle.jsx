@@ -170,6 +170,7 @@ export default function EquipoDetalle({ demoMode = false }) {
   const [precioExtra, setPrecioExtra] = useState('');
   const [showConfirmarTotalModal, setShowConfirmarTotalModal] = useState(false);
   const [totalConfirmado, setTotalConfirmado] = useState('');
+  const [solucionImplementada, setSolucionImplementada] = useState('');
 
   useEffect(() => {
     loadCurrentUser();
@@ -1609,6 +1610,11 @@ export default function EquipoDetalle({ demoMode = false }) {
                       const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
                       const extra = parseFloat(precioExtra) || 0;
                       setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
+                      const procesosList = procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []);
+                      const problemaTexto = procesosList.length
+                        ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ')
+                        : '';
+                      setSolucionImplementada(problemaTexto);
                       setShowConfirmarTotalModal(true);
                     }}
                   >
@@ -1817,6 +1823,16 @@ export default function EquipoDetalle({ demoMode = false }) {
                   autoFocus
                 />
               </div>
+              <div className="confirmar-total-display">
+                <label>Solución implementada</label>
+                <textarea
+                  className="confirmar-total-input"
+                  rows={3}
+                  placeholder="Describe brevemente la solución aplicada (se usará en la nota de entrega)."
+                  value={solucionImplementada}
+                  onChange={(e) => setSolucionImplementada(e.target.value)}
+                />
+              </div>
               <div className="confirmar-total-resumen">
                 <div className="confirmar-total-row">
                   <span>Adelanto:</span>
@@ -1842,12 +1858,16 @@ export default function EquipoDetalle({ demoMode = false }) {
                     alert('El total no puede ser negativo.');
                     return;
                   }
+                  const solucionTexto = (solucionImplementada && solucionImplementada.trim())
+                    || (equipo?.problema && equipo.problema.trim())
+                    || '';
                   const eqParaNota = {
                     ...equipo,
                     procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
                     pedidos_ligados: pedidosLigados,
                     pedidos_total: pedidosTotal,
-                    precio_total_confirmado: total
+                    precio_total_confirmado: total,
+                    solucion_implementada: solucionTexto
                   };
                   setEquipoParaNotaPDF(eqParaNota);
                   setShowConfirmarTotalModal(false);

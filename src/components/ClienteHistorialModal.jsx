@@ -398,7 +398,7 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
                 </strong>
               </div>
               <div style={{ marginBottom: '0.75rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                <label className="cuenta-movimiento-label">
                   Monto
                 </label>
                 <input
@@ -413,7 +413,7 @@ export default function ClienteHistorialModal({ cliente, onClose }) {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                <label className="cuenta-movimiento-label">
                   Nota (opcional)
                 </label>
                 <textarea

@@ -633,10 +633,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                         className="quick-action-btn"
                         onClick={() => {
                             if (demoMode) return;
-                            const nota = prompt('Ingresa el número de nota a buscar:');
-                            if (nota) {
-                                navigate(`/equipos?search=${nota}`);
-                            }
+                            window.dispatchEvent(new CustomEvent('openSearchModal'));
                         }}
                         title="Buscar por Nota"
                     >

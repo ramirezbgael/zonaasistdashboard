@@ -24,18 +24,24 @@
 }
 
 .cliente-historial-modal {
-  background: var(--card-bg, rgba(20, 20, 20, 0.95));
+  background: var(--white);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg, 12px);
   max-width: 800px;
   width: 100%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   animation: slideUp 0.25s ease-out;
+}
+
+.dark-mode .cliente-historial-modal {
+  background: var(--card-bg, rgba(20, 20, 20, 0.95));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
 @keyframes slideUp {
@@ -54,20 +60,32 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 1.5rem;
-  border-bottom: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.dark-mode .cliente-historial-header {
+  border-bottom-color: var(--card-border, rgba(255, 255, 255, 0.1));
 }
 
 .cliente-historial-header-info h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-900);
   margin: 0 0 0.25rem 0;
+}
+
+.dark-mode .cliente-historial-header-info h2 {
+  color: var(--text-primary, #ffffff);
 }
 
 .cliente-historial-subtitle {
   font-size: 1rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: var(--gray-600);
   margin: 0;
+}
+
+.dark-mode .cliente-historial-subtitle {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
 .cliente-historial-close-btn {
@@ -77,16 +95,27 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--gray-300);
   border-radius: var(--radius-md, 8px);
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: var(--gray-700);
   font-size: 1.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
+.dark-mode .cliente-historial-close-btn {
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
 .cliente-historial-close-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+  color: var(--gray-900);
+}
+
+.dark-mode .cliente-historial-close-btn:hover {
   background: var(--card-bg, rgba(255, 255, 255, 0.05));
   border-color: var(--card-border, rgba(255, 255, 255, 0.2));
   color: var(--text-primary, #ffffff);
@@ -100,11 +129,16 @@
 
 /* Sección Cuenta: clara, con códigos de color */
 .cuenta-section {
-  background: var(--card-bg, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md, 8px);
   padding: 1rem 1.25rem;
   margin-bottom: 1.25rem;
+}
+
+.dark-mode .cuenta-section {
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
 }
 
 .cuenta-section-header {
@@ -116,6 +150,10 @@
 
 .cuenta-label {
   font-size: 0.9rem;
+  color: var(--gray-700);
+}
+
+.dark-mode .cuenta-label {
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
@@ -134,6 +172,10 @@
 }
 
 .cuenta-saldo.saldo-cero {
+  color: var(--gray-600);
+}
+
+.dark-mode .cuenta-saldo.saldo-cero {
   color: var(--text-secondary, rgba(255, 255, 255, 0.6));
 }
 
@@ -197,6 +239,10 @@
 .cuenta-movimiento-saldo {
   margin-bottom: 0.75rem;
   font-size: 0.9rem;
+  color: var(--gray-700);
+}
+
+.dark-mode .cuenta-movimiento-saldo {
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
@@ -209,6 +255,10 @@
 }
 
 .cuenta-movimiento-saldo .saldo-cero {
+  color: var(--gray-600);
+}
+
+.dark-mode .cuenta-movimiento-saldo .saldo-cero {
   color: var(--text-secondary, rgba(255, 255, 255, 0.6));
 }
 
@@ -466,18 +516,31 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-top: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}
+
+.dark-mode .cliente-historial-footer {
+  border-top-color: var(--card-border, rgba(255, 255, 255, 0.1));
   background: var(--card-bg, rgba(255, 255, 255, 0.02));
 }
 
 .cliente-historial-stats {
   font-size: 0.9375rem;
+  color: var(--gray-600);
+}
+
+.dark-mode .cliente-historial-stats {
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
 .cliente-historial-stats strong {
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-900);
   font-weight: 600;
+}
+
+.dark-mode .cliente-historial-stats strong {
+  color: var(--text-primary, #ffffff);
 }
 
 .btn-secondary {
@@ -485,17 +548,28 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  background: var(--card-bg, rgba(255, 255, 255, 0.05));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  background: var(--white);
+  border: 1px solid var(--gray-300);
   border-radius: var(--radius-md, 8px);
-  color: var(--text-primary, #ffffff);
+  color: var(--gray-900);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
+.dark-mode .btn-secondary {
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #ffffff);
+}
+
 .btn-secondary:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+}
+
+.dark-mode .btn-secondary:hover {
   background: var(--card-bg, rgba(255, 255, 255, 0.08));
   border-color: var(--card-border, rgba(255, 255, 255, 0.2));
 }
@@ -535,6 +609,19 @@
   }
 }
 
+/* Labels en modal de cuenta - mejor contraste */
+.cuenta-movimiento-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--gray-700);
+  font-weight: 500;
+}
+
+.dark-mode .cuenta-movimiento-label {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.9));
+}
+
 /* Dark mode adjustments */
 .dark-mode .cliente-historial-modal {
   background: rgba(15, 15, 15, 0.98);
@@ -542,5 +629,70 @@
 
 .dark-mode .historial-item {
   background: rgba(30, 30, 30, 0.8);
+}
+
+.dark-mode .historial-item {
+  background: rgba(30, 30, 30, 0.8);
+}
+
+/* Historial items en modo claro */
+.historial-item {
+  background: var(--white);
+  border-color: var(--gray-200);
+}
+
+.dark-mode .historial-item {
+  background: rgba(30, 30, 30, 0.8);
+  border-color: var(--card-border, rgba(255, 255, 255, 0.1));
+}
+
+.historial-item-title h3 {
+  color: var(--gray-900);
+}
+
+.dark-mode .historial-item-title h3 {
+  color: var(--text-primary, #ffffff);
+}
+
+.historial-item-color {
+  color: var(--gray-600);
+}
+
+.dark-mode .historial-item-color {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.historial-item-problema,
+.historial-item-proceso {
+  color: var(--gray-600);
+}
+
+.dark-mode .historial-item-problema,
+.dark-mode .historial-item-proceso {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.historial-item-date {
+  color: var(--gray-500);
+}
+
+.dark-mode .historial-item-date {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.cliente-historial-empty h3 {
+  color: var(--gray-900);
+}
+
+.dark-mode .cliente-historial-empty h3 {
+  color: var(--text-primary, #ffffff);
+}
+
+.cliente-historial-empty p {
+  color: var(--gray-600);
+}
+
+.dark-mode .cliente-historial-empty p {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
 }
 
