@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import jsPDF from 'jspdf';
 import './NotaPDF.css';
 
-export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
+export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose, asPage = false, onPdfReady }) {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [pdfFileName, setPdfFileName] = useState(null);
+  const iframeRef = useRef(null);
   
   // Detectar si es un pedido, transcripción o documento
   const esPedido = equipo?.tipo === 'pedido' || equipo?.marca === 'Pedido';
@@ -117,8 +118,8 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
       doc.setFont('helvetica', 'normal');
       doc.text(tituloDoc, logoRight, 19);
 
-      const fechaRec = new Date(equipo?.created_at || Date.now()).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const fechaEnt = tipo === 'entrega' ? new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+      const fechaRec = new Date(equipo?.created_at || Date.now()).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Mexico_City' });
+      const fechaEnt = tipo === 'entrega' ? new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Mexico_City' }) : null;
       const meta = `Nota #${equipo.nota || 'N/A'}   ·   Tel. 722 437 71 08   ·   Recepción: ${fechaRec}${fechaEnt ? `   ·   Entrega: ${fechaEnt}` : ''}`;
       doc.setFontSize(9);
       doc.setTextColor(...colors.grayDark);
@@ -402,12 +403,36 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose }) {
       const blobUrl = URL.createObjectURL(pdfBlob);
       setPdfUrl({ dataUri: pdfDataUri, blobUrl });
       setPdfFileName(fileName);
+      if (asPage && onPdfReady) {
+        onPdfReady({ blobUrl, fileName, dataUri: pdfDataUri, getIframe: () => iframeRef.current });
+      }
     } catch (error) {
       console.error('Error al generar PDF:', error);
       alert('Error al generar el PDF. Por favor intenta de nuevo.');
     }
   };
 
+  // Modo página: mostrar PDF en iframe grande (para iPhone, imprimir sin salir)
+  if (asPage) {
+    return (
+      <div className="nota-pdf-page-view">
+        {pdfUrl ? (
+          <iframe
+            ref={iframeRef}
+            title={tipo === 'recepcion' ? 'Nota de Recepción' : 'Nota de Entrega'}
+            src={pdfUrl.dataUri}
+            className="nota-pdf-page-iframe"
+          />
+        ) : (
+          <div className="nota-pdf-loading-container">
+            <p className="nota-pdf-loading">Generando PDF...</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Modo modal (legacy)
   return createPortal(
     <div className="nota-pdf-container">
       <div className="nota-pdf-content">

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
 import Icon from './Icon.jsx';
-import NotaPDF from './NotaPDF.jsx';
 import './EquipoModal.css';
 
-export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
+export default function EquipoModal({ equipo, onClose, onEquipoUpdated, demoMode }) {
+  const navigate = useNavigate();
   const [procesos, setProcesos] = useState([]);
   const [procesoActual, setProcesoActual] = useState(null);
   const [subprocesos, setSubprocesos] = useState([]);
@@ -23,10 +24,18 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
   const [contactData, setContactData] = useState({ telefono: null, nombreCliente: 'el cliente' });
   const [respuestaPaso, setRespuestaPaso] = useState('');
   const [completandoPaso, setCompletandoPaso] = useState(false);
-  const [showNotaPDFModal, setShowNotaPDFModal] = useState(false);
-  const [tipoNotaPDF, setTipoNotaPDF] = useState(null); // 'recepcion' o 'entrega'
   const [showEntregaSuccess, setShowEntregaSuccess] = useState(false);
   const ruletaWrapperRef = useRef(null);
+
+  const abrirNotaPDF = (tipoNota) => {
+    const basePath = demoMode ? '/demo' : '';
+    const procesoInfo = procesos.find(p => p.id === procesoActual);
+    const eq = { ...equipo, procesos: procesoInfo ? [procesoInfo] : [] };
+    onClose?.();
+    navigate(`${basePath}/nota-pdf`, {
+      state: { equipo: eq, cliente, tipo: tipoNota, returnTo: `${basePath}/equipos` }
+    });
+  };
 
   useEffect(() => {
     if (equipo?.id) {
@@ -65,7 +74,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Mexico_City'
     }).format(date);
   };
 
@@ -245,7 +255,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         const { error } = await supabase
           .from('estado_equipos')
           .update({
-            estado: 'listo',
+            estado: 'ready_for_pickup',
+            ready_at: new Date().toISOString(),
             proceso_actual_id: procesoActual,
             updated_at: new Date().toISOString()
           })
@@ -256,7 +267,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           .from('estado_equipos')
           .insert({
             equipo_id: equipo.id,
-            estado: 'listo',
+            estado: 'ready_for_pickup',
+            ready_at: new Date().toISOString(),
             proceso_actual_id: procesoActual,
             updated_at: new Date().toISOString()
           });
@@ -308,7 +320,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
       const { error: estadoError } = await supabase
         .from('estado_equipos')
         .update({
-          estado: 'finalizado',
+          estado: 'delivered',
+          delivered_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('equipo_id', equipo.id);
@@ -338,15 +351,11 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
       setShowEntregaModal(false);
       setEntregaLoading(false);
       setShowEntregaSuccess(true);
-      setTipoNotaPDF('entrega');
-      setShowNotaPDFModal(true);
-
+      onEquipoUpdated?.();
+      window.dispatchEvent(new Event('equipoUpdated'));
       setTimeout(() => {
         setShowEntregaSuccess(false);
-        setShowNotaPDFModal(false);
-        onEquipoUpdated?.();
-        window.dispatchEvent(new Event('equipoUpdated'));
-        onClose();
+        abrirNotaPDF('entrega');
       }, 2000);
     } else {
       setEntregaLoading(false);
@@ -438,9 +447,9 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
     
     let mensajeTexto = `Hola ${contactData.nombreCliente}! Te escribo de Zona Asist sobre tu equipo #${equipo.nota} (${equipo.marca} ${equipo.modelo}).`;
     
-    if (estadoEquipo?.estado === 'listo') {
+    if (estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo') {
       mensajeTexto += ' Tu equipo ya está listo para recoger. ¡Saludos!';
-    } else if (estadoEquipo?.estado === 'finalizado') {
+    } else if (estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'finalizado') {
       mensajeTexto += ' Ya fue entregado. ¡Gracias!';
     } else if (siguienteSubproceso) {
       mensajeTexto += ` Actualmente está en: ${siguienteSubproceso.nombre}. ¡Saludos!`;
@@ -526,10 +535,7 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
         {/* Header con información del equipo - Simplificado, sin background */}
           <div className="equipo-modal-header">
           <div className="equipo-header-main">
-            <div className="equipo-numero-badge" onClick={() => {
-              setTipoNotaPDF('recepcion');
-              setShowNotaPDFModal(true);
-            }} style={{ cursor: 'pointer' }} title="Ver nota de recepción">
+            <div className="equipo-numero-badge" onClick={() => abrirNotaPDF('recepcion')} style={{ cursor: 'pointer' }} title="Ver nota de recepción">
               <span className="equipo-numero-prefix">#</span>
               <span className="equipo-numero-value">{equipo.nota}</span>
             </div>
@@ -542,10 +548,11 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
                 </span>
                 {estadoEquipo && (
                   <span className={`estado-badge ${estadoEquipo.estado}`}>
-                    <Icon name={estadoEquipo.estado === 'en_proceso' ? 'clock' : estadoEquipo.estado === 'finalizado' ? 'check-circle' : estadoEquipo.estado === 'listo' ? 'check-circle' : 'hourglass-half'} className="meta-icon" />
+                    <Icon name={estadoEquipo.estado === 'en_proceso' ? 'clock' : estadoEquipo.estado === 'delivered' || estadoEquipo.estado === 'finalizado' ? 'check-circle' : estadoEquipo.estado === 'ready_for_pickup' || estadoEquipo.estado === 'listo' ? 'check-circle' : 'hourglass-half'} className="meta-icon" />
                     {estadoEquipo.estado === 'en_proceso' ? 'En Proceso' : 
-                     estadoEquipo.estado === 'finalizado' ? 'Finalizado' :
-                     estadoEquipo.estado === 'listo' ? 'Listo' : 'Pendiente'}
+                     estadoEquipo.estado === 'delivered' || estadoEquipo.estado === 'finalizado' ? 'Entregado' :
+                     estadoEquipo.estado === 'ready_for_pickup' || estadoEquipo.estado === 'listo' ? 'Listo para recoger' :
+                     estadoEquipo.estado === 'cancelled' ? 'Cancelado' : 'Pendiente'}
                   </span>
                 )}
               </div>
@@ -744,23 +751,17 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
           <div className="actions-row">
             <button 
               className="btn-nota-pdf full-width"
-              onClick={() => {
-                setTipoNotaPDF('recepcion');
-                setShowNotaPDFModal(true);
-              }}
+              onClick={() => abrirNotaPDF('recepcion')}
               title="Generar nota de recepción"
             >
               <Icon name="file-alt" />
               Nota de Recepción
             </button>
             
-            {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+            {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'finalizado') && (
               <button 
                 className="btn-nota-pdf full-width"
-                onClick={() => {
-                  setTipoNotaPDF('entrega');
-                  setShowNotaPDFModal(true);
-                }}
+                onClick={() => abrirNotaPDF('entrega')}
                 title="Generar nota de entrega"
               >
                 <Icon name="file-alt" />
@@ -783,8 +784,8 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
               </button>
             )}
             
-            {/* Si está listo, puede ser entregado */}
-            {estadoEquipo?.estado === 'listo' && (
+            {/* Si está listo para recoger, puede ser entregado */}
+            {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo') && (
               <button 
                 className="btn-finalizar full-width"
                 onClick={marcarComoFinalizado}
@@ -1004,22 +1005,6 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated }) {
             </div>
           </div>,
           document.body
-        )}
-
-        {/* Modal de Nota PDF */}
-        {showNotaPDFModal && tipoNotaPDF && (
-          <NotaPDF
-            equipo={{
-              ...equipo,
-              procesos: procesoInfo
-            }}
-            cliente={cliente}
-            tipo={tipoNotaPDF}
-            onClose={() => {
-              setShowNotaPDFModal(false);
-              setTipoNotaPDF(null);
-            }}
-          />
         )}
 
         {/* Feedback visual de éxito */}

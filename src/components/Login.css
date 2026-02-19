@@ -170,7 +170,7 @@
 .dark-mode .login-input {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
-  color: var(--gray-900);
+  color: #ffffff;
 }
 
 .login-input::placeholder {

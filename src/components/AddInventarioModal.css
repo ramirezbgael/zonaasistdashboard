@@ -265,15 +265,16 @@
 .dark-mode .typeform-form-group select.form-input option,
 .dark-mode .typeform-form-group select option,
 .dark-mode .form-group select option {
-  background: var(--gray-100) !important;
-  color: var(--gray-900) !important;
+  background: rgba(26, 26, 26, 0.95) !important;
+  color: #ffffff !important;
 }
 
 .dark-mode .form-group select.form-input option:hover,
 .dark-mode .typeform-form-group select.form-input option:hover,
 .dark-mode .typeform-form-group select option:hover,
 .dark-mode .form-group select option:hover {
-  background: var(--gray-200) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
 }
 
 .dark-mode .form-group select.form-input option:checked,

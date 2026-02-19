@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import { addPedido as addPedidoDemo } from '../utils/demoStorage.js';
 import { notificarPedidoNuevo } from '../utils/notifications.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
-import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
 export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal', demoMode = false }) {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     // Proveedor ya no se pide en el formulario, pero dejamos
@@ -28,10 +29,6 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [buscandoEquipo, setBuscandoEquipo] = useState(false);
   const [equipoRelacionado, setEquipoRelacionado] = useState(null);
-  const [showNotaPDF, setShowNotaPDF] = useState(false);
-  const [pedidoGuardado, setPedidoGuardado] = useState(null);
-  const [proveedorGuardado, setProveedorGuardado] = useState(null);
-  const [clienteGuardado, setClienteGuardado] = useState(null);
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
   const guardadoExitoso = useRef(false);
@@ -317,8 +314,8 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
           }
         }
 
-        // Guardar datos para mostrar nota PDF
-        setPedidoGuardado({
+        // Navegar a página de nota PDF
+        const pedidoParaNota = {
           nota: `PED-${data[0].id}`,
           marca: 'Pedido',
           modelo: formData.producto,
@@ -330,25 +327,21 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
           restante: restante,
           pago_full: formData.pago_full,
           created_at: data[0].created_at,
-          tipo: 'pedido' // Marcar como pedido
+          tipo: 'pedido'
+        };
+        const proveedorParaNota = formData.proveedor ? { nombre: formData.proveedor, telefono: '', email: '' } : null;
+        onPedidoAdded?.();
+        onClose?.();
+        const basePath = demoMode ? '/demo' : '';
+        navigate(`${basePath}/nota-pdf`, {
+          state: {
+            equipo: pedidoParaNota,
+            cliente: clienteFinal || null,
+            proveedor: proveedorParaNota,
+            tipo: 'recepcion',
+            returnTo: `${basePath}/logistica`
+          }
         });
-        // Proveedor es opcional; si no se capturó, simplemente se deja vacío en la nota
-        setProveedorGuardado(
-          formData.proveedor
-            ? {
-                nombre: formData.proveedor,
-                telefono: '',
-                email: ''
-              }
-            : null
-        );
-        // Guardar cliente si existe
-        if (clienteFinal) {
-          setClienteGuardado(clienteFinal);
-        } else {
-          setClienteGuardado(null);
-        }
-        setShowNotaPDF(true);
       } else {
         onPedidoAdded?.();
         onClose?.();
@@ -944,23 +937,6 @@ export default function AddPedidoModal({ onClose, onPedidoAdded, mode = 'modal',
           </div>
         )}
 
-        {/* Modal de Nota PDF: mostrar aunque no haya proveedor (es opcional) */}
-        {showNotaPDF && pedidoGuardado && (
-          <NotaPDF
-            equipo={pedidoGuardado}
-            cliente={clienteGuardado}
-            proveedor={proveedorGuardado}
-            tipo="recepcion"
-            onClose={() => {
-              setShowNotaPDF(false);
-              setPedidoGuardado(null);
-              setProveedorGuardado(null);
-              setClienteGuardado(null);
-              onPedidoAdded?.();
-              onClose?.();
-            }}
-          />
-        )}
       </div>
     </div>
   );

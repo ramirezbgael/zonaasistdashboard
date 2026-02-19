@@ -538,7 +538,8 @@ export default function WhatsAppPage({ demoMode = false }) {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            timeZone: 'America/Mexico_City'
         });
     };
 

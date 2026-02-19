@@ -151,7 +151,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
         if (diffMins < 60) return `Hace ${diffMins} min`;
         if (diffHours < 24) return `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
         if (diffDays < 7) return `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
-        return date.toLocaleDateString('es-MX');
+        return date.toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City' });
     };
 
     const fetchDashboardData = async () => {
@@ -243,9 +243,9 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                     console.log(`Equipo #${equipo.nota}: estado="${estado}", tieneEstadoActual=${!!estadoActual}, updated_at="${estadoActual?.updated_at || 'N/A'}"`);
                     
                     // Clasificar equipos por estado
-                    if (estado === 'listo') {
+                    if (estado === 'ready_for_pickup' || estado === 'listo') { // 'listo' para compatibilidad temporal
                         equiposListos++;
-                        // Entregas para hoy (equipos listos)
+                        // Entregas para hoy (equipos listos para recoger)
                         entregasParaHoy.push({
                             id: equipo.id,
                             nota: equipo.nota,
@@ -254,7 +254,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                             cliente: equipo.clientes?.nombre,
                             tipo: 'entrega_hoy'
                         });
-                    } else if (estado === 'finalizado') {
+                    } else if (estado === 'delivered' || estado === 'finalizado') { // 'finalizado' para compatibilidad temporal
                         equiposFinalizados++;
                         const fechaFinalizacion = new Date(ultimaActualizacion);
                         if (fechaFinalizacion >= hoy) {
@@ -264,7 +264,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                             equiposTerminadosSemana++;
                         }
                     } else {
-                        // Todos los demás estados (en_proceso, pendiente, sin_estado) son pendientes
+                        // Todos los demás estados (en_proceso, pendiente, sin_estado, cancelled) son pendientes
                         equiposPendientes++;
                         // Equipos retrasados (más de 3 días sin movimiento)
                         if (diasSinMovimiento > 3) {
@@ -461,7 +461,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                         tipo: 'pedido',
                         icono: 'box',
                         titulo: `Verificar pedido de ${pedido.nombre_pieza}`,
-                        descripcion: `Fecha estimada: ${new Date(pedido.fecha_estimada_llegada).toLocaleDateString('es-MX')}`,
+                        descripcion: `Fecha estimada: ${new Date(pedido.fecha_estimada_llegada).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City' })}`,
                         accion: () => navigate(`/logistica?pedido=${pedido.id}`),
                         prioridad: 'alta'
                     });

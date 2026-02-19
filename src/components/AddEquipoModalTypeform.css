@@ -348,6 +348,20 @@
   font-family: inherit;
   transition: all var(--transition-fast);
   background: var(--white);
+  color: var(--gray-900);
+}
+
+.dark-mode .typeform-form-group input,
+.dark-mode .typeform-form-group textarea,
+.dark-mode .typeform-form-group select {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.dark-mode .typeform-form-group input::placeholder,
+.dark-mode .typeform-form-group textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .typeform-form-group input:focus,
@@ -356,6 +370,14 @@
   outline: none;
   border-color: var(--primary-blue);
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.dark-mode .typeform-form-group input:focus,
+.dark-mode .typeform-form-group textarea:focus,
+.dark-mode .typeform-form-group select:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #ffffff;
 }
 
 .typeform-form-group textarea {
@@ -1375,11 +1397,12 @@
 .dark-mode .typeform-select {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
-  color: var(--gray-900);
+  color: #ffffff;
 }
 
 .dark-mode .typeform-select:focus {
   background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
 }
 
 .dark-mode .typeform-large-textarea {

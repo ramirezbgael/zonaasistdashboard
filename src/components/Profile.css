@@ -330,7 +330,7 @@
 .dark-mode .profile-input {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
-  color: var(--gray-900);
+  color: #ffffff;
 }
 
 .profile-input:focus {

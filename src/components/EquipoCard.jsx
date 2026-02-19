@@ -185,7 +185,7 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
         updateResult = await supabase
           .from('estado_equipos')
           .update({
-            estado: 'finalizado',
+            estado: 'delivered',
             updated_at: new Date().toISOString()
           })
           .eq('equipo_id', equipo.id)
@@ -196,7 +196,7 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
           .from('estado_equipos')
           .insert({
             equipo_id: equipo.id,
-            estado: 'finalizado',
+            estado: 'delivered',
             proceso_actual_id: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()

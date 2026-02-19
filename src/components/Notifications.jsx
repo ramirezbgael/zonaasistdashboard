@@ -139,7 +139,8 @@ export default function Notifications({ onClose, onCountChange }) {
     if (diffDays < 7) return `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
     return new Intl.DateTimeFormat('es-MX', {
       day: '2-digit',
-      month: 'short'
+      month: 'short',
+      timeZone: 'America/Mexico_City'
     }).format(date);
   };
 

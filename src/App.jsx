@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/Login.jsx';
-import MainLayout from './components/MainLayout.jsx';
+import AppLayout from './components/AppLayout.jsx';
+import MainLayout from './components/MainLayout.jsx'; // Mantener para compatibilidad temporal
 import MainDashboard from './components/MainDashboard.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import EquipoDetalle from './components/EquipoDetalle.jsx';
@@ -14,6 +15,7 @@ import ClientesPage from './components/ClientesPage.jsx';
 import InventarioPage from './components/InventarioPage.jsx';
 import ReportesPage from './components/ReportesPage.jsx';
 import WhatsAppPage from './components/WhatsAppPage.jsx';
+import NotaPDFPage from './components/NotaPDFPage.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import './App.css';
 
@@ -25,10 +27,12 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             {/* Ruta pública de demo para portafolio (sin PrivateRoute, pero con el mismo layout, en modo demo) */}
+            {/* Demo: página de nota PDF */}
+            <Route path="/demo/nota-pdf" element={<NotaPDFPage demoMode />} />
             <Route
               path="/demo"
               element={
-                <MainLayout demoMode />
+                <AppLayout demoMode />
               }
             >
               <Route index element={<MainDashboard demoMode />} />
@@ -46,11 +50,20 @@ export default function App() {
               {/* Fallback demo: si cae en otra subruta de /demo, mostrar dashboard demo */}
               <Route path="*" element={<MainDashboard demoMode />} />
             </Route>
+            {/* Página full-screen de nota PDF (sin layout para mejor impresión en móvil) */}
+            <Route
+              path="/nota-pdf"
+              element={
+                <PrivateRoute>
+                  <NotaPDFPage />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/"
               element={
                 <PrivateRoute>
-                  <MainLayout />
+                  <AppLayout />
                 </PrivateRoute>
               }
             >

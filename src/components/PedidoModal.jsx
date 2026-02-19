@@ -221,7 +221,8 @@ export default function PedidoModal({ pedido, onClose, onPedidoUpdated }) {
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Mexico_City'
     }).format(date);
   };
 

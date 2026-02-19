@@ -1,0 +1,163 @@
+/* NotaPDFPage - página full-screen para ver e imprimir PDF */
+
+.nota-pdf-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  color: #e2e8f0;
+}
+
+.nota-pdf-page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(26, 26, 26, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.nota-pdf-page-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nota-pdf-page-toolbar-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nota-pdf-page-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nota-pdf-page-toolbar-btn-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: white;
+}
+
+.nota-pdf-page-toolbar-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669, #047857);
+}
+
+.nota-pdf-page-toolbar-btn-secondary {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.nota-pdf-page-toolbar-btn-secondary:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.nota-pdf-page-toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nota-pdf-page-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nota-pdf-page-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #2d2d2d;
+}
+
+.nota-pdf-page-iframe {
+  flex: 1;
+  width: 100%;
+  min-height: 400px;
+  border: none;
+  background: white;
+}
+
+.nota-pdf-loading-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.nota-pdf-loading-container .nota-pdf-loading {
+  font-size: 1.125rem;
+  color: #94a3b8;
+}
+
+/* Error state */
+.nota-pdf-page-error {
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.nota-pdf-page-error-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.nota-pdf-page-error-content svg {
+  font-size: 3rem;
+  color: #f59e0b;
+  margin-bottom: 1rem;
+}
+
+.nota-pdf-page-error-content h2 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.nota-pdf-page-error-content p {
+  color: #94a3b8;
+  margin: 0 0 1.5rem;
+}
+
+.nota-pdf-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Print: ocultar toolbar y mostrar solo el PDF */
+@media print {
+  .nota-pdf-page-toolbar {
+    display: none !important;
+  }
+  
+  .nota-pdf-page-content,
+  .nota-pdf-page-view {
+    min-height: auto !important;
+  }
+  
+  .nota-pdf-page-iframe {
+    min-height: 100vh !important;
+  }
+}

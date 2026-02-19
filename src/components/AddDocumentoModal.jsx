@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarDocumentoNuevo } from '../utils/notifications.js';
 import { addDocumento as addDocumentoDemo } from '../utils/demoStorage.js';
-import NotaPDF from './NotaPDF.jsx';
 import './AddEquipoModalTypeform.css';
 
 // --- FIX: Declarar steps y esTranscripcion FUERA del componente para evitar ReferenceError en hooks ---
@@ -42,6 +42,7 @@ function getSteps(tipo_documento) {
 }
 
 export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'modal', demoMode = false }) {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     tipo_documento: '',
@@ -58,10 +59,6 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'm
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
-  const [showNotaPDF, setShowNotaPDF] = useState(false);
-  const [documentoGuardado, setDocumentoGuardado] = useState(null);
-  const [clienteGuardado, setClienteGuardado] = useState(null);
-
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
     if (mode !== 'modal') return;
@@ -291,8 +288,8 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'm
         const adelanto = parseFloat(formData.adelanto) || 0;
         const restante = precioTotal - adelanto;
 
-        // Guardar datos para mostrar nota PDF
-        setDocumentoGuardado({
+        // Navegar a página de nota PDF
+        const docParaNota = {
           nota: `DOC-${data[0].id}`,
           marca: 'Documento',
           modelo: formData.tipo_documento,
@@ -304,9 +301,13 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'm
           pago_full: formData.pago_full,
           created_at: data[0].created_at,
           tipo: 'documento'
+        };
+        onDocumentoAdded();
+        onClose();
+        const basePath = demoMode ? '/demo' : '';
+        navigate(`${basePath}/nota-pdf`, {
+          state: { equipo: docParaNota, cliente, tipo: 'recepcion', returnTo: `${basePath}/documentos` }
         });
-        setClienteGuardado(cliente);
-        setShowNotaPDF(true);
       } else {
         onDocumentoAdded();
         onClose();
@@ -776,21 +777,6 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'm
           </div>
         )}
 
-        {/* Modal de Nota PDF */}
-        {showNotaPDF && documentoGuardado && clienteGuardado && (
-          <NotaPDF
-            equipo={documentoGuardado}
-            cliente={clienteGuardado}
-            tipo="recepcion"
-            onClose={() => {
-              setShowNotaPDF(false);
-              setDocumentoGuardado(null);
-              setClienteGuardado(null);
-              onDocumentoAdded();
-              onClose();
-            }}
-          />
-        )}
       </div>
     </div>
   );

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
 import { uploadEquipoPhoto } from '../services/photoUpload.service.js';
 import { addEquipo as addEquipoDemo } from '../utils/demoStorage.js';
-import NotaPDF from './NotaPDF.jsx';
 import Icon from './Icon.jsx';
 import './AddEquipoModalTypeform.css';
 
@@ -13,6 +13,7 @@ const PROCESO_OTRO_ID = 'otro';
 const NOTA_EQUIPO_INICIAL = 13500; // Las notas de equipos empiezan en este número
 
 export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 'modal', demoMode = false }) {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formSubStep, setFormSubStep] = useState(0); // 0: marca, 1: modelo, 2: color, 3: cargador
   const [additionalSubStep, setAdditionalSubStep] = useState(0); // 0: proceso, 1: cliente_telefono, 2: cliente_datos (nombre/email), 3: detalle
@@ -48,9 +49,6 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
   const { clienteEncontrado, buscarCliente, actualizarCliente, obtenerOCrearCliente, verificarDatosCompletos } = useClienteSearch();
   const [datosFaltantes, setDatosFaltantes] = useState([]);
   const [siguienteNota, setSiguienteNota] = useState(null);
-  const [showNotaPDF, setShowNotaPDF] = useState(false);
-  const [equipoGuardado, setEquipoGuardado] = useState(null);
-  const [clienteGuardado, setClienteGuardado] = useState(null);
 
   // Marcas predefinidas para autocompletado
   const marcasPredefinidas = [
@@ -869,15 +867,14 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
           sum + (parseFloat(p?.precio || 0)), 0
         );
         
-        setEquipoGuardado({
-          ...data[0],
-          procesos: procesosSeleccionadosData,
-          precio_total: precioTotal > 0 ? precioTotal : null
-        });
-        setClienteGuardado(cliente);
-        setShowNotaPDF(true);
+        const equipoGuardado = { ...data[0], procesos: procesosSeleccionadosData, precio_total: precioTotal > 0 ? precioTotal : null };
         setLoading(false);
-        // Aquí puedes mostrar un mensaje de éxito si quieres
+        onEquipoAdded?.();
+        onClose?.();
+        const basePath = demoMode ? '/demo' : '';
+        navigate(`${basePath}/nota-pdf`, {
+          state: { equipo: equipoGuardado, cliente, tipo: 'recepcion', returnTo: `${basePath}/equipos` }
+        });
         return;
       }
       // Si no se insertó, refrescar siguienteNota y mostrar error
@@ -1680,21 +1677,6 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
           </div>
         )}
 
-        {/* Modal de Nota PDF */}
-        {showNotaPDF && equipoGuardado && clienteGuardado && (
-          <NotaPDF
-            equipo={equipoGuardado}
-            cliente={clienteGuardado}
-            tipo="recepcion"
-            onClose={() => {
-              setShowNotaPDF(false);
-              setEquipoGuardado(null);
-              setClienteGuardado(null);
-              onEquipoAdded();
-              onClose();
-            }}
-          />
-        )}
       </div>
     </div>
   );

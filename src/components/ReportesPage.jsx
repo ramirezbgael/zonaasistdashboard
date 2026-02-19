@@ -399,7 +399,8 @@ export default function ReportesPage({ demoMode = false }) {
         return new Date(fecha).toLocaleDateString('es-MX', {
             year: 'numeric',
             month: 'long',
-            day: 'numeric'
+            day: 'numeric',
+            timeZone: 'America/Mexico_City'
         });
     };
 

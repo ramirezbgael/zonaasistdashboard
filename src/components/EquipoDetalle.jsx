@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
-import { getEquipoPhotos } from '../services/photoUpload.service.js';
+import { getEquipoPhotos, uploadEquipoPhoto } from '../services/photoUpload.service.js';
 import Icon from './Icon.jsx';
-import NotaPDF from './NotaPDF.jsx';
 import './EquipoDetalle.css';
+import './AddEquipoModalTypeform.css';
 
 // Datos de ejemplo para modo demo (sin Supabase)
 const DEMO_EQUIPOS_DETALLE = {
@@ -140,12 +140,11 @@ export default function EquipoDetalle({ demoMode = false }) {
   const [loading, setLoading] = useState(true);
   const [respuestaPaso, setRespuestaPaso] = useState('');
   const [completandoPaso, setCompletandoPaso] = useState(false);
-  const [showNotaPDFModal, setShowNotaPDFModal] = useState(false);
-  const [tipoNotaPDF, setTipoNotaPDF] = useState(null);
-  const [equipoParaNotaPDF, setEquipoParaNotaPDF] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [fotos, setFotos] = useState([]);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const fileInputRef = useRef(null);
   const [showComentarioModal, setShowComentarioModal] = useState(false);
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -153,10 +152,13 @@ export default function EquipoDetalle({ demoMode = false }) {
   const [procesosDisponibles, setProcesosDisponibles] = useState([]);
   const [procesoSeleccionado, setProcesoSeleccionado] = useState(null);
   const [justificacionFinalizado, setJustificacionFinalizado] = useState('');
+  const [justificacionReabrir, setJustificacionReabrir] = useState('');
   const [cambiandoProceso, setCambiandoProceso] = useState(false);
   const [finalizandoConJustificacion, setFinalizandoConJustificacion] = useState(false);
+  const [reabriendoEquipo, setReabriendoEquipo] = useState(false);
   const [showPagoModal, setShowPagoModal] = useState(false);
   const [nuevoAdelanto, setNuevoAdelanto] = useState('');
+  const [descripcionAdelanto, setDescripcionAdelanto] = useState('');
   const [actualizandoAdelanto, setActualizandoAdelanto] = useState(false);
   const [showLicenciaModal, setShowLicenciaModal] = useState(false);
   const [licenciaForm, setLicenciaForm] = useState({
@@ -165,9 +167,18 @@ export default function EquipoDetalle({ demoMode = false }) {
     clave: '',
     fecha_activacion: '',
   });
+  const [costosExpanded, setCostosExpanded] = useState(false);
+  const [showConfirmEstadoModal, setShowConfirmEstadoModal] = useState(false);
+  const [confirmEstadoData, setConfirmEstadoData] = useState(null);
+  const [showProblemaModal, setShowProblemaModal] = useState(false);
   const [pedidosLigados, setPedidosLigados] = useState([]);
   const [pedidosTotal, setPedidosTotal] = useState(0);
   const [precioExtra, setPrecioExtra] = useState('');
+  const [descripcionExtra, setDescripcionExtra] = useState('');
+  const [guardandoExtra, setGuardandoExtra] = useState(false);
+  const [showPagoCompletoModal, setShowPagoCompletoModal] = useState(false);
+  const [marcandoComoPagado, setMarcandoComoPagado] = useState(false);
+  const [showExtraModal, setShowExtraModal] = useState(false);
   const [showConfirmarTotalModal, setShowConfirmarTotalModal] = useState(false);
   const [totalConfirmado, setTotalConfirmado] = useState('');
   const [solucionImplementada, setSolucionImplementada] = useState('');
@@ -200,7 +211,7 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   useEffect(() => {
     const estado = estadoEquipo?.estado;
-    if (id && (estado === 'en_proceso' || estado === 'listo' || estado === 'finalizado') && !demoMode) {
+    if (id && (estado === 'en_proceso' || estado === 'ready_for_pickup' || estado === 'listo' || estado === 'delivered' || estado === 'finalizado') && !demoMode) {
       loadPedidosLigados();
     } else {
       setPedidosLigados([]);
@@ -247,7 +258,32 @@ export default function EquipoDetalle({ demoMode = false }) {
       // Load equipo with cliente - explicitly select all fields including contraseña
       let equipoData;
       let equipoError;
-      const selectConAdelanto = `
+      
+      // Primero intentar con todas las columnas (incluyendo las nuevas)
+      const selectCompleto = `
+          id,
+          nota,
+          marca,
+          modelo,
+          color,
+          problema,
+          contraseña,
+          cargador,
+          adelanto,
+          precio_extra,
+          descripcion_extra,
+          cliente_id,
+          created_at,
+          clientes (
+            id,
+            nombre,
+            telefono,
+            email
+          )
+        `;
+      
+      // Si faltan columnas nuevas, intentar sin ellas
+      const selectSinExtra = `
           id,
           nota,
           marca,
@@ -266,7 +302,9 @@ export default function EquipoDetalle({ demoMode = false }) {
             email
           )
         `;
-      const selectSinAdelanto = `
+      
+      // Si falta adelanto también
+      const selectBasico = `
           id,
           nota,
           marca,
@@ -284,16 +322,119 @@ export default function EquipoDetalle({ demoMode = false }) {
             email
           )
         `;
-      let result = await supabase.from('equipos').select(selectConAdelanto).eq('id', id).single();
+      
+      let result = await supabase.from('equipos').select(selectCompleto).eq('id', id).single();
       equipoData = result.data;
       equipoError = result.error;
-      if (equipoError && (equipoError.code === '42703' || (equipoError.message || '').toLowerCase().includes('adelanto'))) {
-        result = await supabase.from('equipos').select(selectSinAdelanto).eq('id', id).single();
+      
+      // Verificar si el equipo no existe
+      const isNotFound = equipoError && (
+        equipoError.code === 'PGRST116' || 
+        equipoError.code === 'PGRST301' ||
+        (equipoError.message && (
+          equipoError.message.toLowerCase().includes('no rows') ||
+          equipoError.message.toLowerCase().includes('not found') ||
+          equipoError.message.toLowerCase().includes('no encontrado')
+        ))
+      );
+      
+      if (isNotFound) {
+        setEquipo(null);
+        setLoading(false);
+        return;
+      }
+      
+      // Si hay error de columna faltante (42703 o 400 con mensaje de columna), intentar sin las columnas nuevas
+      const isColumnError = equipoError && (
+        equipoError.code === '42703' || 
+        equipoError.code === 'PGRST100' ||
+        (equipoError.status === 400 && equipoError.message && (
+          equipoError.message.toLowerCase().includes('column') ||
+          equipoError.message.toLowerCase().includes('precio_extra') ||
+          equipoError.message.toLowerCase().includes('descripcion_extra') ||
+          equipoError.message.toLowerCase().includes('adelanto')
+        ))
+      );
+      
+      if (isColumnError) {
+        // Intentar sin precio_extra y descripcion_extra
+        result = await supabase.from('equipos').select(selectSinExtra).eq('id', id).single();
         equipoData = result.data;
         equipoError = result.error;
-        if (equipoData) equipoData.adelanto = 0;
+        
+        // Si aún hay error de columna, intentar sin adelanto también
+        if (equipoError && (
+          equipoError.code === '42703' || 
+          equipoError.code === 'PGRST100' ||
+          (equipoError.status === 400 && equipoError.message && (
+            equipoError.message.toLowerCase().includes('adelanto') ||
+            equipoError.message.toLowerCase().includes('column')
+          ))
+        )) {
+          result = await supabase.from('equipos').select(selectBasico).eq('id', id).single();
+          equipoData = result.data;
+          equipoError = result.error;
+          
+          if (equipoData) {
+            equipoData.adelanto = 0;
+          }
+        }
+        
+        // Verificar si no existe después de los reintentos
+        const isNotFoundRetry = equipoError && (
+          equipoError.code === 'PGRST116' || 
+          equipoError.code === 'PGRST301' ||
+          (equipoError.message && (
+            equipoError.message.toLowerCase().includes('no rows') ||
+            equipoError.message.toLowerCase().includes('not found') ||
+            equipoError.message.toLowerCase().includes('no encontrado')
+          ))
+        );
+        
+        if (isNotFoundRetry) {
+          setEquipo(null);
+          setLoading(false);
+          return;
+        }
+        
+        // Si el segundo intento fue exitoso (tenemos datos), continuar sin lanzar error
+        if (equipoData && !equipoError) {
+          // Establecer valores por defecto para columnas faltantes
+          if (equipoData.adelanto === undefined) equipoData.adelanto = 0;
+          if (equipoData.precio_extra === undefined) equipoData.precio_extra = 0;
+          if (equipoData.descripcion_extra === undefined) equipoData.descripcion_extra = null;
+          // Continuar con el flujo normal, no lanzar error
+        } else if (equipoError) {
+          // Si después de los reintentos aún hay error, lanzarlo
+          throw equipoError;
+        }
+      } else if (equipoError) {
+        // Si no es un error de columna faltante, lanzar el error
+        throw equipoError;
       }
-      if (equipoError) throw equipoError;
+      
+      // Verificar que tenemos datos del equipo antes de continuar
+      if (!equipoData) {
+        setEquipo(null);
+        setLoading(false);
+        return;
+      }
+      
+      // Cargar precio_extra y descripcion_extra desde la BD
+      if (equipoData) {
+        const extraValue = equipoData.precio_extra;
+        if (extraValue !== undefined && extraValue !== null && extraValue !== 0) {
+          setPrecioExtra(String(extraValue));
+        } else {
+          setPrecioExtra('');
+        }
+        const descExtra = equipoData.descripcion_extra;
+        if (descExtra && descExtra.trim()) {
+          setDescripcionExtra(descExtra);
+        } else {
+          setDescripcionExtra('');
+        }
+      }
       // Normalizar clientes (Supabase puede devolverlo como objeto o como array)
       const clienteFromRelation = Array.isArray(equipoData.clientes)
         ? (equipoData.clientes[0] || null)
@@ -359,30 +500,48 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   const loadEstadoEquipo = async () => {
     try {
-      const { data, error } = await supabase
+      // Primero intentar con select mínimo (columnas que siempre existen) para no fallar si falta ready_at/delivered_at
+      const { data: dataMin, error: errorMin } = await supabase
         .from('estado_equipos')
-        .select(`
-          *,
-          procesos (
-            id,
-            nombre,
-            descripcion,
-            precio
-          )
-        `)
+        .select('id, equipo_id, estado, proceso_actual_id, created_at, updated_at')
         .eq('equipo_id', id)
         .maybeSingle();
-      
-      if (error) throw error;
-      setEstadoEquipo(data);
-      
-      if (data?.proceso_actual_id) {
-        const proceso = Array.isArray(data.procesos) ? data.procesos[0] : data.procesos;
-        setProcesoInfo(proceso || null);
+
+      if (errorMin) {
+        console.error('Error loading estado:', errorMin);
+        setEstadoEquipo(null);
+        return;
+      }
+
+      const data = dataMin;
+      if (!data) {
+        setEstadoEquipo(null);
+        return;
+      }
+
+      // Normalizar para la UI: "finalizado" y "listo" se muestran como ENTREGADO / LISTO PARA RECOGER
+      const estadoParaUI = data.estado === 'finalizado' ? 'delivered' : data.estado === 'listo' ? 'ready_for_pickup' : data.estado;
+      const estadoEquipoParaUI = {
+        ...data,
+        estado: estadoParaUI,
+        ready_at: data.ready_at ?? (data.estado === 'listo' ? (data.updated_at || data.created_at) : null),
+        delivered_at: data.delivered_at ?? (data.estado === 'finalizado' ? (data.updated_at || data.created_at) : null),
+      };
+
+      setEstadoEquipo(estadoEquipoParaUI);
+
+      if (data.proceso_actual_id) {
+        const { data: procesoData } = await supabase
+          .from('procesos')
+          .select('id, nombre, descripcion, precio')
+          .eq('id', data.proceso_actual_id)
+          .maybeSingle();
+        setProcesoInfo(procesoData || null);
         await loadSubprocesos(data.proceso_actual_id);
       }
     } catch (error) {
       console.error('Error loading estado:', error);
+      setEstadoEquipo(null);
     }
   };
 
@@ -485,31 +644,70 @@ export default function EquipoDetalle({ demoMode = false }) {
       if (error) throw error;
       
       const eventos = data || [];
-      const otrosUsuarioIds = [...new Set(
+      // Obtener TODOS los usuario_ids únicos del historial (incluyendo el usuario actual si aparece)
+      const todosUsuarioIds = [...new Set(
         eventos
-          .filter((e) => e.usuario_id && e.usuario_id !== currentUser?.id)
+          .filter((e) => e.usuario_id)
           .map((e) => e.usuario_id)
       )];
 
       let profilesMap = new Map();
-      if (otrosUsuarioIds.length > 0) {
+      if (todosUsuarioIds.length > 0) {
+        // Intentar cargar todos los perfiles usando RPC
         const { data: profilesList, error: rpcError } = await supabase
-          .rpc('get_profiles_for_historial', { user_ids: otrosUsuarioIds });
+          .rpc('get_profiles_for_historial', { user_ids: todosUsuarioIds });
         if (!rpcError && Array.isArray(profilesList)) {
           profilesList.forEach((p) => {
-            if (p?.id) profilesMap.set(p.id, { id: p.id, nombre: p.nombre || '', email: p.email || '', foto_url: p.foto_url || null });
+            if (p?.id) {
+              // Si no hay nombre pero sí hay email, usar el email como nombre temporal
+              const nombre = p.nombre?.trim() || '';
+              const email = p.email?.trim() || '';
+              profilesMap.set(p.id, { 
+                id: p.id, 
+                nombre: nombre || (email ? email.split('@')[0] : ''), 
+                email: email, 
+                foto_url: p.foto_url || null 
+              });
+            }
           });
-        } else {
-          // Fallback: cargar perfil por perfil (puede fallar por RLS)
-          await Promise.all(otrosUsuarioIds.map(async (uid) => {
+        }
+        
+        // Fallback: cargar perfil por perfil para los que no se encontraron
+        const idsNoEncontrados = todosUsuarioIds.filter(id => !profilesMap.has(id));
+        if (idsNoEncontrados.length > 0) {
+          await Promise.all(idsNoEncontrados.map(async (uid) => {
             try {
               const { data: profile } = await supabase
                 .from('profiles')
                 .select('id, nombre, email, foto_url')
                 .eq('id', uid)
                 .maybeSingle();
-              if (profile) profilesMap.set(uid, profile);
-            } catch (_) {}
+              if (profile) {
+                profilesMap.set(uid, profile);
+              } else {
+                // Si no hay perfil en la tabla profiles, intentar obtener desde user_metadata
+                // Nota: No podemos acceder directamente a auth.users desde el cliente,
+                // pero podemos intentar usar una función RPC que lo haga
+                // Por ahora, guardar un objeto básico - intentaremos mejorarlo con una función RPC
+                console.warn('No se encontró perfil para usuario:', uid);
+                profilesMap.set(uid, {
+                  id: uid,
+                  nombre: null,
+                  email: null,
+                  foto_url: null,
+                  necesitaRPC: true // Marcar que necesita obtener desde auth.users
+                });
+              }
+            } catch (err) {
+              console.warn('Error loading profile for user:', uid, err);
+              // Guardar objeto básico incluso si falla
+              profilesMap.set(uid, {
+                id: uid,
+                nombre: null,
+                email: null,
+                foto_url: null
+              });
+            }
           }));
         }
       }
@@ -531,7 +729,20 @@ export default function EquipoDetalle({ demoMode = false }) {
             }
           };
         }
-        const profile = profilesMap.get(evento.usuario_id) || null;
+        const profile = profilesMap.get(evento.usuario_id);
+        // Si no se encontró el perfil, crear uno básico con el usuario_id para evitar mostrar "Sistema"
+        if (!profile) {
+          return {
+            ...evento,
+            profiles: {
+              id: evento.usuario_id,
+              nombre: null,
+              email: null,
+              foto_url: null,
+              usuario_id: evento.usuario_id // Guardar el ID para intentar obtener más info después
+            }
+          };
+        }
         return { ...evento, profiles: profile };
       });
       
@@ -567,6 +778,68 @@ export default function EquipoDetalle({ demoMode = false }) {
       console.error('Error loading photos:', error);
       setFotos([]);
     }
+  };
+
+  const handlePhotoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validar que sea una imagen
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona una imagen válida');
+      return;
+    }
+
+    // Validar tamaño (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('La imagen es demasiado grande. Máximo 10MB');
+      return;
+    }
+
+    setSubiendoFoto(true);
+    try {
+      // Convertir archivo a base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64Data = reader.result;
+          
+          // Obtener usuario actual
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          // Subir foto
+          await uploadEquipoPhoto(id, base64Data, user?.id || null);
+          
+          // Recargar fotos
+          await loadFotos();
+          
+          alert('Foto agregada exitosamente');
+        } catch (error) {
+          console.error('Error uploading photo:', error);
+          alert('Error al subir la foto: ' + (error.message || 'Error desconocido'));
+        } finally {
+          setSubiendoFoto(false);
+          // Limpiar input
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        }
+      };
+      reader.onerror = () => {
+        alert('Error al leer el archivo');
+        setSubiendoFoto(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      alert('Error al procesar el archivo');
+      setSubiendoFoto(false);
+    }
+  };
+
+  const handlePhotoPlaceholderClick = () => {
+    if (subiendoFoto) return;
+    fileInputRef.current?.click();
   };
 
   const getSubprocesoStatus = (subprocesoId) => {
@@ -638,17 +911,18 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const marcarComoListo = async () => {
+  const marcarComoListoParaRecoger = async () => {
     if (demoMode) {
-      alert('Demo: aquí se marcaría el equipo como listo.');
+      alert('Demo: aquí se marcaría el equipo como listo para recoger.');
       return;
     }
 
-    if (!confirm('¿Estás seguro de que quieres marcar este equipo como listo? Se moverá a la lista de "Listos para recoger".')) {
+    if (!confirm('¿Seguro que el equipo ya está listo para recoger?')) {
       return;
     }
 
     try {
+      const now = new Date().toISOString();
       const { data: estadoExistente, error: consultaError } = await supabase
         .from('estado_equipos')
         .select('id')
@@ -664,9 +938,10 @@ export default function EquipoDetalle({ demoMode = false }) {
         const { error } = await supabase
           .from('estado_equipos')
           .update({
-            estado: 'listo',
+            estado: 'ready_for_pickup',
+            ready_at: now,
             proceso_actual_id: estadoEquipo?.proceso_actual_id,
-            updated_at: new Date().toISOString()
+            updated_at: now
           })
           .eq('equipo_id', id);
         estadoError = error;
@@ -675,9 +950,10 @@ export default function EquipoDetalle({ demoMode = false }) {
           .from('estado_equipos')
           .insert({
             equipo_id: id,
-            estado: 'listo',
+            estado: 'ready_for_pickup',
+            ready_at: now,
             proceso_actual_id: estadoEquipo?.proceso_actual_id,
-            updated_at: new Date().toISOString()
+            updated_at: now
           });
         estadoError = error;
       }
@@ -693,7 +969,7 @@ export default function EquipoDetalle({ demoMode = false }) {
 
       const usuarioId = currentUser?.id;
       if (!usuarioId) {
-        console.error('No user ID available for marcarComoListo');
+        console.error('No user ID available for marcarComoListoParaRecoger');
         alert('Error: No se pudo identificar el usuario. Por favor recarga la página.');
         return;
       }
@@ -703,22 +979,22 @@ export default function EquipoDetalle({ demoMode = false }) {
         .insert({
           equipo_id: id,
           proceso_id: estadoEquipo?.proceso_actual_id,
-          notas: 'Equipo terminado y listo para entrega',
+          notas: 'Equipo terminado y listo para recoger',
           completado: true,
-          fecha_completado: new Date().toISOString(),
+          fecha_completado: now,
           usuario_id: usuarioId,
           tipo_evento: 'estado'
         });
 
       if (historialError) throw historialError;
 
-      alert('Equipo marcado como listo exitosamente');
+      alert('Equipo marcado como listo para recoger exitosamente');
       window.dispatchEvent(new Event('equipoUpdated'));
       await loadEstadoEquipo();
       await loadHistorial();
     } catch (error) {
-      console.error('Error marking equipo as ready:', error);
-      alert('Error al marcar el equipo como listo');
+      console.error('Error marking equipo as ready for pickup:', error);
+      alert('Error al marcar el equipo como listo para recoger');
     }
   };
 
@@ -824,6 +1100,303 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
+  // Función para cambiar estado desde el modal (segmented control)
+  const cambiarEstadoEquipo = async (nuevoEstado) => {
+    if (demoMode) {
+      alert(`Demo: aquí se cambiaría el estado a ${nuevoEstado}.`);
+      return;
+    }
+
+    const estadoActual = estadoEquipo?.estado || 'pendiente';
+    
+    // Si ya está en ese estado, no hacer nada
+    if (estadoActual === nuevoEstado || 
+        (estadoActual === 'listo' && nuevoEstado === 'ready_for_pickup') ||
+        (estadoActual === 'finalizado' && nuevoEstado === 'delivered')) {
+      return;
+    }
+
+    // Mostrar modal de confirmación personalizado
+    const estadoNombre = nuevoEstado === 'en_proceso' ? 'En Proceso' : 
+                         nuevoEstado === 'ready_for_pickup' ? 'Listo para recoger' : 
+                         'Entregado';
+    
+    let mensajeConfirmacion = '';
+    let tipoConfirmacion = 'normal';
+    
+    if (nuevoEstado === 'ready_for_pickup') {
+      mensajeConfirmacion = '¿Seguro que el equipo ya está listo para recoger?';
+      tipoConfirmacion = 'ready';
+    } else if (nuevoEstado === 'delivered') {
+      mensajeConfirmacion = '¿Seguro que el cliente ya se llevó el equipo?';
+      tipoConfirmacion = 'delivered';
+    } else if (nuevoEstado === 'en_proceso' && (estadoActual === 'delivered' || estadoActual === 'finalizado' || estadoActual === 'ready_for_pickup' || estadoActual === 'listo')) {
+      mensajeConfirmacion = 'Estás reabriendo un equipo que ya estaba entregado o listo. ¿Estás seguro?';
+      tipoConfirmacion = 'warning';
+    } else {
+      mensajeConfirmacion = `¿Cambiar el estado del equipo a "${estadoNombre}"?`;
+      tipoConfirmacion = 'normal';
+    }
+
+    // Guardar datos para el modal y mostrarlo
+    setConfirmEstadoData({
+      nuevoEstado,
+      estadoNombre,
+      mensaje: mensajeConfirmacion,
+      tipo: tipoConfirmacion,
+      estadoActual
+    });
+    setShowConfirmEstadoModal(true);
+  };
+
+  const ejecutarCambioEstado = async () => {
+    if (!confirmEstadoData) return;
+    
+    const { nuevoEstado, estadoActual } = confirmEstadoData;
+    setShowConfirmEstadoModal(false);
+
+    try {
+      const now = new Date().toISOString();
+      const usuarioId = currentUser?.id;
+      if (!usuarioId) {
+        alert('Error: No se pudo identificar el usuario');
+        return;
+      }
+
+      // Preparar datos de actualización según el nuevo estado
+      let updateData = {
+        updated_at: now
+      };
+
+      if (nuevoEstado === 'ready_for_pickup') {
+        updateData.estado = 'ready_for_pickup';
+        updateData.ready_at = now;
+        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id;
+      } else if (nuevoEstado === 'delivered') {
+        updateData.estado = 'delivered';
+        updateData.delivered_at = now;
+        // Mantener ready_at si existe
+        if (estadoEquipo?.ready_at) {
+          updateData.ready_at = estadoEquipo.ready_at;
+        }
+      } else if (nuevoEstado === 'en_proceso') {
+        updateData.estado = 'en_proceso';
+        // Limpiar fechas si se está reabriendo
+        const estadoActualParaLimpiar = estadoActual || estadoEquipo?.estado || 'pendiente';
+        if (estadoActualParaLimpiar === 'delivered' || estadoActualParaLimpiar === 'finalizado' || estadoActualParaLimpiar === 'ready_for_pickup' || estadoActualParaLimpiar === 'listo') {
+          updateData.ready_at = null;
+          updateData.delivered_at = null;
+        }
+        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id;
+      }
+
+      // Actualizar o crear estado
+      const { data: estadoExistente, error: consultaError } = await supabase
+        .from('estado_equipos')
+        .select('id')
+        .eq('equipo_id', id)
+        .single();
+
+      let estadoError;
+      if (estadoExistente) {
+        const { error } = await supabase
+          .from('estado_equipos')
+          .update(updateData)
+          .eq('equipo_id', id);
+        estadoError = error;
+      } else {
+        const { error } = await supabase
+          .from('estado_equipos')
+          .insert({
+            equipo_id: id,
+            ...updateData
+          });
+        estadoError = error;
+      }
+
+      if (estadoError) throw estadoError;
+
+      // Registrar en historial
+      let notaHistorial = '';
+      let tipoEvento = 'estado';
+      if (nuevoEstado === 'ready_for_pickup') {
+        notaHistorial = 'Equipo marcado como listo para recoger';
+      } else if (nuevoEstado === 'delivered') {
+        notaHistorial = 'Equipo marcado como entregado';
+        tipoEvento = 'entrega';
+      } else if (nuevoEstado === 'en_proceso') {
+        const estadoActualParaHistorial = estadoActual || estadoEquipo?.estado || 'pendiente';
+        if (estadoActualParaHistorial === 'delivered' || estadoActualParaHistorial === 'finalizado' || estadoActualParaHistorial === 'ready_for_pickup' || estadoActualParaHistorial === 'listo') {
+          notaHistorial = 'Equipo reabierto y vuelto a proceso';
+          tipoEvento = 'reapertura';
+        }
+      }
+
+      if (notaHistorial) {
+        const { error: historialError } = await supabase
+          .from('historial_procesos')
+          .insert({
+            equipo_id: id,
+            proceso_id: estadoEquipo?.proceso_actual_id,
+            notas: notaHistorial,
+            completado: nuevoEstado === 'delivered' || nuevoEstado === 'ready_for_pickup',
+            fecha_completado: (nuevoEstado === 'delivered' || nuevoEstado === 'ready_for_pickup') ? now : null,
+            usuario_id: usuarioId,
+            tipo_evento: tipoEvento
+          });
+
+        if (historialError) throw historialError;
+      }
+
+      // Notificaciones
+      if (nuevoEstado === 'ready_for_pickup') {
+        try {
+          await notificarEquipoListo(equipo, cliente);
+        } catch (notifError) {
+          console.error('Error creating notification (non-critical):', notifError);
+        }
+      } else if (nuevoEstado === 'delivered') {
+        try {
+          await notificarEquipoFinalizado(equipo, cliente);
+        } catch (notifError) {
+          console.error('Error creating notification (non-critical):', notifError);
+        }
+      }
+
+      const estadoNombreFinal = nuevoEstado === 'en_proceso' ? 'En Proceso' : 
+                                nuevoEstado === 'ready_for_pickup' ? 'Listo para recoger' : 
+                                'Entregado';
+      alert(`Estado actualizado exitosamente a "${estadoNombreFinal}"`);
+      await loadEquipo();
+      await loadEstadoEquipo();
+      await loadHistorial();
+      window.dispatchEvent(new Event('equipoUpdated'));
+    } catch (error) {
+      console.error('Error cambiando estado:', error);
+      alert('Error al cambiar el estado del equipo');
+    } finally {
+      setConfirmEstadoData(null);
+    }
+  };
+
+  // Función para abrir nota PDF en página full-screen (mejor para iPhone e imprimir)
+  const abrirNotaPDF = (equipoData, tipoNota) => {
+    const basePath = demoMode ? '/demo' : '';
+    navigate(`${basePath}/nota-pdf`, {
+      state: {
+        equipo: equipoData,
+        cliente,
+        tipo: tipoNota,
+        returnTo: `${basePath}/equipos/${id}`
+      }
+    });
+  };
+
+  // Función para generar/reimprimir nota de recepción
+  const generarNotaRecepcion = async () => {
+    try {
+      const { data: pedidosData } = await supabase
+        .from('pedidos_piezas')
+        .select('id, nombre_pieza, cantidad, precio_unitario, estado')
+        .eq('equipo_id', equipo.id);
+      const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
+      const pTotal = pedidos.reduce((s, p) => s + (parseFloat(p?.cantidad) || 0) * (parseFloat(p?.precio_unitario) || 0), 0);
+      const equipoParaNota = {
+        ...equipo,
+        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+        pedidos_ligados: pedidos,
+        pedidos_total: pTotal
+      };
+      abrirNotaPDF(equipoParaNota, 'recepcion');
+      setShowOpcionesEspeciales(false);
+    } catch (err) {
+      console.error('Error cargando pedidos:', err);
+      abrirNotaPDF({ ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) }, 'recepcion');
+      setShowOpcionesEspeciales(false);
+    }
+  };
+
+  // Función para generar/reimprimir nota de entrega
+  const generarNotaEntrega = () => {
+    const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+    const extra = parseFloat(precioExtra) || 0;
+    setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
+    const procesosList = procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []);
+    const problemaTexto = procesosList.length
+      ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ')
+      : '';
+    setSolucionImplementada(problemaTexto);
+    setShowConfirmarTotalModal(true);
+    setShowOpcionesEspeciales(false);
+  };
+
+  const reabrirEquipo = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se reabriría el equipo.');
+      return;
+    }
+
+    if (!justificacionReabrir.trim()) {
+      alert('Por favor proporciona una justificación para reabrir el equipo');
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de reabrir este equipo? Se volverá a poner en proceso.')) {
+      return;
+    }
+
+    setReabriendoEquipo(true);
+    try {
+      const usuarioId = currentUser?.id;
+      if (!usuarioId) {
+        alert('Error: No se pudo identificar el usuario');
+        return;
+      }
+
+      // Actualizar estado a en_proceso y limpiar fechas de entrega
+      const now = new Date().toISOString();
+      const { error: estadoError } = await supabase
+        .from('estado_equipos')
+        .update({
+          estado: 'en_proceso',
+          ready_at: null,
+          delivered_at: null,
+          updated_at: now
+        })
+        .eq('equipo_id', id);
+
+      if (estadoError) throw estadoError;
+
+      // Registrar en historial con justificación
+      const { error: historialError } = await supabase
+        .from('historial_procesos')
+        .insert({
+          equipo_id: id,
+          proceso_id: estadoEquipo?.proceso_actual_id,
+          notas: `OPCIÓN ESPECIAL: Equipo reabierto. Justificación: ${justificacionReabrir.trim()}`,
+          completado: false,
+          fecha_completado: null,
+          usuario_id: usuarioId,
+          tipo_evento: 'reapertura'
+        });
+
+      if (historialError) throw historialError;
+
+      alert('Equipo reabierto exitosamente. Se ha vuelto a poner en proceso.');
+      setShowOpcionesEspeciales(false);
+      setJustificacionReabrir('');
+      await loadEquipo();
+      await loadEstadoEquipo();
+      await loadHistorial();
+      window.dispatchEvent(new Event('equipoUpdated'));
+    } catch (error) {
+      console.error('Error reabriendo equipo:', error);
+      alert('Error al reabrir el equipo');
+    } finally {
+      setReabriendoEquipo(false);
+    }
+  };
+
   const finalizarConJustificacion = async () => {
     if (demoMode) {
       alert('Demo: aquí se marcaría el equipo como finalizado con justificación.');
@@ -847,12 +1420,14 @@ export default function EquipoDetalle({ demoMode = false }) {
         return;
       }
 
-      // Actualizar estado a finalizado
+      // Actualizar estado a entregado (delivered) con justificación especial
+      const now = new Date().toISOString();
       const { error: estadoError } = await supabase
         .from('estado_equipos')
         .update({
-          estado: 'finalizado',
-          updated_at: new Date().toISOString()
+          estado: 'delivered',
+          delivered_at: now,
+          updated_at: now
         })
         .eq('equipo_id', id);
 
@@ -864,7 +1439,7 @@ export default function EquipoDetalle({ demoMode = false }) {
         .insert({
           equipo_id: id,
           proceso_id: estadoEquipo?.proceso_actual_id,
-          notas: `OPCIÓN ESPECIAL: Equipo finalizado sin completar proceso. Justificación: ${justificacionFinalizado.trim()}`,
+          notas: `OPCIÓN ESPECIAL: Equipo entregado sin completar proceso. Justificación: ${justificacionFinalizado.trim()}`,
           completado: true,
           fecha_completado: new Date().toISOString(),
           usuario_id: usuarioId,
@@ -880,7 +1455,7 @@ export default function EquipoDetalle({ demoMode = false }) {
         console.error('Error creating notification (non-critical):', notifError);
       }
 
-      alert('Equipo marcado como finalizado exitosamente');
+      alert('Equipo marcado como entregado exitosamente');
       setShowOpcionesEspeciales(false);
       setJustificacionFinalizado('');
       await loadEquipo();
@@ -892,22 +1467,24 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const marcarComoFinalizado = async () => {
+  const marcarComoEntregado = async () => {
     if (demoMode) {
       alert('Demo: aquí se marcaría el equipo como entregado y se generaría la nota real.');
       return;
     }
 
-    if (!confirm('¿Estás seguro de que quieres marcar este equipo como entregado?')) {
+    if (!confirm('¿Seguro que el cliente ya se llevó el equipo?')) {
       return;
     }
 
     try {
+      const now = new Date().toISOString();
       const { error: estadoError } = await supabase
         .from('estado_equipos')
         .update({
-          estado: 'finalizado',
-          updated_at: new Date().toISOString()
+          estado: 'delivered',
+          delivered_at: now,
+          updated_at: now
         })
         .eq('equipo_id', id);
 
@@ -915,7 +1492,7 @@ export default function EquipoDetalle({ demoMode = false }) {
 
       const usuarioId = currentUser?.id;
       if (!usuarioId) {
-        console.error('No user ID available for marcarComoFinalizado');
+        console.error('No user ID available for marcarComoEntregado');
         alert('Error: No se pudo identificar el usuario. Por favor recarga la página.');
         return;
       }
@@ -927,7 +1504,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           proceso_id: estadoEquipo?.proceso_actual_id,
           notas: 'Equipo entregado al cliente',
           completado: true,
-          fecha_completado: new Date().toISOString(),
+          fecha_completado: now,
           usuario_id: usuarioId,
           tipo_evento: 'entrega'
         });
@@ -941,17 +1518,84 @@ export default function EquipoDetalle({ demoMode = false }) {
         console.error('Error creating notification (non-critical):', notifError);
       }
 
-      setTipoNotaPDF('entrega');
-      setShowNotaPDFModal(true);
-
-      setTimeout(() => {
-        setShowNotaPDFModal(false);
-        window.dispatchEvent(new Event('equipoUpdated'));
-        navigate('/equipos');
-      }, 2000);
+      window.dispatchEvent(new Event('equipoUpdated'));
+      const basePath = demoMode ? '/demo' : '';
+      const eqParaNota = {
+        ...equipo,
+        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+        pedidos_ligados: pedidosLigados,
+        pedidos_total: pedidosTotal,
+        precio_extra: parseFloat(precioExtra) || 0,
+        adelanto: equipo.adelanto
+      };
+      navigate(`${basePath}/nota-pdf`, {
+        state: {
+          equipo: eqParaNota,
+          cliente,
+          tipo: 'entrega',
+          returnTo: `${basePath}/equipos`
+        }
+      });
     } catch (error) {
-      console.error('Error finalizing equipo:', error);
-      alert('Error al finalizar el equipo');
+      console.error('Error marking equipo as delivered:', error);
+      alert('Error al marcar el equipo como entregado');
+    }
+  };
+
+  const marcarComoPagado = async () => {
+    if (demoMode) {
+      alert('Demo: aquí se marcaría el equipo como pagado.');
+      return;
+    }
+
+    if (!currentUser?.id) {
+      alert('Error: No se pudo identificar el usuario. Por favor recarga la página.');
+      return;
+    }
+
+    setMarcandoComoPagado(true);
+    try {
+      // Calcular el total y el adeudo
+      const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+      const extra = parseFloat(precioExtra) || 0;
+      const totalCalculado = serviciosTot + pedidosTotal + extra;
+      const adelanto = parseFloat(equipo.adelanto || 0);
+      const adeudo = totalCalculado - adelanto;
+
+      // Actualizar el adelanto para que sea igual al total (marcando como pagado completamente)
+      const { error: updateError } = await supabase
+        .from('equipos')
+        .update({
+          adelanto: totalCalculado
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      // Registrar en historial
+      const { error: historialError } = await supabase
+        .from('historial_procesos')
+        .insert({
+          equipo_id: id,
+          proceso_id: estadoEquipo?.proceso_actual_id || null,
+          notas: `Pago completo recibido. Total: $${totalCalculado.toFixed(2)}`,
+          completado: false,
+          usuario_id: currentUser.id,
+          tipo_evento: 'nota'
+        });
+
+      if (historialError) throw historialError;
+
+      // Recargar datos del equipo
+      await loadEquipo();
+      setShowPagoCompletoModal(false);
+      
+      alert('Equipo marcado como pagado exitosamente');
+    } catch (error) {
+      console.error('Error marking equipo as paid:', error);
+      alert('Error al marcar el equipo como pagado: ' + (error.message || 'Error desconocido'));
+    } finally {
+      setMarcandoComoPagado(false);
     }
   };
 
@@ -996,14 +1640,77 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('es-MX', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+    
+    try {
+      // Parsear la fecha - Supabase devuelve fechas en formato ISO UTC
+      let date;
+      if (typeof dateString === 'string') {
+        // Si la fecha viene sin 'Z', Supabase la devuelve como UTC pero sin el indicador
+        // Necesitamos asegurarnos de que se interprete como UTC
+        if (dateString.includes('T') && !dateString.includes('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
+          // Es una fecha ISO sin zona horaria, Supabase la devuelve en UTC
+          date = new Date(dateString + 'Z');
+        } else {
+          date = new Date(dateString);
+        }
+      } else {
+        date = new Date(dateString);
+      }
+      
+      // Verificar que la fecha es válida
+      if (isNaN(date.getTime())) {
+        return 'N/A';
+      }
+      
+      // Obtener los componentes de la fecha en hora de México
+      // Usar toLocaleString con timeZone para obtener los valores correctos
+      const mexicoTime = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }).formatToParts(date);
+      
+      // Construir la fecha formateada en español
+      const day = mexicoTime.find(p => p.type === 'day')?.value || '';
+      const month = mexicoTime.find(p => p.type === 'month')?.value || '';
+      const year = mexicoTime.find(p => p.type === 'year')?.value || '';
+      const hour = mexicoTime.find(p => p.type === 'hour')?.value || '';
+      const minute = mexicoTime.find(p => p.type === 'minute')?.value || '';
+      const dayPeriod = mexicoTime.find(p => p.type === 'dayPeriod')?.value || '';
+      
+      // Mapear meses al español
+      const meses = {
+        'Jan': 'ene', 'Feb': 'feb', 'Mar': 'mar', 'Apr': 'abr',
+        'May': 'may', 'Jun': 'jun', 'Jul': 'jul', 'Aug': 'ago',
+        'Sep': 'sep', 'Oct': 'oct', 'Nov': 'nov', 'Dec': 'dic'
+      };
+      
+      const mesEsp = meses[month] || month.toLowerCase();
+      const periodo = dayPeriod === 'AM' ? 'a.m.' : 'p.m.';
+      
+      return `${day} ${mesEsp} ${year}, ${hour}:${minute} ${periodo}`;
+    } catch (error) {
+      console.error('Error formateando fecha:', error, dateString);
+      // Fallback simple
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleString('es-MX', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'America/Mexico_City'
+        });
+      } catch (e) {
+        return 'N/A';
+      }
+    }
   };
 
   const formatRelativeTime = (dateString) => {
@@ -1186,6 +1893,51 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
+  const guardarPrecioExtra = async (monto, descripcion = null) => {
+    if (!equipo?.id || demoMode) return;
+    const montoNum = parseFloat(monto) || 0;
+    if (montoNum < 0) {
+      alert('El monto extra no puede ser negativo.');
+      return;
+    }
+    
+    setGuardandoExtra(true);
+    try {
+      const updateData = { precio_extra: montoNum };
+      if (descripcion !== null) {
+        updateData.descripcion_extra = descripcion?.trim() || null;
+      }
+      
+      const { error } = await supabase
+        .from('equipos')
+        .update(updateData)
+        .eq('id', equipo.id);
+
+      if (error) {
+        // Si la columna no existe, mostrar mensaje útil
+        const msg = (error?.message || String(error)).toLowerCase();
+        const isColumnaFalta = error?.code === '42703' || msg.includes('precio_extra') || msg.includes('descripcion_extra') || msg.includes('does not exist') || msg.includes('column');
+        if (isColumnaFalta) {
+          alert('La tabla equipos necesita las columnas "precio_extra" y "descripcion_extra". Ejecuta en Supabase (SQL Editor) los scripts add_precio_extra_equipo.sql y add_descripcion_extra_equipo.sql del proyecto.');
+        } else {
+          throw error;
+        }
+      } else {
+        // Actualizar el estado local del equipo
+        setEquipo(prev => ({ 
+          ...prev, 
+          precio_extra: montoNum,
+          descripcion_extra: descripcion?.trim() || null
+        }));
+      }
+    } catch (error) {
+      console.error('Error guardando precio extra:', error);
+      alert('Error al guardar el monto extra: ' + (error?.message || error));
+    } finally {
+      setGuardandoExtra(false);
+    }
+  };
+
   const registrarAdelanto = async () => {
     if (demoMode) {
       alert('Demo: aquí se sumaría el adelanto al equipo en Supabase.');
@@ -1214,6 +1966,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       await loadEquipo();
       setShowPagoModal(false);
       setNuevoAdelanto('');
+      setDescripcionAdelanto('');
     } catch (error) {
       console.error('Error registrando adelanto:', error);
       const msg = (error?.message || String(error)).toLowerCase();
@@ -1258,13 +2011,30 @@ export default function EquipoDetalle({ demoMode = false }) {
             <Icon name="arrow-left" />
           </button>
           <div className="header-main">
-            <div className="header-equipo-number">#{equipo.nota}</div>
-            <div className="header-equipo-model">{equipo.marca} {equipo.modelo}</div>
-            <span className={`status-badge status-badge-header ${estadoEquipo?.estado || 'pendiente'}`}>
-              {estadoEquipo?.estado === 'en_proceso' ? 'EN PROCESO' : 
-               estadoEquipo?.estado === 'finalizado' ? 'FINALIZADO' :
-               estadoEquipo?.estado === 'listo' ? 'LISTO' : 'PENDIENTE'}
-            </span>
+            <div className="header-main-info">
+              <div className="header-equipo-number">#{equipo.nota}</div>
+              <div className="header-equipo-model">{equipo.marca} {equipo.modelo}</div>
+            </div>
+            <div className="header-main-status-row">
+              <span className={`status-badge status-badge-header ${estadoEquipo?.estado === 'finalizado' ? 'delivered' : estadoEquipo?.estado || 'pendiente'}`}>
+                {estadoEquipo?.estado === 'en_proceso' ? 'EN PROCESO' : 
+                 estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'finalizado' ? 'ENTREGADO' :
+                 estadoEquipo?.estado === 'ready_for_pickup' ? 'LISTO PARA RECOGER' :
+                 estadoEquipo?.estado === 'listo' ? 'LISTO PARA RECOGER' : // Compatibilidad temporal
+                 estadoEquipo?.estado === 'cancelled' ? 'CANCELADO' :
+                 !estadoEquipo ? 'PENDIENTE' : 'PENDIENTE'}
+              </span>
+              {equipo.problema && equipo.problema.trim() && (
+                <div 
+                  className="header-problema-pill header-problema-pill-clickable"
+                  onClick={() => setShowProblemaModal(true)}
+                  title="Click para ver el problema completo"
+                >
+                  <span className="header-problema-label">Problema</span>
+                  <span className="header-problema-value">{equipo.problema}</span>
+                </div>
+              )}
+            </div>
           </div>
           <button 
             onClick={() => setShowOpcionesEspeciales(true)}
@@ -1298,7 +2068,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                 </span>
               )}
             </div>
-            {/* Total debajo de Equipo */}
+            {/* Costos y Entrega - Colapsable con Total siempre visible */}
             {(() => {
               const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
               const extra = parseFloat(precioExtra) || 0;
@@ -1306,19 +2076,79 @@ export default function EquipoDetalle({ demoMode = false }) {
               const adelanto = parseFloat(equipo.adelanto || 0);
               const adeudo = totalCalculado - adelanto;
               return (
-                <div className="header-equipo-total">
-                  <div className="header-total-row">
-                    <span>Total</span>
-                    <span className="header-total-valor">${totalCalculado.toFixed(2)}</span>
+                <div className={`header-equipo-total header-costos-section ${costosExpanded ? 'expanded' : 'collapsed'}`}>
+                  <div 
+                    className="header-costos-header"
+                    onClick={() => setCostosExpanded(!costosExpanded)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="header-costos-title">
+                      <Icon name="dollar-sign" />
+                      <span>Costos y entrega</span>
+                    </div>
+                    {/* Total siempre visible - Grande */}
+                    <div className="header-total-always-visible">
+                      <span className="header-total-valor-large">${totalCalculado.toFixed(2)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="header-costos-toggle-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCostosExpanded(!costosExpanded);
+                      }}
+                      title={costosExpanded ? "Contraer" : "Expandir"}
+                    >
+                      <Icon name={costosExpanded ? "chevron-up" : "chevron-down"} />
+                    </button>
                   </div>
-                  <div className="header-total-row">
-                    <span>Adelanto</span>
-                    <span>${adelanto.toFixed(2)}</span>
-                  </div>
-                  <div className="header-total-row">
-                    <span>Adeudo</span>
-                    <span className={adeudo > 0 ? 'header-adeudo-pendiente' : 'header-adeudo-cero'}>${adeudo.toFixed(2)}</span>
-                  </div>
+                  {/* Detalles solo cuando está expandido */}
+                  {costosExpanded && (
+                    <div className="header-costos-content">
+                      <div className="header-total-row">
+                        <span className="header-total-label">Adelanto</span>
+                        <div className="header-total-value-with-action">
+                          <span>${adelanto.toFixed(2)}</span>
+                          <button
+                            type="button"
+                            className="header-costos-action-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNuevoAdelanto('');
+                              setDescripcionAdelanto('');
+                              setShowPagoModal(true);
+                            }}
+                            title="Agregar adelanto"
+                          >
+                            <Icon name="plus-circle" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="header-total-row">
+                        <span className="header-total-label">Adeudo</span>
+                        <span className={adeudo > 0 ? 'header-adeudo-pendiente' : 'header-adeudo-cero'}>
+                          ${adeudo.toFixed(2)}
+                        </span>
+                      </div>
+                      {(parseFloat(precioExtra) || 0) > 0 && (
+                        <div className="header-extra-info">
+                          <Icon name="info-circle" />
+                          <span>Cobro extra: ${parseFloat(precioExtra).toFixed(2)}</span>
+                          <button
+                            type="button"
+                            className="header-costos-action-btn-small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowExtraModal(true);
+                            }}
+                            title="Editar cobro extra"
+                          >
+                            <Icon name="edit" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -1357,17 +2187,86 @@ export default function EquipoDetalle({ demoMode = false }) {
               {subprocesos.length > 0 && (
                 <span className="header-proceso-pasos">{subprocesosCompletados.length} de {subprocesos.length} pasos</span>
               )}
-              <span className={`status-badge-inline ${estadoEquipo?.estado || 'pendiente'}`}>
+              <span className={`status-badge-inline ${estadoEquipo?.estado === 'finalizado' ? 'delivered' : estadoEquipo?.estado || 'pendiente'}`}>
                 {estadoEquipo?.estado === 'en_proceso' ? 'En Proceso' : 
-                 estadoEquipo?.estado === 'finalizado' ? 'Finalizado' :
-                 estadoEquipo?.estado === 'listo' ? 'Listo' : 'Pendiente'}
+                 estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'finalizado' ? 'Entregado' :
+                 estadoEquipo?.estado === 'ready_for_pickup' ? 'Listo para recoger' :
+                 estadoEquipo?.estado === 'listo' ? 'Listo para recoger' : // Compatibilidad temporal
+                 estadoEquipo?.estado === 'cancelled' ? 'Cancelado' :
+                 'Pendiente'}
               </span>
               <span className="header-proceso-fecha">
                 <Icon name="calendar-alt" /> {formatDate(equipo.created_at)}
               </span>
             </div>
+            {/* Botones de acción según estado - FLUJO NORMAL VISIBLE */}
+            {estadoEquipo?.estado === 'en_proceso' && (
+              <div className="header-estado-action">
+                <button
+                  className="header-estado-btn header-estado-btn-ready"
+                  onClick={marcarComoListoParaRecoger}
+                >
+                  <Icon name="check-circle" />
+                  Marcar como listo para recoger
+                </button>
+              </div>
+            )}
+            {estadoEquipo?.estado === 'ready_for_pickup' && (
+              <div className="header-estado-action" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  className="header-estado-btn header-estado-btn-success"
+                  onClick={() => setShowPagoCompletoModal(true)}
+                  style={{ backgroundColor: '#10b981', color: 'white' }}
+                >
+                  <Icon name="check-circle" />
+                  Pagado
+                </button>
+                <button
+                  className="header-estado-btn header-estado-btn-delivered"
+                  onClick={marcarComoEntregado}
+                >
+                  <Icon name="box" />
+                  Marcar como entregado
+                </button>
+              </div>
+            )}
+            {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+              // Compatibilidad temporal: mostrar botón según estado antiguo
+              <div className="header-estado-action">
+                {estadoEquipo?.estado === 'listo' ? (
+                  <button
+                    className="header-estado-btn header-estado-btn-delivered"
+                    onClick={marcarComoEntregado}
+                  >
+                    <Icon name="box" />
+                    Marcar como entregado
+                  </button>
+                ) : (
+                  <div className="header-estado-info">
+                    <Icon name="check-circle" />
+                    <span>Equipo entregado</span>
+                    {estadoEquipo?.delivered_at && (
+                      <span className="header-estado-fecha">
+                        {formatDate(estadoEquipo.delivered_at)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {estadoEquipo?.estado === 'delivered' && (
+              <div className="header-estado-info">
+                <Icon name="check-circle" />
+                <span>Equipo entregado</span>
+                {estadoEquipo?.delivered_at && (
+                  <span className="header-estado-fecha">
+                    Entregado el {formatDate(estadoEquipo.delivered_at)}
+                  </span>
+                )}
+              </div>
+            )}
             {/* Siguiente Paso - dentro de la misma box de Proceso */}
-            {siguienteSubproceso && estadoEquipo?.estado !== 'finalizado' && (
+            {siguienteSubproceso && estadoEquipo?.estado !== 'delivered' && estadoEquipo?.estado !== 'finalizado' && (
               <div className="header-siguiente-paso">
                 <div className="header-siguiente-paso-label">
                   <Icon name="arrow-right" />
@@ -1404,6 +2303,46 @@ export default function EquipoDetalle({ demoMode = false }) {
                 </div>
               </div>
             )}
+            {/* Generadores de notas - debajo de Proceso */}
+            <div className="header-notas-actions">
+              <button 
+                className="header-nota-btn"
+                onClick={async () => {
+                  try {
+                    const { data: pedidosData } = await supabase
+                      .from('pedidos_piezas')
+                      .select('id, nombre_pieza, cantidad, precio_unitario, estado')
+                      .eq('equipo_id', equipo.id);
+                    const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
+                    const pTotal = pedidos.reduce((s, p) => s + (parseFloat(p?.cantidad) || 0) * (parseFloat(p?.precio_unitario) || 0), 0);
+                    const eqRec = { ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []), pedidos_ligados: pedidos, pedidos_total: pTotal };
+                    abrirNotaPDF(eqRec, 'recepcion');
+                  } catch (err) {
+                    abrirNotaPDF({ ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) }, 'recepcion');
+                  }
+                }}
+              >
+                <Icon name="file-alt" /> Nota de Recepción
+              </button>
+              {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+                <button 
+                  className="header-nota-btn header-nota-btn-primary"
+                  onClick={() => {
+                    const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+                    const extra = parseFloat(precioExtra) || 0;
+                    setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
+                    const procesosList = procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []);
+                    const problemaTexto = procesosList.length
+                      ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ')
+                      : '';
+                    setSolucionImplementada(problemaTexto);
+                    setShowConfirmarTotalModal(true);
+                  }}
+                >
+                  <Icon name="file-alt" /> Nota de Entrega
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -1438,28 +2377,39 @@ export default function EquipoDetalle({ demoMode = false }) {
                 )}
               </>
             ) : (
-              <div className="equipo-photo-placeholder">
-                <Icon name="camera" />
-                <span>Sin fotos</span>
-              </div>
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handlePhotoUpload}
+                />
+                <div 
+                  className="equipo-photo-placeholder"
+                  onClick={handlePhotoPlaceholderClick}
+                  style={{ cursor: subiendoFoto ? 'wait' : 'pointer' }}
+                  title={subiendoFoto ? 'Subiendo foto...' : 'Click para agregar foto'}
+                >
+                  {subiendoFoto ? (
+                    <>
+                      <Icon name="circle-notch" style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Subiendo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="camera" />
+                      <span>Sin fotos</span>
+                    </>
+                  )}
+                </div>
+              </>
             )}
           </section>
 
-          {/* Problema destacado */}
-          {equipo.problema && equipo.problema.trim() && (
-            <section className="sidebar-card sidebar-card-problema">
-              <div className="problema-content">
-                <Icon name="exclamation-triangle" className="problema-icon" />
-                <div className="problema-text">
-                  <div className="problema-label">Problema</div>
-                  <div className="problema-value">{equipo.problema}</div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Costos y Entrega - Unificado con botones */}
-          {equipo && (
+          {/* Costos y Entrega - Ocultado porque ya está en el header */}
+          {/* {equipo && (
             <section className="sidebar-card costos-section">
               <div className="sidebar-card-row">
                 <Icon name="dollar-sign" className="sidebar-card-icon" />
@@ -1474,7 +2424,6 @@ export default function EquipoDetalle({ demoMode = false }) {
                   const adeudo = totalCalculado - adelanto;
                   return (
                     <>
-                      {/* Desglose Servicios */}
                       <div className="costos-desglose">
                         <div className="costos-desglose-titulo">
                           <Icon name="wrench" />
@@ -1503,7 +2452,6 @@ export default function EquipoDetalle({ demoMode = false }) {
                           </div>
                         )}
                       </div>
-                      {/* Desglose Refacciones */}
                       {pedidosLigados.length > 0 && (
                         <div className="costos-desglose">
                           <div className="costos-desglose-titulo">
@@ -1529,22 +2477,53 @@ export default function EquipoDetalle({ demoMode = false }) {
                           </div>
                         </div>
                       )}
-                      {/* Extra */}
-                      <div className="costos-row costos-extra">
-                        <span className="costos-label">
-                          <Icon name="plus" /> Extra (opcional)
-                        </span>
-                        <input
-                          type="number"
-                          className="costos-extra-input"
-                          placeholder="0"
-                          min="0"
-                          step="0.01"
-                          value={precioExtra}
-                          onChange={(e) => setPrecioExtra(e.target.value)}
-                          title="Agregar monto extra si llevó algo más o cambió el precio"
-                        />
-                      </div>
+                      {(parseFloat(precioExtra) || 0) > 0 ? (
+                        <div className="costos-desglose">
+                          <div className="costos-desglose-titulo">
+                            <Icon name="plus-circle" />
+                            Cobro extra adicional
+                          </div>
+                          <div className="costos-desglose-item">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+                              <span className="costos-desglose-nombre">
+                                {descripcionExtra || 'Cobro extra adicional'}
+                              </span>
+                              {!descripcionExtra && (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontStyle: 'italic', fontWeight: 'normal' }}>
+                                  Sin descripción detallada
+                                </span>
+                              )}
+                            </div>
+                            <span className="costos-desglose-precio">${parseFloat(precioExtra).toFixed(2)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="costos-btn-editar-extra"
+                            onClick={() => {
+                              setShowExtraModal(true);
+                            }}
+                            title="Editar cobro extra"
+                          >
+                            <Icon name="edit" />
+                            Editar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="costos-row costos-extra-empty">
+                          <button
+                            type="button"
+                            className="costos-btn-agregar-extra"
+                            onClick={() => {
+                              setShowExtraModal(true);
+                            }}
+                            title="Agregar cobro extra adicional"
+                          >
+                            <Icon name="plus-circle" />
+                            <span>Agregar cobro extra</span>
+                            <span className="costos-btn-subtitle">Ajustes de precio, servicios adicionales, etc.</span>
+                          </button>
+                        </div>
+                      )}
                       <div className="costos-row costos-total">
                         <span className="costos-label">Total calculado:</span>
                         <span className="costos-value costos-total-value">${totalCalculado.toFixed(2)}</span>
@@ -1557,6 +2536,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                           className="costos-btn-adelanto"
                           onClick={() => {
                             setNuevoAdelanto('');
+                            setDescripcionAdelanto('');
                             setShowPagoModal(true);
                           }}
                           title="Agregar adelanto"
@@ -1575,70 +2555,25 @@ export default function EquipoDetalle({ demoMode = false }) {
                   );
                 })()}
               </div>
-              {/* Botones de notas y acciones - junto a costos */}
               <div className="costos-actions">
-                <button 
-                  className="costos-action-btn"
-                  onClick={async () => {
-                    try {
-                      const { data: pedidosData } = await supabase
-                        .from('pedidos_piezas')
-                        .select('id, nombre_pieza, cantidad, precio_unitario, estado')
-                        .eq('equipo_id', equipo.id);
-                      const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
-                      const pTotal = pedidos.reduce((s, p) => s + (parseFloat(p?.cantidad) || 0) * (parseFloat(p?.precio_unitario) || 0), 0);
-                      setEquipoParaNotaPDF({
-                        ...equipo,
-                        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
-                        pedidos_ligados: pedidos,
-                        pedidos_total: pTotal
-                      });
-                    } catch (err) {
-                      setEquipoParaNotaPDF({ ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) });
-                    } finally {
-                      setTipoNotaPDF('recepcion');
-                      setShowNotaPDFModal(true);
-                    }
-                  }}
-                >
-                  <Icon name="file-alt" /> Nota de Recepción
-                </button>
-                {(estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
-                  <button 
-                    className="costos-action-btn costos-action-btn-primary"
-                    onClick={() => {
-                      const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
-                      const extra = parseFloat(precioExtra) || 0;
-                      setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
-                      const procesosList = procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []);
-                      const problemaTexto = procesosList.length
-                        ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ')
-                        : '';
-                      setSolucionImplementada(problemaTexto);
-                      setShowConfirmarTotalModal(true);
-                    }}
-                  >
-                    <Icon name="file-alt" /> Nota de Entrega
-                  </button>
-                )}
                 {procesosConRecordatorio.length > 0 && (
                   <button className="costos-action-btn" onClick={openLicenciaModal}>
                     <Icon name="key" /> Registrar licencia
                   </button>
                 )}
                 {estadoEquipo?.estado === 'en_proceso' && subprocesosCompletados.length === subprocesos.length && subprocesos.length > 0 && (
-                  <button className="costos-action-btn costos-action-btn-success" onClick={marcarComoListo}>
-                    <Icon name="check-circle" /> Marcar como Listo
+                  <button className="costos-action-btn costos-action-btn-success" onClick={marcarComoListoParaRecoger}>
+                    <Icon name="check-circle" /> Marcar como Listo para Recoger
                   </button>
                 )}
-                {estadoEquipo?.estado === 'listo' && (
-                  <button className="costos-action-btn costos-action-btn-success" onClick={marcarComoFinalizado}>
+                {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo') && (
+                  <button className="costos-action-btn costos-action-btn-success" onClick={marcarComoEntregado}>
                     <Icon name="flag-checkered" /> Marcar como Entregado
                   </button>
                 )}
               </div>
             </section>
-          )}
+          )} */}
 
         </aside>
 
@@ -1705,7 +2640,23 @@ export default function EquipoDetalle({ demoMode = false }) {
               historial.map((evento, index) => {
                 const agente = evento.profiles;
                 const avatarUrl = agente?.foto_url;
-                const agenteNombre = agente?.nombre?.trim() || agente?.email?.split('@')[0] || 'Sistema';
+                // Determinar el nombre del agente: primero nombre, luego email, luego intentar obtener del usuario_id
+                let agenteNombre = 'Usuario desconocido';
+                if (agente) {
+                  // Prioridad: nombre del perfil > nombre de user_metadata > email > usuario_id truncado
+                  if (agente.nombre?.trim()) {
+                    agenteNombre = agente.nombre.trim();
+                  } else if (agente.email) {
+                    // Usar el email como nombre (parte antes del @)
+                    agenteNombre = agente.email.split('@')[0];
+                  } else if (agente.id) {
+                    // Si solo tenemos el ID, mostrar un mensaje más amigable
+                    agenteNombre = `Usuario ${agente.id.substring(0, 8)}...`;
+                  }
+                } else if (!evento.usuario_id) {
+                  // Solo mostrar "Sistema" si realmente no hay usuario_id (evento del sistema)
+                  agenteNombre = 'Sistema';
+                }
                 const initials = getInitials(agenteNombre);
                 
                 // Determine color based on event type or agent
@@ -1852,7 +2803,7 @@ export default function EquipoDetalle({ demoMode = false }) {
               </button>
               <button
                 className="btn-confirmar-total"
-                onClick={() => {
+                onClick={async () => {
                   const total = parseFloat(totalConfirmado || 0);
                   if (total < 0) {
                     alert('El total no puede ser negativo.');
@@ -1861,18 +2812,27 @@ export default function EquipoDetalle({ demoMode = false }) {
                   const solucionTexto = (solucionImplementada && solucionImplementada.trim())
                     || (equipo?.problema && equipo.problema.trim())
                     || '';
+                  
+                  // Guardar precio_extra y descripcion_extra si cambió antes de generar la nota
+                  const extraActual = parseFloat(precioExtra) || 0;
+                  const descExtraActual = descripcionExtra?.trim() || null;
+                  if (extraActual !== (parseFloat(equipo?.precio_extra) || 0) || 
+                      descExtraActual !== (equipo?.descripcion_extra || null)) {
+                    await guardarPrecioExtra(precioExtra, descripcionExtra);
+                  }
+                  
                   const eqParaNota = {
                     ...equipo,
                     procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
                     pedidos_ligados: pedidosLigados,
                     pedidos_total: pedidosTotal,
+                    precio_extra: extraActual,
+                    descripcion_extra: descExtraActual,
                     precio_total_confirmado: total,
                     solucion_implementada: solucionTexto
                   };
-                  setEquipoParaNotaPDF(eqParaNota);
                   setShowConfirmarTotalModal(false);
-                  setTipoNotaPDF('entrega');
-                  setShowNotaPDFModal(true);
+                  abrirNotaPDF(eqParaNota, 'entrega');
                 }}
               >
                 <Icon name="check" />
@@ -1881,23 +2841,6 @@ export default function EquipoDetalle({ demoMode = false }) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Nota PDF Modal */}
-      {showNotaPDFModal && tipoNotaPDF && (
-        <NotaPDF
-          equipo={equipoParaNotaPDF || {
-            ...equipo,
-            procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : [])
-          }}
-          cliente={cliente}
-          tipo={tipoNotaPDF}
-          onClose={() => {
-            setShowNotaPDFModal(false);
-            setTipoNotaPDF(null);
-            setEquipoParaNotaPDF(null);
-          }}
-        />
       )}
 
       {/* Modal de Adelanto */}
@@ -1917,6 +2860,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                   if (!actualizandoAdelanto) {
                     setShowPagoModal(false);
                     setNuevoAdelanto('');
+                    setDescripcionAdelanto('');
                   }
                 }}
               >
@@ -1924,19 +2868,44 @@ export default function EquipoDetalle({ demoMode = false }) {
               </button>
             </div>
             <div className="comentario-modal-body">
-              <p style={{ marginBottom: '0.75rem' }}>
-                Adelanto acumulado actual:{' '}
-                <strong>${parseFloat(equipo?.adelanto || 0).toFixed(2)}</strong>
-              </p>
-              <input
-                type="number"
-                className="typeform-large-input"
-                placeholder="Ej: 500.00"
-                value={nuevoAdelanto}
-                onChange={(e) => setNuevoAdelanto(e.target.value)}
-                min="0"
-                step="0.01"
-              />
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--gray-50)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: '0.25rem' }}>Adelanto acumulado actual</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--primary-blue)' }}>
+                  ${parseFloat(equipo?.adelanto || 0).toFixed(2)}
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Monto del adelanto *
+                </label>
+                <input
+                  type="number"
+                  className="typeform-large-input"
+                  placeholder="Ej: 500.00"
+                  value={nuevoAdelanto}
+                  onChange={(e) => setNuevoAdelanto(e.target.value)}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Descripción (opcional)
+                </label>
+                <textarea
+                  className="typeform-large-textarea"
+                  placeholder="Ej: Pago parcial por servicios, Pago inicial, etc."
+                  value={descripcionAdelanto}
+                  onChange={(e) => setDescripcionAdelanto(e.target.value)}
+                  rows="3"
+                  style={{ resize: 'vertical' }}
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '0.25rem' }}>
+                  Esta descripción ayuda a identificar el motivo del adelanto
+                </div>
+              </div>
             </div>
             <div className="comentario-modal-footer">
               <button
@@ -1945,6 +2914,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                   if (!actualizandoAdelanto) {
                     setShowPagoModal(false);
                     setNuevoAdelanto('');
+                    setDescripcionAdelanto('');
                   }
                 }}
               >
@@ -1957,6 +2927,137 @@ export default function EquipoDetalle({ demoMode = false }) {
               >
                 <Icon name="check" />
                 {actualizandoAdelanto ? 'Guardando...' : 'Guardar adelanto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cobro Extra */}
+      {showExtraModal && (
+        <div className="comentario-modal-overlay" onClick={() => {
+          if (!guardandoExtra) {
+            setShowExtraModal(false);
+          }
+        }}>
+          <div className="comentario-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="comentario-modal-header">
+              <h3>Agregar cobro extra</h3>
+              <button
+                className="comentario-modal-close"
+                onClick={() => {
+                  if (!guardandoExtra) {
+                    setShowExtraModal(false);
+                  }
+                }}
+              >
+                <Icon name="times" />
+              </button>
+            </div>
+            <div className="comentario-modal-body comentario-modal-body-compact">
+              <div className="extra-modal-current">
+                <div className="extra-modal-current-label">Cobro extra actual</div>
+                <div className="extra-modal-current-amount">
+                  ${parseFloat(precioExtra || 0).toFixed(2)}
+                </div>
+                {descripcionExtra && (
+                  <div className="extra-modal-current-desc">
+                    "{descripcionExtra}"
+                  </div>
+                )}
+              </div>
+              
+              <div className="extra-modal-field">
+                <label className="extra-modal-label">
+                  Monto del cobro extra *
+                </label>
+                <input
+                  type="number"
+                  className="extra-modal-input"
+                  placeholder="Ej: 250.00"
+                  value={precioExtra}
+                  onChange={(e) => setPrecioExtra(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  disabled={guardandoExtra}
+                />
+                <div className="extra-modal-help">
+                  Monto adicional al precio de servicios y refacciones
+                </div>
+              </div>
+              
+              <div className="extra-modal-field">
+                <label className="extra-modal-label">
+                  Descripción del cobro extra *
+                </label>
+                <textarea
+                  className="extra-modal-textarea"
+                  placeholder="Ej: Ajuste de precio por urgencia, Servicio adicional..."
+                  value={descripcionExtra}
+                  onChange={(e) => setDescripcionExtra(e.target.value)}
+                  rows={3}
+                  disabled={guardandoExtra}
+                />
+                <div className="extra-modal-help">
+                  Describe claramente el motivo del cobro extra
+                </div>
+              </div>
+            </div>
+            <div className="comentario-modal-footer extra-modal-footer">
+              {(parseFloat(precioExtra || 0) > 0) && (
+                <button
+                  className="extra-modal-btn-delete"
+                  onClick={async () => {
+                    if (confirm('¿Eliminar el cobro extra?')) {
+                      await guardarPrecioExtra('0', '');
+                      setShowExtraModal(false);
+                    }
+                  }}
+                  disabled={guardandoExtra}
+                >
+                  <Icon name="trash" />
+                  Eliminar
+                </button>
+              )}
+              <button
+                className="extra-modal-btn-cancel"
+                onClick={() => {
+                  if (!guardandoExtra) {
+                    setShowExtraModal(false);
+                  }
+                }}
+                disabled={guardandoExtra}
+              >
+                Cancelar
+              </button>
+              <button
+                className="extra-modal-btn-save"
+                onClick={async () => {
+                  const monto = parseFloat(precioExtra) || 0;
+                  if (monto < 0) {
+                    alert('El monto no puede ser negativo.');
+                    return;
+                  }
+                  if (monto > 0 && !descripcionExtra.trim()) {
+                    alert('Por favor ingresa una descripción del cobro extra.');
+                    return;
+                  }
+                  await guardarPrecioExtra(precioExtra, descripcionExtra);
+                  setShowExtraModal(false);
+                }}
+                disabled={guardandoExtra || !precioExtra.trim() || (parseFloat(precioExtra) > 0 && !descripcionExtra.trim())}
+              >
+                {guardandoExtra ? (
+                  <>
+                    <Icon name="sync" className="spinning" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="check" />
+                    Guardar
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -2087,100 +3188,178 @@ export default function EquipoDetalle({ demoMode = false }) {
         </div>
       )}
 
-      {/* Modal de Opciones Especiales */}
+      {/* Modal de Acciones del Equipo */}
       {showOpcionesEspeciales && (
         <div className="comentario-modal-overlay" onClick={() => setShowOpcionesEspeciales(false)}>
-          <div className="comentario-modal opciones-especiales-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="comentario-modal acciones-equipo-modal" onClick={(e) => e.stopPropagation()}>
             <div className="comentario-modal-header">
-              <h3>Opciones Especiales</h3>
+              <h3>Acciones del Equipo</h3>
               <button 
                 className="comentario-modal-close"
                 onClick={() => {
                   setShowOpcionesEspeciales(false);
                   setProcesoSeleccionado(null);
                   setJustificacionFinalizado('');
+                  setJustificacionReabrir('');
                 }}
               >
                 <Icon name="times" />
               </button>
             </div>
             <div className="comentario-modal-body">
-              {/* Opción 1: Cambiar Proceso */}
-              <div className="opcion-especial-section">
-                <h4 className="opcion-especial-title">
-                  <Icon name="exchange-alt" />
-                  Cambiar Proceso a Realizar
-                </h4>
-                <p className="opcion-especial-desc">
-                  Cambia el proceso asignado a este equipo. Esto se registrará en el historial.
-                </p>
-                <select
-                  className="opcion-especial-select"
-                  value={procesoSeleccionado || ''}
-                  onChange={(e) => setProcesoSeleccionado(e.target.value ? parseInt(e.target.value) : null)}
-                >
-                  <option value="">Selecciona un proceso...</option>
-                  {procesosDisponibles.map(proceso => (
-                    <option key={proceso.id} value={proceso.id}>
-                      {proceso.nombre}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="btn-opcion-especial"
-                  onClick={cambiarProceso}
-                  disabled={!procesoSeleccionado || cambiandoProceso}
-                >
-                  {cambiandoProceso ? (
-                    <>
-                      <Icon name="sync" className="spinning" />
-                      Cambiando...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="check" />
-                      Cambiar Proceso
-                    </>
-                  )}
-                </button>
+              {/* SECCIÓN PRINCIPAL: ESTADO DEL EQUIPO */}
+              <div className="acciones-seccion">
+                <h4 className="acciones-seccion-title">Estado del equipo</h4>
+                <div className="estado-segmented-control">
+                  <button
+                    className={`estado-segmented-btn ${(estadoEquipo?.estado === 'en_proceso' || !estadoEquipo?.estado || estadoEquipo?.estado === 'pendiente') ? 'active' : ''}`}
+                    onClick={() => cambiarEstadoEquipo('en_proceso')}
+                  >
+                    <Icon name="clock" />
+                    En proceso
+                  </button>
+                  <button
+                    className={`estado-segmented-btn ${(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo') ? 'active' : ''}`}
+                    onClick={() => cambiarEstadoEquipo('ready_for_pickup')}
+                  >
+                    <Icon name="check-circle" />
+                    Listo para recoger
+                  </button>
+                  <button
+                    className={`estado-segmented-btn ${(estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'finalizado') ? 'active' : ''}`}
+                    onClick={() => cambiarEstadoEquipo('delivered')}
+                  >
+                    <Icon name="box" />
+                    Entregado
+                  </button>
+                </div>
               </div>
 
-              {/* Separador */}
-              <div className="opcion-especial-divider"></div>
-
-              {/* Opción 2: Finalizar con Justificación */}
-              <div className="opcion-especial-section">
-                <h4 className="opcion-especial-title">
-                  <Icon name="flag-checkered" />
-                  Finalizar sin Completar Proceso
-                </h4>
-                <p className="opcion-especial-desc">
-                  Marca el equipo como finalizado sin completar todos los pasos del proceso. Debes proporcionar una justificación.
-                </p>
-                <textarea
-                  className="opcion-especial-textarea"
-                  placeholder="Justifica por qué se finaliza sin completar el proceso (ej: cliente canceló, equipo no reparable, etc.)"
-                  value={justificacionFinalizado}
-                  onChange={(e) => setJustificacionFinalizado(e.target.value)}
-                  rows={4}
-                />
-                <button
-                  className="btn-opcion-especial btn-opcion-especial-danger"
-                  onClick={finalizarConJustificacion}
-                  disabled={!justificacionFinalizado.trim() || finalizandoConJustificacion}
-                >
-                  {finalizandoConJustificacion ? (
-                    <>
-                      <Icon name="sync" className="spinning" />
-                      Finalizando...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="check" />
-                      Finalizar con Justificación
-                    </>
+              {/* SECCIÓN: NOTAS */}
+              <div className="acciones-seccion">
+                <h4 className="acciones-seccion-title">Notas</h4>
+                <div className="acciones-buttons-grid">
+                  <button
+                    className="accion-btn accion-btn-secondary"
+                    onClick={generarNotaRecepcion}
+                  >
+                    <Icon name="file-alt" />
+                    <span>Reimprimir nota de recepción</span>
+                  </button>
+                  {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+                    <button
+                      className="accion-btn accion-btn-secondary"
+                      onClick={generarNotaEntrega}
+                    >
+                      <Icon name="file-alt" />
+                      <span>Generar / Reimprimir nota de entrega</span>
+                    </button>
                   )}
-                </button>
+                  {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+                    <button
+                      className="accion-btn accion-btn-warning"
+                      onClick={reabrirEquipo}
+                      disabled={!justificacionReabrir.trim() || reabriendoEquipo}
+                    >
+                      {reabriendoEquipo ? (
+                        <>
+                          <Icon name="sync" className="spinning" />
+                          <span>Reabriendo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="undo" />
+                          <span>Reabrir nota</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+                  <div className="accion-justificacion-wrapper">
+                    <textarea
+                      className="accion-justificacion-textarea"
+                      placeholder="Justificación para reabrir (ej: cliente trajo el equipo de vuelta, se entregó por error, etc.)"
+                      value={justificacionReabrir}
+                      onChange={(e) => setJustificacionReabrir(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* SECCIÓN: AVANZADO */}
+              <div className="acciones-seccion acciones-seccion-avanzado">
+                <h4 className="acciones-seccion-title">Avanzado</h4>
+                
+                {/* Cambiar Proceso */}
+                <div className="accion-avanzada-item">
+                  <div className="accion-avanzada-header">
+                    <Icon name="exchange-alt" />
+                    <span>Cambiar proceso asignado</span>
+                  </div>
+                  <select
+                    className="accion-avanzada-select"
+                    value={procesoSeleccionado || ''}
+                    onChange={(e) => setProcesoSeleccionado(e.target.value ? parseInt(e.target.value) : null)}
+                  >
+                    <option value="">Selecciona un proceso...</option>
+                    {procesosDisponibles.map(proceso => (
+                      <option key={proceso.id} value={proceso.id}>
+                        {proceso.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="accion-btn accion-btn-small"
+                    onClick={cambiarProceso}
+                    disabled={!procesoSeleccionado || cambiandoProceso}
+                  >
+                    {cambiandoProceso ? (
+                      <>
+                        <Icon name="sync" className="spinning" />
+                        Cambiando...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="check" />
+                        Cambiar
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Entregar sin completar proceso */}
+                <div className="accion-avanzada-item">
+                  <div className="accion-avanzada-header">
+                    <Icon name="flag-checkered" />
+                    <span>Entregar sin completar proceso</span>
+                  </div>
+                  <textarea
+                    className="accion-avanzada-textarea"
+                    placeholder="Justificación (ej: cliente canceló, equipo no reparable, etc.)"
+                    value={justificacionFinalizado}
+                    onChange={(e) => setJustificacionFinalizado(e.target.value)}
+                    rows={3}
+                  />
+                  <button
+                    className="accion-btn accion-btn-small accion-btn-danger"
+                    onClick={finalizarConJustificacion}
+                    disabled={!justificacionFinalizado.trim() || finalizandoConJustificacion}
+                  >
+                    {finalizandoConJustificacion ? (
+                      <>
+                        <Icon name="sync" className="spinning" />
+                        Finalizando...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="check" />
+                        Entregar
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="comentario-modal-footer">
@@ -2190,7 +3369,158 @@ export default function EquipoDetalle({ demoMode = false }) {
                   setShowOpcionesEspeciales(false);
                   setProcesoSeleccionado(null);
                   setJustificacionFinalizado('');
+                  setJustificacionReabrir('');
                 }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Cambio de Estado */}
+      {showConfirmEstadoModal && confirmEstadoData && (
+        <div className="comentario-modal-overlay" onClick={() => setShowConfirmEstadoModal(false)}>
+          <div className="comentario-modal confirm-estado-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-estado-header">
+              <div className={`confirm-estado-icon confirm-estado-icon-${confirmEstadoData.tipo}`}>
+                {confirmEstadoData.tipo === 'warning' && <Icon name="exclamation-triangle" />}
+                {confirmEstadoData.tipo === 'ready' && <Icon name="check-circle" />}
+                {confirmEstadoData.tipo === 'delivered' && <Icon name="box" />}
+                {confirmEstadoData.tipo === 'normal' && <Icon name="question-circle" />}
+              </div>
+              <h3 className="confirm-estado-title">Confirmar cambio de estado</h3>
+            </div>
+            <div className="confirm-estado-body">
+              <p className="confirm-estado-message">{confirmEstadoData.mensaje}</p>
+              <div className="confirm-estado-preview">
+                <span className="confirm-estado-preview-label">Nuevo estado:</span>
+                <span className={`confirm-estado-preview-badge confirm-estado-preview-${confirmEstadoData.nuevoEstado}`}>
+                  {confirmEstadoData.estadoNombre}
+                </span>
+              </div>
+            </div>
+            <div className="confirm-estado-footer">
+              <button
+                className="confirm-estado-btn confirm-estado-btn-cancel"
+                onClick={() => {
+                  setShowConfirmEstadoModal(false);
+                  setConfirmEstadoData(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className={`confirm-estado-btn confirm-estado-btn-confirm confirm-estado-btn-${confirmEstadoData.tipo}`}
+                onClick={ejecutarCambioEstado}
+              >
+                <Icon name="check" />
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación de pago completo */}
+      {showPagoCompletoModal && equipo && (
+        <div className="comentario-modal-overlay" onClick={() => setShowPagoCompletoModal(false)}>
+          <div className="comentario-modal confirm-estado-modal confirm-pago-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-estado-header">
+              <div className="confirm-estado-icon confirm-estado-icon-success">
+                <Icon name="check-circle" />
+              </div>
+              <h3 className="confirm-estado-title">Confirmar Pago Completo</h3>
+            </div>
+            <div className="confirm-estado-body">
+              <p className="confirm-estado-message">
+                ¿Confirmas que el cliente ha pagado completamente el servicio?
+              </p>
+              {(() => {
+                const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
+                const extra = parseFloat(precioExtra) || 0;
+                const totalCalculado = serviciosTot + pedidosTotal + extra;
+                const adelanto = parseFloat(equipo.adelanto || 0);
+                const adeudo = totalCalculado - adelanto;
+                return (
+                  <div className="confirm-pago-detalle">
+                    <div className="confirm-pago-row">
+                      <span className="confirm-pago-label">Total del servicio:</span>
+                      <span className="confirm-pago-value">${totalCalculado.toFixed(2)}</span>
+                    </div>
+                    <div className="confirm-pago-row">
+                      <span className="confirm-pago-label">Adelantos recibidos:</span>
+                      <span className="confirm-pago-value">${adelanto.toFixed(2)}</span>
+                    </div>
+                    <div className="confirm-pago-row confirm-pago-row-total">
+                      <span className="confirm-pago-label">Adeudo pendiente:</span>
+                      <span className={`confirm-pago-value ${adeudo > 0 ? 'confirm-pago-adeudo' : 'confirm-pago-cero'}`}>
+                        ${adeudo.toFixed(2)}
+                      </span>
+                    </div>
+                    {adeudo > 0 && (
+                      <div className="confirm-pago-warning">
+                        <Icon name="exclamation-triangle" />
+                        <span>El cliente aún debe ${adeudo.toFixed(2)}. ¿Deseas marcar como pagado de todas formas?</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="confirm-estado-footer">
+              <button
+                className="confirm-estado-btn confirm-estado-btn-cancel"
+                onClick={() => setShowPagoCompletoModal(false)}
+                disabled={marcandoComoPagado}
+              >
+                Cancelar
+              </button>
+              <button
+                className="confirm-estado-btn confirm-estado-btn-confirm confirm-estado-btn-success"
+                onClick={marcarComoPagado}
+                disabled={marcandoComoPagado}
+              >
+                {marcandoComoPagado ? (
+                  <>
+                    <Icon name="sync" className="spinning" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="check" />
+                    Confirmar Pago
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para mostrar problema completo */}
+      {showProblemaModal && equipo?.problema && (
+        <div className="comentario-modal-overlay" onClick={() => setShowProblemaModal(false)}>
+          <div className="comentario-modal problema-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="comentario-modal-header">
+              <h3>Problema del Equipo</h3>
+              <button 
+                className="comentario-modal-close"
+                onClick={() => setShowProblemaModal(false)}
+              >
+                <Icon name="times" />
+              </button>
+            </div>
+            <div className="comentario-modal-body">
+              <div className="problema-modal-content">
+                <p className="problema-modal-text">{equipo.problema}</p>
+              </div>
+            </div>
+            <div className="comentario-modal-footer">
+              <button 
+                className="btn-cancel"
+                onClick={() => setShowProblemaModal(false)}
               >
                 Cerrar
               </button>

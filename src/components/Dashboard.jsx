@@ -260,17 +260,21 @@ export default function Dashboard({ demoMode = false }) {
 
             equiposConSubproceso.forEach(equipo => {
                 let estado = equipo.estadoActual ?? 'sin_estado';
-                if (estado === 'finalizado') {
+                // Compatibilidad temporal: migrar estados antiguos
+                if (estado === 'finalizado') estado = 'delivered';
+                if (estado === 'listo') estado = 'ready_for_pickup';
+                
+                if (estado === 'delivered') {
                     finalizados.push(equipo);
                     return;
                 }
                 if (estado === 'en_proceso') {
                     if (equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 && !equipo.siguienteSubproceso)
-                        estado = 'listo';
+                        estado = 'ready_for_pickup';
                 } else if (estado === 'sin_estado' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido && equipo.totalSubprocesos > 0) {
-                    estado = 'listo';
+                    estado = 'ready_for_pickup';
                 }
-                if (estado === 'listo') {
+                if (estado === 'ready_for_pickup') {
                     listos.push(equipo);
                 } else {
                     pendientes.push(equipo);

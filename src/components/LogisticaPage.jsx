@@ -153,7 +153,8 @@ export default function LogisticaPage({ demoMode = false }) {
                                 return new Intl.DateTimeFormat('es-MX', {
                                     day: '2-digit',
                                     month: 'short',
-                                    year: 'numeric'
+                                    year: 'numeric',
+                                    timeZone: 'America/Mexico_City'
                                 }).format(date);
                             };
 
