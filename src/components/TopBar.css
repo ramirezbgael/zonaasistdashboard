@@ -22,13 +22,13 @@
   --spacing-xl: 2rem;
 }
 
-/* TOPBAR - Navbar global único */
+/* TOPBAR - Vidrio estilo macOS */
 .topbar {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
   z-index: var(--z-sticky, 1020);
@@ -39,9 +39,9 @@
 }
 
 .dark-mode .topbar {
-  background: rgba(26, 26, 26, 0.8);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  background: rgba(28, 28, 30, 0.72);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
 }
 
 .topbar-container {
@@ -160,7 +160,20 @@
 
 @media (min-width: 1200px) {
   .nav-label {
-    display: inline;
+    display: inline-block;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity 0.2s ease, max-width 0.25s ease;
+    vertical-align: middle;
+  }
+
+  .nav-link:hover .nav-label,
+  .nav-link:focus-visible .nav-label,
+  .nav-link.active .nav-label {
+    max-width: 10em;
+    opacity: 1;
   }
 }
 

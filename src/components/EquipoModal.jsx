@@ -256,7 +256,6 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated, demoMode
           .from('estado_equipos')
           .update({
             estado: 'ready_for_pickup',
-            ready_at: new Date().toISOString(),
             proceso_actual_id: procesoActual,
             updated_at: new Date().toISOString()
           })
@@ -268,7 +267,6 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated, demoMode
           .insert({
             equipo_id: equipo.id,
             estado: 'ready_for_pickup',
-            ready_at: new Date().toISOString(),
             proceso_actual_id: procesoActual,
             updated_at: new Date().toISOString()
           });
@@ -321,7 +319,6 @@ export default function EquipoModal({ equipo, onClose, onEquipoUpdated, demoMode
         .from('estado_equipos')
         .update({
           estado: 'delivered',
-          delivered_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('equipo_id', equipo.id);

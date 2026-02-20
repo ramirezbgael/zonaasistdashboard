@@ -1,21 +1,151 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabase.js';
 import { getEquipos as getEquiposDemo } from '../utils/demoStorage.js';
 import EquipoCard from './EquipoCard.jsx';
 import Icon from './Icon.jsx';
 import './Dashboard.css';
 
-export default function Dashboard({ demoMode = false }) {
-    const [activeTab, setActiveTab] = useState('pendientes'); // 'pendientes', 'listos', 'finalizados'
+/** Función pura para caché: obtiene equipos y devuelve datos (sin setState). */
+async function fetchEquiposForCache() {
+    const { data: equiposConClientes, error: errorConClientes } = await supabase
+        .from('equipos')
+        .select(`
+            id, marca, modelo, color, nota, problema, created_at, cliente_id,
+            clientes ( id, nombre, telefono ),
+            estado_equipos ( estado, proceso_actual_id, updated_at, procesos ( id, nombre ) )
+        `)
+        .order('nota', { ascending: true });
 
-    const [data, setData] = useState([]);
-    const [equiposPendientes, setEquiposPendientes] = useState([]);
-    const [equiposListos, setEquiposListos] = useState([]);
-    const [equiposFinalizados, setEquiposFinalizados] = useState([]);
-    const [loading, setLoading] = useState(true);
+    let equipos = null;
+    if (errorConClientes) {
+        const { data: equiposSinClientes, error: errorSinClientes } = await supabase
+            .from('equipos')
+            .select(`
+                id, marca, modelo, color, nota, problema, created_at, cliente_id,
+                estado_equipos ( estado, proceso_actual_id, updated_at, procesos ( id, nombre ) )
+            `)
+            .order('nota', { ascending: true });
+        if (errorSinClientes) throw errorSinClientes;
+        equipos = await Promise.all((equiposSinClientes || []).map(async (equipo) => {
+            if (equipo.cliente_id) {
+                const { data: clienteData } = await supabase.from('clientes').select('id, nombre, telefono').eq('id', equipo.cliente_id).single();
+                return { ...equipo, clientes: clienteData || null };
+            }
+            return { ...equipo, clientes: null };
+        }));
+    } else {
+        equipos = equiposConClientes;
+    }
+
+    const allEquipos = (equipos || []).map((e) => {
+        const clientes = Array.isArray(e.clientes) ? (e.clientes[0] || null) : (e.clientes ?? null);
+        return { ...e, clientes };
+    });
+    const equiposOrdenados = [...allEquipos].sort((a, b) => (parseInt(a.nota) || 0) - (parseInt(b.nota) || 0));
+    const equipoIds = equiposOrdenados.map(e => e.id);
+    if (equipoIds.length === 0) return { data: [], equiposPendientes: [], equiposListos: [], equiposFinalizados: [] };
+
+    const [resEstados, resProcesos, resSubprocesos, resHistorial] = await Promise.all([
+        supabase.from('estado_equipos').select('equipo_id, estado, proceso_actual_id, updated_at').in('equipo_id', equipoIds),
+        supabase.from('procesos').select('id, nombre'),
+        supabase.from('subprocesos').select('*').order('orden'),
+        supabase.from('historial_procesos').select('equipo_id, proceso_id, subproceso_id, completado, created_at').in('equipo_id', equipoIds).order('created_at', { ascending: true })
+    ]);
+    const todosEstados = resEstados.data || [];
+    const todosProcesos = resProcesos.data || [];
+    const todosSubprocesos = resSubprocesos.data || [];
+    const todoHistorial = resHistorial.data || [];
+    const procesosMap = new Map(todosProcesos.map(p => [p.id, p]));
+    const subprocesosMap = new Map();
+    todosSubprocesos.forEach(sp => {
+        if (!subprocesosMap.has(sp.proceso_id)) subprocesosMap.set(sp.proceso_id, []);
+        subprocesosMap.get(sp.proceso_id).push(sp);
+    });
+    const estadosMap = new Map();
+    todosEstados.forEach(est => {
+        if (!estadosMap.has(est.equipo_id)) estadosMap.set(est.equipo_id, []);
+        estadosMap.get(est.equipo_id).push(est);
+    });
+    const historialMap = new Map();
+    todoHistorial.forEach(h => {
+        const key = `${h.equipo_id}-${h.subproceso_id}`;
+        if (!historialMap.has(key)) historialMap.set(key, []);
+        historialMap.get(key).push(h);
+    });
+
+    const equiposConSubproceso = equiposOrdenados.map((equipo) => {
+        const estadosEquipo = estadosMap.get(equipo.id) || [];
+        const estadoMasReciente = estadosEquipo.length > 0 ? estadosEquipo.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0] : null;
+        const estadoEmbebido = Array.isArray(equipo.estado_equipos) ? equipo.estado_equipos[0] : equipo.estado_equipos;
+        const procesoId = estadoMasReciente?.proceso_actual_id ?? estadoEmbebido?.proceso_actual_id;
+        const estadoActual = estadoMasReciente?.estado ?? estadoEmbebido?.estado ?? 'sin_estado';
+        if (!procesoId) return { ...equipo, estadoActual, siguienteSubproceso: null, totalSubprocesos: 0, tieneProcesoValido: false, procesoNombre: null };
+        const procesoData = procesosMap.get(procesoId);
+        const subprocesos = subprocesosMap.get(procesoId) || [];
+        let siguienteSubproceso = null;
+        for (const subproceso of subprocesos) {
+            const registros = historialMap.get(`${equipo.id}-${subproceso.id}`) || [];
+            const completado = registros.length > 0 && registros[registros.length - 1].completado === true;
+            if (!completado) { siguienteSubproceso = subproceso; break; }
+        }
+        return { ...equipo, estadoActual, siguienteSubproceso, totalSubprocesos: subprocesos.length, tieneProcesoValido: subprocesos.length > 0, procesoNombre: procesoData?.nombre ?? null };
+    });
+
+    const pendientes = [];
+    const listos = [];
+    const finalizados = [];
+    equiposConSubproceso.forEach(equipo => {
+        let estado = equipo.estadoActual ?? 'sin_estado';
+        if (estado === 'finalizado') estado = 'delivered';
+        if (estado === 'listo') estado = 'ready_for_pickup';
+        if (estado === 'delivered') { finalizados.push(equipo); return; }
+        if (estado === 'en_proceso') {
+            if (equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 && !equipo.siguienteSubproceso) estado = 'ready_for_pickup';
+        } else if (estado === 'sin_estado' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido && equipo.totalSubprocesos > 0) estado = 'ready_for_pickup';
+        if (estado === 'ready_for_pickup') listos.push(equipo);
+        else pendientes.push(equipo);
+    });
+    return { data: equiposConSubproceso, equiposPendientes: pendientes, equiposListos: listos, equiposFinalizados: finalizados };
+}
+
+export default function Dashboard({ demoMode = false }) {
+    const [activeTab, setActiveTab] = useState('pendientes');
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const queryClient = useQueryClient();
+
+    const { data: cacheData, isLoading, refetch } = useQuery({
+        queryKey: ['equipos'],
+        queryFn: fetchEquiposForCache,
+        enabled: !demoMode,
+        staleTime: 2 * 60 * 1000,
+    });
+
+    const [demoData, setDemoData] = useState(null);
+    useEffect(() => {
+        if (demoMode) {
+            const equipos = getEquiposDemo();
+            const pendientes = equipos.filter(e => e.estadoActual === 'pendiente');
+            const listos = equipos.filter(e => e.estadoActual === 'listo');
+            const finalizados = equipos.filter(e => e.estadoActual === 'finalizado');
+            setDemoData({ data: equipos, equiposPendientes: pendientes, equiposListos: listos, equiposFinalizados: finalizados });
+        }
+    }, [demoMode]);
+
+    const data = demoMode ? (demoData?.data ?? []) : (cacheData?.data ?? []);
+    const equiposPendientes = demoMode ? (demoData?.equiposPendientes ?? []) : (cacheData?.equiposPendientes ?? []);
+    const equiposListos = demoMode ? (demoData?.equiposListos ?? []) : (cacheData?.equiposListos ?? []);
+    const equiposFinalizados = demoMode ? (demoData?.equiposFinalizados ?? []) : (cacheData?.equiposFinalizados ?? []);
+    const loading = demoMode ? !demoData : (isLoading && (cacheData?.data?.length ?? 0) === 0);
+
+    useEffect(() => {
+        if (demoMode) return;
+        const onUpdate = () => queryClient.invalidateQueries({ queryKey: ['equipos'] });
+        window.addEventListener('equipoUpdated', onUpdate);
+        return () => window.removeEventListener('equipoUpdated', onUpdate);
+    }, [demoMode, queryClient]);
 
     // Detectar si viene del dashboard principal para crear (antes abría modal)
     useEffect(() => {
@@ -63,254 +193,6 @@ export default function Dashboard({ demoMode = false }) {
                 return 'Equipos Pendientes';
         }
     };
-
-    const fetchData = async () => {
-        try {
-            // Obtener equipos con su estado más reciente (intentar con clientes primero, si falla sin clientes)
-            let equipos = null;
-            let error = null;
-            
-            // Intentar primero con la relación de clientes
-            const { data: equiposConClientes, error: errorConClientes } = await supabase
-                .from('equipos')
-                .select(`
-                    id,
-                    marca,
-                    modelo,
-                    color,
-                    nota,
-                    problema,
-                    created_at,
-                    cliente_id,
-                    clientes (
-                        id,
-                        nombre,
-                        telefono
-                    ),
-                    estado_equipos (
-                        estado,
-                        proceso_actual_id,
-                        updated_at,
-                        procesos (
-                            id,
-                            nombre
-                        )
-                    )
-                `)
-                .order('nota', { ascending: true });
-
-            if (errorConClientes) {
-                console.warn('⚠️ Error al cargar con relación clientes, intentando sin ella:', errorConClientes);
-                // Si falla, intentar sin la relación de clientes
-                const { data: equiposSinClientes, error: errorSinClientes } = await supabase
-                    .from('equipos')
-                    .select(`
-                        id,
-                        marca,
-                        modelo,
-                        color,
-                        nota,
-                        problema,
-                        created_at,
-                        cliente_id,
-                        estado_equipos (
-                            estado,
-                            proceso_actual_id,
-                            updated_at,
-                            procesos (
-                                id,
-                                nombre
-                            )
-                        )
-                    `)
-                    .order('nota', { ascending: true });
-
-                if (errorSinClientes) {
-                    console.error('❌ Error fetching equipos:', errorSinClientes);
-                    return;
-                }
-
-                // Cargar clientes por separado si tienen cliente_id
-                equipos = await Promise.all((equiposSinClientes || []).map(async (equipo) => {
-                    if (equipo.cliente_id) {
-                        try {
-                            const { data: clienteData } = await supabase
-                                .from('clientes')
-                                .select('id, nombre, telefono')
-                                .eq('id', equipo.cliente_id)
-                                .single();
-                            return { ...equipo, clientes: clienteData || null };
-                        } catch (err) {
-                            console.warn(`⚠️ No se pudo cargar cliente para equipo #${equipo.nota}:`, err);
-                            return { ...equipo, clientes: null };
-                        }
-                    }
-                    return { ...equipo, clientes: null };
-                }));
-            } else {
-                equipos = equiposConClientes;
-            }
-
-            if (!equipos) {
-                console.error('❌ No se pudieron cargar los equipos');
-                return;
-            }
-
-            const allEquipos = (equipos || []).map((e) => {
-                // Normalizar clientes: Supabase puede devolverlo como objeto o como array
-                const clientes = Array.isArray(e.clientes) ? (e.clientes[0] || null) : (e.clientes ?? null);
-                return { ...e, clientes };
-            });
-            
-            // Ordenar equipos por nota numérica (PEPS correcto)
-            const equiposOrdenados = allEquipos.sort((a, b) => {
-                const notaA = parseInt(a.nota) || 0;
-                const notaB = parseInt(b.nota) || 0;
-                return notaA - notaB;
-            });
-
-            const equipoIds = equiposOrdenados.map(e => e.id);
-            if (equipoIds.length === 0) {
-                setData([]);
-                setEquiposPendientes([]);
-                setEquiposListos([]);
-                setEquiposFinalizados([]);
-                return;
-            }
-
-            // 4 queries en paralelo (evita N+1)
-            const [resEstados, resProcesos, resSubprocesos, resHistorial] = await Promise.all([
-                supabase.from('estado_equipos').select('equipo_id, estado, proceso_actual_id, updated_at').in('equipo_id', equipoIds),
-                supabase.from('procesos').select('id, nombre'),
-                supabase.from('subprocesos').select('*').order('orden'),
-                supabase.from('historial_procesos').select('equipo_id, proceso_id, subproceso_id, completado, created_at').in('equipo_id', equipoIds).order('created_at', { ascending: true })
-            ]);
-            const todosEstados = resEstados.data || [];
-            const todosProcesos = resProcesos.data || [];
-            const todosSubprocesos = resSubprocesos.data || [];
-            const todoHistorial = resHistorial.data || [];
-
-            const procesosMap = new Map(todosProcesos.map(p => [p.id, p]));
-            const subprocesosMap = new Map();
-            todosSubprocesos.forEach(sp => {
-                if (!subprocesosMap.has(sp.proceso_id)) subprocesosMap.set(sp.proceso_id, []);
-                subprocesosMap.get(sp.proceso_id).push(sp);
-            });
-            const estadosMap = new Map();
-            todosEstados.forEach(est => {
-                if (!estadosMap.has(est.equipo_id)) estadosMap.set(est.equipo_id, []);
-                estadosMap.get(est.equipo_id).push(est);
-            });
-            const historialMap = new Map();
-            todoHistorial.forEach(h => {
-                const key = `${h.equipo_id}-${h.subproceso_id}`;
-                if (!historialMap.has(key)) historialMap.set(key, []);
-                historialMap.get(key).push(h);
-            });
-
-            // Procesar equipos en memoria (sin queries adicionales)
-            const equiposConSubproceso = equiposOrdenados.map((equipo) => {
-                // Obtener procesoId del estado (tabla estado_equipos o relación embebida)
-                const estadosEquipo = estadosMap.get(equipo.id) || [];
-                const estadoMasReciente = estadosEquipo.length > 0
-                    ? estadosEquipo.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0]
-                    : null;
-                const estadoEmbebido = Array.isArray(equipo.estado_equipos) ? equipo.estado_equipos[0] : equipo.estado_equipos;
-                const procesoId = estadoMasReciente?.proceso_actual_id ?? estadoEmbebido?.proceso_actual_id;
-                const estadoActual = estadoMasReciente?.estado ?? estadoEmbebido?.estado ?? 'sin_estado';
-
-                if (!procesoId) {
-                    return { 
-                        ...equipo, 
-                        estadoActual,
-                        siguienteSubproceso: null, 
-                        totalSubprocesos: 0, 
-                        tieneProcesoValido: false, 
-                        procesoNombre: null 
-                    };
-                }
-
-                const procesoData = procesosMap.get(procesoId);
-                const subprocesos = subprocesosMap.get(procesoId) || [];
-                let siguienteSubproceso = null;
-                for (const subproceso of subprocesos) {
-                    const registros = historialMap.get(`${equipo.id}-${subproceso.id}`) || [];
-                    const completado = registros.length > 0 && registros[registros.length - 1].completado === true;
-                    if (!completado) {
-                        siguienteSubproceso = subproceso;
-                        break;
-                    }
-                }
-
-                return { 
-                    ...equipo, 
-                    estadoActual,
-                    siguienteSubproceso, 
-                    totalSubprocesos: subprocesos.length,
-                    tieneProcesoValido: subprocesos.length > 0,
-                    procesoNombre: procesoData?.nombre ?? null
-                };
-            });
-
-            setData(equiposConSubproceso);
-
-            const pendientes = [];
-            const listos = [];
-            const finalizados = [];
-
-            equiposConSubproceso.forEach(equipo => {
-                let estado = equipo.estadoActual ?? 'sin_estado';
-                // Compatibilidad temporal: migrar estados antiguos
-                if (estado === 'finalizado') estado = 'delivered';
-                if (estado === 'listo') estado = 'ready_for_pickup';
-                
-                if (estado === 'delivered') {
-                    finalizados.push(equipo);
-                    return;
-                }
-                if (estado === 'en_proceso') {
-                    if (equipo.tieneProcesoValido && equipo.totalSubprocesos > 0 && !equipo.siguienteSubproceso)
-                        estado = 'ready_for_pickup';
-                } else if (estado === 'sin_estado' && !equipo.siguienteSubproceso && equipo.tieneProcesoValido && equipo.totalSubprocesos > 0) {
-                    estado = 'ready_for_pickup';
-                }
-                if (estado === 'ready_for_pickup') {
-                    listos.push(equipo);
-                } else {
-                    pendientes.push(equipo);
-                }
-            });
-
-            setEquiposPendientes(pendientes);
-            setEquiposListos(listos);
-            setEquiposFinalizados(finalizados);
-        } catch (error) {
-            console.error('Error en fetchData:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadEquiposDemo = () => {
-        const equipos = getEquiposDemo();
-        const pendientes = equipos.filter(e => e.estadoActual === 'pendiente');
-        const listos = equipos.filter(e => e.estadoActual === 'listo');
-        const finalizados = equipos.filter(e => e.estadoActual === 'finalizado');
-        setData(equipos);
-        setEquiposPendientes(pendientes);
-        setEquiposListos(listos);
-        setEquiposFinalizados(finalizados);
-    };
-
-    useEffect(() => {
-        if (demoMode) {
-            loadEquiposDemo();
-            setLoading(false);
-            return;
-        }
-
-        fetchData();
-    }, [demoMode]);
 
     if (loading) {
         return (
@@ -409,12 +291,12 @@ export default function Dashboard({ demoMode = false }) {
                             <EquipoCard
                                 key={equipo.id}
                                 equipo={equipo}
-                                reload={demoMode ? () => {} : fetchData}
+                                reload={demoMode ? () => {} : refetch}
                                 onClick={() => {
                                     if (demoMode) {
                                         navigate(`/demo/equipos/${equipo.id}`);
                                     } else {
-                                        navigate(`/equipos/${equipo.id}`);
+                                        navigate(`/equipos/${equipo.id}`, { state: { equipoFromList: equipo } });
                                     }
                                 }}
                                 activeTab={activeTab}

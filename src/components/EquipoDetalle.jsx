@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
 import { getEquipoPhotos, uploadEquipoPhoto } from '../services/photoUpload.service.js';
@@ -129,6 +129,7 @@ const DEMO_EQUIPOS_DETALLE = {
 export default function EquipoDetalle({ demoMode = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [equipo, setEquipo] = useState(null);
   const [cliente, setCliente] = useState(null);
@@ -204,10 +205,16 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
 
     if (id) {
+      const fromList = location.state?.equipoFromList;
+      if (fromList && String(fromList.id) === String(id)) {
+        setEquipo(fromList);
+        const clientes = Array.isArray(fromList.clientes) ? fromList.clientes[0] : fromList.clientes;
+        setCliente(clientes || null);
+      }
       loadEquipo();
     }
     loadProcesosDisponibles();
-  }, [id, demoMode]);
+  }, [id, demoMode, location.state]);
 
   useEffect(() => {
     const estado = estadoEquipo?.estado;
@@ -653,62 +660,42 @@ export default function EquipoDetalle({ demoMode = false }) {
 
       let profilesMap = new Map();
       if (todosUsuarioIds.length > 0) {
-        // Intentar cargar todos los perfiles usando RPC
-        const { data: profilesList, error: rpcError } = await supabase
-          .rpc('get_profiles_for_historial', { user_ids: todosUsuarioIds });
-        if (!rpcError && Array.isArray(profilesList)) {
+        // Solo columnas que suelen existir en profiles (evitar 400 por columna inexistente como email)
+        const { data: profilesList, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, nombre, foto_url')
+          .in('id', todosUsuarioIds);
+        if (!profilesError && Array.isArray(profilesList)) {
           profilesList.forEach((p) => {
             if (p?.id) {
-              // Si no hay nombre pero sí hay email, usar el email como nombre temporal
-              const nombre = p.nombre?.trim() || '';
-              const email = p.email?.trim() || '';
-              profilesMap.set(p.id, { 
-                id: p.id, 
-                nombre: nombre || (email ? email.split('@')[0] : ''), 
-                email: email, 
-                foto_url: p.foto_url || null 
+              const nombre = (p.nombre && String(p.nombre).trim()) || '';
+              profilesMap.set(p.id, {
+                id: p.id,
+                nombre: nombre || null,
+                email: null,
+                foto_url: p.foto_url || null
               });
             }
           });
         }
-        
-        // Fallback: cargar perfil por perfil para los que no se encontraron
-        const idsNoEncontrados = todosUsuarioIds.filter(id => !profilesMap.has(id));
-        if (idsNoEncontrados.length > 0) {
-          await Promise.all(idsNoEncontrados.map(async (uid) => {
-            try {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('id, nombre, email, foto_url')
-                .eq('id', uid)
-                .maybeSingle();
-              if (profile) {
-                profilesMap.set(uid, profile);
-              } else {
-                // Si no hay perfil en la tabla profiles, intentar obtener desde user_metadata
-                // Nota: No podemos acceder directamente a auth.users desde el cliente,
-                // pero podemos intentar usar una función RPC que lo haga
-                // Por ahora, guardar un objeto básico - intentaremos mejorarlo con una función RPC
-                console.warn('No se encontró perfil para usuario:', uid);
-                profilesMap.set(uid, {
-                  id: uid,
-                  nombre: null,
-                  email: null,
-                  foto_url: null,
-                  necesitaRPC: true // Marcar que necesita obtener desde auth.users
-                });
-              }
-            } catch (err) {
-              console.warn('Error loading profile for user:', uid, err);
-              // Guardar objeto básico incluso si falla
-              profilesMap.set(uid, {
-                id: uid,
-                nombre: null,
+        // Si la consulta batch falla (ej. RLS/400), intentar uno por uno sin pedir email
+        if (profilesMap.size === 0 && todosUsuarioIds.length > 0) {
+          for (const uid of todosUsuarioIds) {
+            const { data: one } = await supabase
+              .from('profiles')
+              .select('id, nombre, foto_url')
+              .eq('id', uid)
+              .maybeSingle();
+            if (one?.id) {
+              const nombre = (one.nombre && String(one.nombre).trim()) || '';
+              profilesMap.set(one.id, {
+                id: one.id,
+                nombre: nombre || null,
                 email: null,
-                foto_url: null
+                foto_url: one.foto_url || null
               });
             }
-          }));
+          }
         }
       }
 
@@ -939,7 +926,6 @@ export default function EquipoDetalle({ demoMode = false }) {
           .from('estado_equipos')
           .update({
             estado: 'ready_for_pickup',
-            ready_at: now,
             proceso_actual_id: estadoEquipo?.proceso_actual_id,
             updated_at: now
           })
@@ -951,7 +937,6 @@ export default function EquipoDetalle({ demoMode = false }) {
           .insert({
             equipo_id: id,
             estado: 'ready_for_pickup',
-            ready_at: now,
             proceso_actual_id: estadoEquipo?.proceso_actual_id,
             updated_at: now
           });
@@ -1155,6 +1140,13 @@ export default function EquipoDetalle({ demoMode = false }) {
     const { nuevoEstado, estadoActual } = confirmEstadoData;
     setShowConfirmEstadoModal(false);
 
+    const equipoId = parseInt(String(id), 10);
+    if (Number.isNaN(equipoId)) {
+      alert('Error: ID de equipo no válido');
+      setConfirmEstadoData(null);
+      return;
+    }
+
     try {
       const now = new Date().toISOString();
       const usuarioId = currentUser?.id;
@@ -1164,52 +1156,50 @@ export default function EquipoDetalle({ demoMode = false }) {
       }
 
       // Preparar datos de actualización según el nuevo estado
+      // Solo usamos columnas que existen en todas las BBDD: estado, updated_at, proceso_actual_id
+      // (ready_at y delivered_at requieren ejecutar migrate_estados_equipos.sql)
       let updateData = {
         updated_at: now
       };
 
       if (nuevoEstado === 'ready_for_pickup') {
         updateData.estado = 'ready_for_pickup';
-        updateData.ready_at = now;
-        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id;
+        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id ?? null;
       } else if (nuevoEstado === 'delivered') {
         updateData.estado = 'delivered';
-        updateData.delivered_at = now;
-        // Mantener ready_at si existe
-        if (estadoEquipo?.ready_at) {
-          updateData.ready_at = estadoEquipo.ready_at;
-        }
+        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id ?? null;
       } else if (nuevoEstado === 'en_proceso') {
         updateData.estado = 'en_proceso';
-        // Limpiar fechas si se está reabriendo
-        const estadoActualParaLimpiar = estadoActual || estadoEquipo?.estado || 'pendiente';
-        if (estadoActualParaLimpiar === 'delivered' || estadoActualParaLimpiar === 'finalizado' || estadoActualParaLimpiar === 'ready_for_pickup' || estadoActualParaLimpiar === 'listo') {
-          updateData.ready_at = null;
-          updateData.delivered_at = null;
-        }
-        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id;
+        updateData.proceso_actual_id = estadoEquipo?.proceso_actual_id ?? null;
       }
 
-      // Actualizar o crear estado
+      // Actualizar o crear estado (usar equipo_id numérico)
       const { data: estadoExistente, error: consultaError } = await supabase
         .from('estado_equipos')
         .select('id')
-        .eq('equipo_id', id)
-        .single();
+        .eq('equipo_id', equipoId)
+        .maybeSingle();
+
+      // Si la consulta falló por algo distinto a "no hay filas", lanzar error
+      if (consultaError) {
+        throw consultaError;
+      }
 
       let estadoError;
       if (estadoExistente) {
         const { error } = await supabase
           .from('estado_equipos')
           .update(updateData)
-          .eq('equipo_id', id);
+          .eq('equipo_id', equipoId);
         estadoError = error;
       } else {
         const { error } = await supabase
           .from('estado_equipos')
           .insert({
-            equipo_id: id,
-            ...updateData
+            equipo_id: equipoId,
+            estado: updateData.estado,
+            proceso_actual_id: updateData.proceso_actual_id ?? null,
+            updated_at: updateData.updated_at
           });
         estadoError = error;
       }
@@ -1236,8 +1226,8 @@ export default function EquipoDetalle({ demoMode = false }) {
         const { error: historialError } = await supabase
           .from('historial_procesos')
           .insert({
-            equipo_id: id,
-            proceso_id: estadoEquipo?.proceso_actual_id,
+            equipo_id: equipoId,
+            proceso_id: estadoEquipo?.proceso_actual_id ?? null,
             notas: notaHistorial,
             completado: nuevoEstado === 'delivered' || nuevoEstado === 'ready_for_pickup',
             fecha_completado: (nuevoEstado === 'delivered' || nuevoEstado === 'ready_for_pickup') ? now : null,
@@ -1272,8 +1262,13 @@ export default function EquipoDetalle({ demoMode = false }) {
       await loadHistorial();
       window.dispatchEvent(new Event('equipoUpdated'));
     } catch (error) {
+      const msg = error?.message || '';
+      const detail = error?.details || '';
+      const hint = error?.hint || '';
       console.error('Error cambiando estado:', error);
-      alert('Error al cambiar el estado del equipo');
+      console.error('Detalle:', msg, detail, hint);
+      const textoUsuario = msg ? `Error al cambiar el estado del equipo. ${msg}` : 'Error al cambiar el estado del equipo. Revisa la consola (F12) para más detalle.';
+      alert(textoUsuario);
     } finally {
       setConfirmEstadoData(null);
     }
@@ -1359,8 +1354,6 @@ export default function EquipoDetalle({ demoMode = false }) {
         .from('estado_equipos')
         .update({
           estado: 'en_proceso',
-          ready_at: null,
-          delivered_at: null,
           updated_at: now
         })
         .eq('equipo_id', id);
@@ -1426,7 +1419,6 @@ export default function EquipoDetalle({ demoMode = false }) {
         .from('estado_equipos')
         .update({
           estado: 'delivered',
-          delivered_at: now,
           updated_at: now
         })
         .eq('equipo_id', id);
@@ -1483,7 +1475,6 @@ export default function EquipoDetalle({ demoMode = false }) {
         .from('estado_equipos')
         .update({
           estado: 'delivered',
-          delivered_at: now,
           updated_at: now
         })
         .eq('equipo_id', id);
@@ -2007,9 +1998,18 @@ export default function EquipoDetalle({ demoMode = false }) {
       {/* Top Header - Datos fijos arriba */}
       <header className="equipo-detalle-header equipo-detalle-header-expanded">
         <div className="header-top-row">
-          <button onClick={() => navigate('/equipos')} className="header-back-btn">
+          <button onClick={() => navigate(demoMode ? '/demo/equipos' : '/equipos')} className="header-back-btn">
             <Icon name="arrow-left" />
           </button>
+          <div className="header-equipo-photo-wrap">
+            {fotos.length > 0 ? (
+              <img src={fotos[0].url} alt="" className="header-equipo-photo" />
+            ) : (
+              <div className="header-equipo-photo header-equipo-photo-placeholder">
+                <Icon name="camera" />
+              </div>
+            )}
+          </div>
           <div className="header-main">
             <div className="header-main-info">
               <div className="header-equipo-number">#{equipo.nota}</div>
@@ -2130,23 +2130,52 @@ export default function EquipoDetalle({ demoMode = false }) {
                           ${adeudo.toFixed(2)}
                         </span>
                       </div>
-                      {(parseFloat(precioExtra) || 0) > 0 && (
-                        <div className="header-extra-info">
-                          <Icon name="info-circle" />
-                          <span>Cobro extra: ${parseFloat(precioExtra).toFixed(2)}</span>
+                      <div className="header-total-row header-total-row-extra">
+                        <span className="header-total-label">Cobro extra</span>
+                        <div className="header-total-value-with-action">
+                          <span>{(parseFloat(precioExtra) || 0) > 0 ? `$${parseFloat(precioExtra).toFixed(2)}` : '—'}</span>
                           <button
                             type="button"
-                            className="header-costos-action-btn-small"
+                            className="header-costos-action-btn header-costos-btn-extra"
                             onClick={(e) => {
                               e.stopPropagation();
                               setShowExtraModal(true);
                             }}
-                            title="Editar cobro extra"
+                            title={(parseFloat(precioExtra) || 0) > 0 ? 'Editar cobro extra' : 'Agregar cobro extra'}
                           >
-                            <Icon name="edit" />
+                            <Icon name="plus-circle" />
                           </button>
                         </div>
-                      )}
+                      </div>
+                      <div className="header-total-row header-total-row-pagado">
+                        <span className="header-total-label">Estado de pago</span>
+                        <div className="header-pagado-right">
+                          {adeudo <= 0 ? (
+                            <span className="header-pagado-badge header-pagado-si">
+                              <Icon name="check-circle" />
+                              Pagado
+                            </span>
+                          ) : (
+                            <>
+                              <span className="header-pagado-badge header-pagado-pendiente">
+                                Pendiente
+                              </span>
+                              <button
+                                type="button"
+                                className="header-costos-btn-pagado"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowPagoCompletoModal(true);
+                                }}
+                                title="Marcar como pagado"
+                              >
+                                <Icon name="dollar-sign" />
+                                Marcar como pagado
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2212,11 +2241,10 @@ export default function EquipoDetalle({ demoMode = false }) {
               </div>
             )}
             {estadoEquipo?.estado === 'ready_for_pickup' && (
-              <div className="header-estado-action" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div className="header-estado-action">
                 <button
                   className="header-estado-btn header-estado-btn-success"
                   onClick={() => setShowPagoCompletoModal(true)}
-                  style={{ backgroundColor: '#10b981', color: 'white' }}
                 >
                   <Icon name="check-circle" />
                   Pagado
@@ -2347,68 +2375,9 @@ export default function EquipoDetalle({ demoMode = false }) {
         </div>
       </header>
 
-      {/* Main Content - 2 Column Grid */}
+      {/* Main Content - Timeline a ancho completo (sin sección de fotos abajo) */}
       <div className="equipo-detalle-main">
-        {/* Left Column - Fixed Width, Sticky */}
-        <aside className="equipo-detalle-sidebar">
-          {/* Equipment Photo */}
-          <section className="sidebar-card sidebar-card-photo">
-            {fotos.length > 0 ? (
-              <>
-                <div className="equipo-photo-main" onClick={() => setSelectedPhoto(fotos[0])}>
-                  <img src={fotos[0].url} alt={`Equipo ${equipo.nota}`} />
-                </div>
-                {fotos.length > 1 && (
-                  <div className="equipo-photo-thumbnails">
-                    {fotos.map((foto, index) => (
-                      <div 
-                        key={foto.id}
-                        className={`photo-thumb ${index === 0 ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedPhoto(foto);
-                          const newFotos = [foto, ...fotos.filter(f => f.id !== foto.id)];
-                          setFotos(newFotos);
-                        }}
-                      >
-                        <img src={foto.url} alt={`Foto ${index + 1}`} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{ display: 'none' }}
-                  onChange={handlePhotoUpload}
-                />
-                <div 
-                  className="equipo-photo-placeholder"
-                  onClick={handlePhotoPlaceholderClick}
-                  style={{ cursor: subiendoFoto ? 'wait' : 'pointer' }}
-                  title={subiendoFoto ? 'Subiendo foto...' : 'Click para agregar foto'}
-                >
-                  {subiendoFoto ? (
-                    <>
-                      <Icon name="circle-notch" style={{ animation: 'spin 1s linear infinite' }} />
-                      <span>Subiendo...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="camera" />
-                      <span>Sin fotos</span>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </section>
-
-          {/* Costos y Entrega - Ocultado porque ya está en el header */}
+        {/* Costos y Entrega - Ocultado porque ya está en el header */}
           {/* {equipo && (
             <section className="sidebar-card costos-section">
               <div className="sidebar-card-row">
@@ -2575,9 +2544,7 @@ export default function EquipoDetalle({ demoMode = false }) {
             </section>
           )} */}
 
-        </aside>
-
-        {/* Right Column - Scrollable Timeline */}
+        {/* Historial de Eventos - Timeline en cards (más reciente primero) */}
         <main className="equipo-detalle-timeline">
           <div className="timeline-header-section">
             <h2 className="timeline-title">Historial de Eventos</h2>
@@ -2635,29 +2602,28 @@ export default function EquipoDetalle({ demoMode = false }) {
               </div>
             </div>
           )}
-          <div className="timeline-container">
+          <div className="timeline-scroll-viewport">
+            <div className="timeline-cards-row">
             {historial.length > 0 ? (
               historial.map((evento, index) => {
                 const agente = evento.profiles;
                 const avatarUrl = agente?.foto_url;
+                const isMostRecent = index === 0;
                 // Determinar el nombre del agente: primero nombre, luego email, luego intentar obtener del usuario_id
                 let agenteNombre = 'Usuario desconocido';
                 if (agente) {
-                  // Prioridad: nombre del perfil > nombre de user_metadata > email > usuario_id truncado
+                  // Prioridad: nombre del perfil > email (parte antes del @) > etiqueta amigable si solo hay ID
                   if (agente.nombre?.trim()) {
                     agenteNombre = agente.nombre.trim();
-                  } else if (agente.email) {
-                    // Usar el email como nombre (parte antes del @)
-                    agenteNombre = agente.email.split('@')[0];
+                  } else if (agente.email?.trim()) {
+                    agenteNombre = agente.email.split('@')[0].trim();
                   } else if (agente.id) {
-                    // Si solo tenemos el ID, mostrar un mensaje más amigable
-                    agenteNombre = `Usuario ${agente.id.substring(0, 8)}...`;
+                    agenteNombre = 'Miembro del equipo';
                   }
                 } else if (!evento.usuario_id) {
-                  // Solo mostrar "Sistema" si realmente no hay usuario_id (evento del sistema)
                   agenteNombre = 'Sistema';
                 }
-                const initials = getInitials(agenteNombre);
+                const initials = agenteNombre === 'Miembro del equipo' ? '?' : getInitials(agenteNombre);
                 
                 // Determine color based on event type or agent
                 const getEventColor = () => {
@@ -2674,7 +2640,10 @@ export default function EquipoDetalle({ demoMode = false }) {
                 const eventColor = getEventColor();
                 
                 return (
-                  <div key={evento.id} className="timeline-event">
+                  <div key={evento.id} className={`timeline-event timeline-card ${isMostRecent ? 'timeline-card-most-recent' : ''}`}>
+                    {isMostRecent && (
+                      <span className="timeline-card-badge">Más reciente</span>
+                    )}
                     <div className={`event-avatar event-avatar-${eventColor}`}>
                       {avatarUrl ? (
                         <img 
@@ -2696,7 +2665,12 @@ export default function EquipoDetalle({ demoMode = false }) {
                     </div>
                     <div className="event-content">
                       <div className="event-header">
-                        <span className="event-agent">{agenteNombre}</span>
+                        <span 
+                          className="event-agent" 
+                          title={agente?.id && agenteNombre === 'Miembro del equipo' ? `ID: ${agente.id}` : agenteNombre}
+                        >
+                          {agenteNombre}
+                        </span>
                         <span className="event-time">{formatDate(evento.created_at)}</span>
                       </div>
                       {evento.subprocesos?.nombre && (
@@ -2722,7 +2696,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                               {initials}
                             </div>
                           </div>
-                          <div className="event-notes-text">{evento.notas}</div>
+                          <div className="event-notes-text" title={evento.notas}>{evento.notas}</div>
                         </div>
                       )}
                       {evento.completado && (
@@ -2741,6 +2715,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                 <p>No hay eventos registrados</p>
               </div>
             )}
+            </div>
           </div>
         </main>
       </div>
