@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import PendienteItem from './PendienteItem.jsx';
 import Icon from './Icon.jsx';
 import './EquipoCard.css';
 
-export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMode = false }) {
+export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMode = false, highlight }) {
   const navigate = useNavigate();
   const nota = equipo.nota != null ? String(equipo.nota) : '?';
   const [showContactModal, setShowContactModal] = useState(false);
@@ -256,6 +256,21 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
     return m.length >= 2 ? m.substring(0, 2).toUpperCase() : m.toUpperCase();
   };
 
+  const [activeHighlight, setActiveHighlight] = useState(highlight || null);
+
+  // Mostrar highlight sólo unos segundos después de montar/cambiar
+  useEffect(() => {
+    if (!highlight) {
+      setActiveHighlight(null);
+      return;
+    }
+    setActiveHighlight(highlight);
+    const timer = setTimeout(() => {
+      setActiveHighlight(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [highlight, equipo.id]);
+
   const handleCardClick = () => {
     if (onClick) {
       onClick();
@@ -264,9 +279,16 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
     }
   };
 
+  const highlightClass =
+    activeHighlight === 'retrasado'
+      ? 'equipo-card-retrasado'
+      : activeHighlight === 'listo'
+        ? 'equipo-card-listo'
+        : '';
+
   return (
     <div 
-      className="card equipo-card" 
+      className={`card equipo-card ${highlightClass}`} 
       onClick={handleCardClick} 
       style={{ 
         cursor: 'pointer',

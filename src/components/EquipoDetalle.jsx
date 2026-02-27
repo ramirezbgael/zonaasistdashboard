@@ -663,15 +663,17 @@ export default function EquipoDetalle({ demoMode = false }) {
         // Solo columnas que suelen existir en profiles (evitar 400 por columna inexistente como email)
         const { data: profilesList, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, nombre, foto_url')
+          .select('id, nombre, apodo, foto_url')
           .in('id', todosUsuarioIds);
         if (!profilesError && Array.isArray(profilesList)) {
           profilesList.forEach((p) => {
             if (p?.id) {
               const nombre = (p.nombre && String(p.nombre).trim()) || '';
+              const apodo = (p.apodo && String(p.apodo).trim()) || '';
               profilesMap.set(p.id, {
                 id: p.id,
                 nombre: nombre || null,
+                apodo: apodo || null,
                 email: null,
                 foto_url: p.foto_url || null
               });
@@ -683,14 +685,16 @@ export default function EquipoDetalle({ demoMode = false }) {
           for (const uid of todosUsuarioIds) {
             const { data: one } = await supabase
               .from('profiles')
-              .select('id, nombre, foto_url')
+              .select('id, nombre, apodo, foto_url')
               .eq('id', uid)
               .maybeSingle();
             if (one?.id) {
               const nombre = (one.nombre && String(one.nombre).trim()) || '';
+              const apodo = (one.apodo && String(one.apodo).trim()) || '';
               profilesMap.set(one.id, {
                 id: one.id,
                 nombre: nombre || null,
+                apodo: apodo || null,
                 email: null,
                 foto_url: one.foto_url || null
               });
@@ -702,17 +706,22 @@ export default function EquipoDetalle({ demoMode = false }) {
       const historialConProfiles = eventos.map((evento) => {
         if (!evento.usuario_id) return { ...evento, profiles: null };
         if (currentUser?.id === evento.usuario_id) {
-          const nombre = currentUser.user_metadata?.nombre
+          const p = profilesMap.get(currentUser.id);
+          const nombre = p?.nombre
+            || p?.apodo
+            || currentUser.user_metadata?.nombre
             || currentUser.user_metadata?.full_name
             || currentUser.email?.split('@')[0]
             || 'Yo';
+          const foto_url = p?.foto_url ?? currentUser.user_metadata?.avatar_url ?? null;
           return {
             ...evento,
             profiles: {
               id: currentUser.id,
               nombre,
+              apodo: p?.apodo || null,
               email: currentUser.email,
-              foto_url: currentUser.user_metadata?.avatar_url ?? null
+              foto_url
             }
           };
         }
@@ -724,6 +733,7 @@ export default function EquipoDetalle({ demoMode = false }) {
             profiles: {
               id: evento.usuario_id,
               nombre: null,
+              apodo: null,
               email: null,
               foto_url: null,
               usuario_id: evento.usuario_id // Guardar el ID para intentar obtener más info después
@@ -1995,13 +2005,31 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   return (
     <div className="equipo-detalle">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handlePhotoUpload}
+      />
       {/* Top Header - Datos fijos arriba */}
       <header className="equipo-detalle-header equipo-detalle-header-expanded">
         <div className="header-top-row">
           <button onClick={() => navigate(demoMode ? '/demo/equipos' : '/equipos')} className="header-back-btn">
             <Icon name="arrow-left" />
           </button>
-          <div className="header-equipo-photo-wrap">
+          <button
+            type="button"
+            className="header-equipo-photo-wrap"
+            onClick={() => {
+              if (fotos.length > 0) {
+                setSelectedPhoto(fotos[0]);
+              } else {
+                handlePhotoPlaceholderClick();
+              }
+            }}
+            title={fotos.length > 0 ? 'Ver foto del equipo' : 'Agregar foto del equipo'}
+          >
             {fotos.length > 0 ? (
               <img src={fotos[0].url} alt="" className="header-equipo-photo" />
             ) : (
@@ -2009,7 +2037,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                 <Icon name="camera" />
               </div>
             )}
-          </div>
+          </button>
           <div className="header-main">
             <div className="header-main-info">
               <div className="header-equipo-number">#{equipo.nota}</div>
@@ -2227,6 +2255,21 @@ export default function EquipoDetalle({ demoMode = false }) {
               <span className="header-proceso-fecha">
                 <Icon name="calendar-alt" /> {formatDate(equipo.created_at)}
               </span>
+              {(() => {
+                // "Quién recibió" = evento de recepción si existe, si no el evento más antiguo con usuario_id
+                const asc = [...(historial || [])].reverse();
+                const recepcion = asc.find(e => e?.tipo_evento === 'recepcion' && e?.usuario_id) || asc.find(e => e?.usuario_id);
+                const p = recepcion?.profiles;
+                const nombre = (p?.nombre && String(p.nombre).trim())
+                  || (p?.apodo && String(p.apodo).trim())
+                  || (recepcion?.usuario_id ? 'Miembro del equipo' : 'No registrado');
+                const fecha = recepcion?.created_at ? formatDate(recepcion.created_at) : null;
+                return (
+                  <span className="header-recibio-row" title={fecha ? `Recibido el ${fecha}` : 'Recibió el equipo'}>
+                    <Icon name="user" /> Recibió: {nombre}{fecha ? ` • ${fecha}` : ''}
+                  </span>
+                );
+              })()}
             </div>
             {/* Botones de acción según estado - FLUJO NORMAL VISIBLE */}
             {estadoEquipo?.estado === 'en_proceso' && (
@@ -2609,12 +2652,14 @@ export default function EquipoDetalle({ demoMode = false }) {
                 const agente = evento.profiles;
                 const avatarUrl = agente?.foto_url;
                 const isMostRecent = index === 0;
-                // Determinar el nombre del agente: primero nombre, luego email, luego intentar obtener del usuario_id
+                // Determinar el nombre del agente: primero nombre, luego apodo, luego email, luego fallback
                 let agenteNombre = 'Usuario desconocido';
                 if (agente) {
                   // Prioridad: nombre del perfil > email (parte antes del @) > etiqueta amigable si solo hay ID
                   if (agente.nombre?.trim()) {
                     agenteNombre = agente.nombre.trim();
+                  } else if (agente.apodo?.trim()) {
+                    agenteNombre = agente.apodo.trim();
                   } else if (agente.email?.trim()) {
                     agenteNombre = agente.email.split('@')[0].trim();
                   } else if (agente.id) {
@@ -3159,6 +3204,18 @@ export default function EquipoDetalle({ demoMode = false }) {
               <Icon name="times" />
             </button>
             <img src={selectedPhoto.url} alt="Equipo" className="photo-modal-image" />
+            <div className="photo-modal-actions">
+              <button
+                type="button"
+                className="btn-save-comentario"
+                onClick={() => {
+                  setSelectedPhoto(null);
+                  handlePhotoPlaceholderClick();
+                }}
+              >
+                <Icon name="camera" /> Cambiar foto
+              </button>
+            </div>
           </div>
         </div>
       )}

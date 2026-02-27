@@ -295,7 +295,30 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       }, 2000);
 
       if (equipoId) {
+        let usuarioId = null;
         try {
+          const { data: { user } } = await supabase.auth.getUser();
+          usuarioId = user?.id || null;
+        } catch (e) {
+          usuarioId = null;
+        }
+        try {
+          // Registrar recepción (para saber claramente quién recibió el equipo)
+          try {
+            await supabase
+              .from('historial_procesos')
+              .insert({
+                equipo_id: equipoId,
+                proceso_id: parseInt(formData.proceso_id),
+                notas: 'Equipo recibido en mostrador',
+                fecha_inicio: new Date().toISOString(),
+                usuario_id: usuarioId,
+                tipo_evento: 'recepcion'
+              });
+          } catch (recepErr) {
+            console.warn('No se pudo registrar recepción (no crítico):', recepErr);
+          }
+
           await supabase
             .from('estado_equipos')
             .insert({
@@ -316,7 +339,8 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
               equipo_id: equipoId,
               proceso_id: parseInt(formData.proceso_id),
               notas: `Proceso iniciado: ${procesoSeleccionado?.nombre}`,
-              fecha_inicio: new Date().toISOString()
+              fecha_inicio: new Date().toISOString(),
+              usuario_id: usuarioId
             });
         } catch (historialError) {
           console.error('Error al crear historial:', historialError);

@@ -50,6 +50,11 @@ export default function TopBar({ demoMode = false }) {
         return location.pathname === path || location.pathname.startsWith(`${path}/`);
     };
 
+    const closeSearch = () => {
+        setShowSearch(false);
+        setSearchQuery('');
+    };
+
     const closeMenus = () => {
         setShowMobileMenu(false);
         setShowUserMenu(false);
@@ -64,7 +69,7 @@ export default function TopBar({ demoMode = false }) {
                 if (!demoMode) setShowSearch(true);
             }
             if (e.key === 'Escape') {
-                if (showSearch) setShowSearch(false);
+                if (showSearch) closeSearch();
                 else if (showMobileMenu) setShowMobileMenu(false);
             }
         };
@@ -101,14 +106,25 @@ export default function TopBar({ demoMode = false }) {
         const loadProfilePhoto = async () => {
             try {
                 const { data: { user } } = await supabase.auth.getUser();
-                if (user?.user_metadata?.avatar_url) {
-                    setProfilePhotoUrl(user.user_metadata.avatar_url);
-                }
+                if (!user?.id) return;
+
+                // Fuente de verdad: profiles.foto_url (si existe); fallback a user_metadata.avatar_url
+                const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('foto_url')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
+                const url = profileData?.foto_url || user?.user_metadata?.avatar_url || null;
+                setProfilePhotoUrl(url);
             } catch (error) {
                 console.error('Error loading profile photo:', error);
             }
         };
         loadProfilePhoto();
+        const handleProfileUpdated = () => loadProfilePhoto();
+        window.addEventListener('profileUpdated', handleProfileUpdated);
+        return () => window.removeEventListener('profileUpdated', handleProfileUpdated);
     }, [demoMode]);
 
     // Cargar notificaciones (solo en modo real)
@@ -186,7 +202,10 @@ export default function TopBar({ demoMode = false }) {
                             placeholder="Buscar equipos, clientes... (Cmd/Ctrl + K)"
                             className="search-input"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                if (!demoMode) setShowSearch(true);
+                            }}
                             onFocus={() => {
                                 if (!demoMode) setShowSearch(true);
                             }}
@@ -476,7 +495,14 @@ export default function TopBar({ demoMode = false }) {
             </nav>
 
             {/* Modales */}
-            {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+            {showSearch && (
+                <SearchModal
+                    isOpen={showSearch}
+                    onClose={closeSearch}
+                    initialQuery={searchQuery}
+                    onQueryChange={setSearchQuery}
+                />
+            )}
             {showSettings && <Settings onClose={() => setShowSettings(false)} />}
             {showProfile && <Profile onClose={() => setShowProfile(false)} />}
             {showNotifications && (

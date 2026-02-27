@@ -798,6 +798,14 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
       }
 
       if (data && data[0]) {
+        let usuarioId = null;
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          usuarioId = user?.id || null;
+        } catch (e) {
+          usuarioId = null;
+        }
+
         const procesoIdsNumericos = formData.proceso_ids
           .map((id) => parseInt(id, 10))
           .filter((n) => Number.isFinite(n));
@@ -811,6 +819,20 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
+
+        // Registrar recepción para que quede claro quién lo recibió (no bloqueante)
+        try {
+          await supabase.from('historial_procesos').insert({
+            equipo_id: data[0].id,
+            proceso_id: primerProcesoId,
+            notas: 'Equipo recibido en mostrador',
+            fecha_inicio: new Date().toISOString(),
+            usuario_id: usuarioId,
+            tipo_evento: 'recepcion'
+          });
+        } catch (recepErr) {
+          console.warn('No se pudo registrar recepción (no crítico):', recepErr);
+        }
 
         // Insertar múltiples procesos en equipo_procesos
         const procesosSeleccionados = procesoIdsNumericos.map((procesoId) => ({
@@ -830,7 +852,8 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
             equipo_id: data[0].id,
             proceso_id: procesoId,
             notas: `Proceso iniciado: ${proceso?.nombre}`,
-            fecha_inicio: new Date().toISOString()
+            fecha_inicio: new Date().toISOString(),
+            usuario_id: usuarioId
           };
         });
         

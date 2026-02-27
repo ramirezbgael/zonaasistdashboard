@@ -5,7 +5,7 @@ import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
 import './SearchModal.css';
 
-export default function SearchModal({ isOpen, onClose }) {
+export default function SearchModal({ isOpen = true, onClose, initialQuery = '', onQueryChange }) {
     const [query, setQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState(null);
     const [results, setResults] = useState([]);
@@ -26,6 +26,17 @@ export default function SearchModal({ isOpen, onClose }) {
             inputRef.current.focus();
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        // Si el modal se abre desde la TopBar con texto ya escrito, precargarlo.
+        setQuery((prev) => (prev && prev.trim() ? prev : (initialQuery || '')));
+    }, [isOpen, initialQuery]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        onQueryChange?.(query);
+    }, [isOpen, query, onQueryChange]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {

@@ -148,12 +148,16 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose, asP
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...colors.black);
       if (!esPedido && !esDocumento) {
-        const tipoEq = equipo.tipo_equipo || 'Laptop';
+        const rawTipo = typeof equipo.tipo_equipo === 'string' ? equipo.tipo_equipo.trim() : '';
+        const tipoEq = rawTipo || null;
         const marca = equipo.marca || '—';
         const modelo = equipo.modelo || '—';
         const det = equipo.color ? `${equipo.color}${equipo.detalles ? ', ' + equipo.detalles : ''}` : (equipo.detalles || '—');
         const pass = equipo.contraseña ? `Contraseña: ${equipo.contraseña}` : '';
-        doc.text(`${tipoEq}   ·   ${marca}   ·   ${modelo}`, r2.innerX, r2.innerY + 2);
+        const lineaCabecera = tipoEq
+          ? `${tipoEq}   ·   ${marca}   ·   ${modelo}`
+          : `${marca}   ·   ${modelo}`;
+        doc.text(lineaCabecera, r2.innerX, r2.innerY + 2);
         doc.text(`Color / detalles: ${det}`, r2.innerX, r2.innerY + 7);
         if (pass) doc.text(pass, r2.innerX, r2.innerY + 12);
       } else {
@@ -420,7 +424,7 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose, asP
           <iframe
             ref={iframeRef}
             title={tipo === 'recepcion' ? 'Nota de Recepción' : 'Nota de Entrega'}
-            src={pdfUrl.dataUri}
+            src={pdfUrl.blobUrl || pdfUrl.dataUri}
             className="nota-pdf-page-iframe"
           />
         ) : (

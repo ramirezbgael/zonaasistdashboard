@@ -75,13 +75,16 @@ async function fetchEquiposForCache() {
         historialMap.get(key).push(h);
     });
 
+    const ahora = new Date();
     const equiposConSubproceso = equiposOrdenados.map((equipo) => {
         const estadosEquipo = estadosMap.get(equipo.id) || [];
         const estadoMasReciente = estadosEquipo.length > 0 ? estadosEquipo.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0] : null;
         const estadoEmbebido = Array.isArray(equipo.estado_equipos) ? equipo.estado_equipos[0] : equipo.estado_equipos;
         const procesoId = estadoMasReciente?.proceso_actual_id ?? estadoEmbebido?.proceso_actual_id;
         const estadoActual = estadoMasReciente?.estado ?? estadoEmbebido?.estado ?? 'sin_estado';
-        if (!procesoId) return { ...equipo, estadoActual, siguienteSubproceso: null, totalSubprocesos: 0, tieneProcesoValido: false, procesoNombre: null };
+        const ultimaActualizacion = estadoMasReciente?.updated_at || estadoMasReciente?.created_at || equipo.created_at;
+        const diasSinMovimiento = ultimaActualizacion ? Math.floor((ahora - new Date(ultimaActualizacion)) / (1000 * 60 * 60 * 24)) : 0;
+        if (!procesoId) return { ...equipo, estadoActual, diasSinMovimiento, siguienteSubproceso: null, totalSubprocesos: 0, tieneProcesoValido: false, procesoNombre: null };
         const procesoData = procesosMap.get(procesoId);
         const subprocesos = subprocesosMap.get(procesoId) || [];
         let siguienteSubproceso = null;
@@ -90,7 +93,15 @@ async function fetchEquiposForCache() {
             const completado = registros.length > 0 && registros[registros.length - 1].completado === true;
             if (!completado) { siguienteSubproceso = subproceso; break; }
         }
-        return { ...equipo, estadoActual, siguienteSubproceso, totalSubprocesos: subprocesos.length, tieneProcesoValido: subprocesos.length > 0, procesoNombre: procesoData?.nombre ?? null };
+        return { 
+            ...equipo, 
+            estadoActual, 
+            diasSinMovimiento,
+            siguienteSubproceso, 
+            totalSubprocesos: subprocesos.length, 
+            tieneProcesoValido: subprocesos.length > 0, 
+            procesoNombre: procesoData?.nombre ?? null 
+        };
     });
 
     const pendientes = [];
@@ -146,6 +157,15 @@ export default function Dashboard({ demoMode = false }) {
         window.addEventListener('equipoUpdated', onUpdate);
         return () => window.removeEventListener('equipoUpdated', onUpdate);
     }, [demoMode, queryClient]);
+
+    // Sincronizar la pestaña activa con el parámetro ?tab=pendientes|listos|finalizados
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (!tab) return;
+        if (tab === 'pendientes' || tab === 'listos' || tab === 'finalizados') {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
 
     // Detectar si viene del dashboard principal para crear (antes abría modal)
     useEffect(() => {
@@ -259,7 +279,12 @@ export default function Dashboard({ demoMode = false }) {
             <nav className="dashboard-tabs">
                 <button 
                     className={`tab-btn ${activeTab === 'pendientes' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('pendientes')}
+                    onClick={() => {
+                        setActiveTab('pendientes');
+                        const next = new URLSearchParams(searchParams);
+                        next.set('tab', 'pendientes');
+                        setSearchParams(next, { replace: true });
+                    }}
                 >
                     <Icon name="hourglass-half" className="tab-icon" />
                     <span className="tab-text">Pendientes</span>
@@ -267,7 +292,12 @@ export default function Dashboard({ demoMode = false }) {
                 </button>
                 <button 
                     className={`tab-btn ${activeTab === 'listos' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('listos')}
+                    onClick={() => {
+                        setActiveTab('listos');
+                        const next = new URLSearchParams(searchParams);
+                        next.set('tab', 'listos');
+                        setSearchParams(next, { replace: true });
+                    }}
                 >
                     <Icon name="check-circle" className="tab-icon" />
                     <span className="tab-text">Listos</span>
@@ -275,7 +305,12 @@ export default function Dashboard({ demoMode = false }) {
                 </button>
                 <button 
                     className={`tab-btn ${activeTab === 'finalizados' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('finalizados')}
+                    onClick={() => {
+                        setActiveTab('finalizados');
+                        const next = new URLSearchParams(searchParams);
+                        next.set('tab', 'finalizados');
+                        setSearchParams(next, { replace: true });
+                    }}
                 >
                     <Icon name="flag-checkered" className="tab-icon" />
                     <span className="tab-text">Finalizados</span>
@@ -287,22 +322,34 @@ export default function Dashboard({ demoMode = false }) {
                 <h2 className="dashboard-section-title">{getTituloTab()}</h2>
                 <div className="equipos-grid">
                     {getEquiposActivos().length > 0 ? (
-                        getEquiposActivos().map(equipo => (
-                            <EquipoCard
-                                key={equipo.id}
-                                equipo={equipo}
-                                reload={demoMode ? () => {} : refetch}
-                                onClick={() => {
-                                    if (demoMode) {
-                                        navigate(`/demo/equipos/${equipo.id}`);
-                                    } else {
-                                        navigate(`/equipos/${equipo.id}`, { state: { equipoFromList: equipo } });
-                                    }
-                                }}
-                                activeTab={activeTab}
-                                demoMode={demoMode}
-                            />
-                        ))
+                        getEquiposActivos().map(equipo => {
+                            const estado = equipo.estadoActual ?? 'sin_estado';
+                            const isRetrasado = (estado !== 'delivered' && estado !== 'finalizado' && estado !== 'ready_for_pickup') &&
+                                typeof equipo.diasSinMovimiento === 'number' && equipo.diasSinMovimiento > 3;
+                            const highlight =
+                                activeTab === 'pendientes' && isRetrasado
+                                    ? 'retrasado'
+                                    : activeTab === 'listos'
+                                        ? 'listo'
+                                        : null;
+                            return (
+                                <EquipoCard
+                                    key={equipo.id}
+                                    equipo={equipo}
+                                    reload={demoMode ? () => {} : refetch}
+                                    onClick={() => {
+                                        if (demoMode) {
+                                            navigate(`/demo/equipos/${equipo.id}`);
+                                        } else {
+                                            navigate(`/equipos/${equipo.id}`, { state: { equipoFromList: equipo } });
+                                        }
+                                    }}
+                                    activeTab={activeTab}
+                                    demoMode={demoMode}
+                                    highlight={highlight}
+                                />
+                            );
+                        })
                     ) : (
                         <div className="empty-state">
                             <div className="empty-icon">

@@ -20,6 +20,22 @@ export default function Profile({ onClose }) {
     loadUserProfile();
   }, []);
 
+  function syncAuthMetadata(next) {
+    // Mantener compatibilidad con pantallas que usan user_metadata
+    try {
+      const payload = {
+        ...(next?.nombre ? { nombre: next.nombre, full_name: next.nombre } : {}),
+        ...(next?.foto_url ? { avatar_url: next.foto_url } : {}),
+      };
+      if (Object.keys(payload).length === 0) return Promise.resolve();
+      return supabase.auth.updateUser({ data: payload });
+    } catch (err) {
+      // No bloquear el guardado del perfil por esto
+      console.warn('No se pudo sincronizar metadata de auth:', err);
+      return Promise.resolve();
+    }
+  }
+
   const loadUserProfile = async () => {
     try {
       setLoading(true);
@@ -115,6 +131,8 @@ export default function Profile({ onClose }) {
       if (profile) {
         await updateProfile({ foto_url: publicUrl });
       }
+      await syncAuthMetadata({ foto_url: publicUrl, nombre: nombre?.trim() });
+      window.dispatchEvent(new Event('profileUpdated'));
 
       setSuccess('Foto actualizada correctamente');
       setTimeout(() => setSuccess(''), 3000);
@@ -181,7 +199,10 @@ export default function Profile({ onClose }) {
       setError('');
       setSuccess('');
 
+      const prevFoto = fotoUrl;
       await updateProfile();
+      await syncAuthMetadata({ nombre: nombre?.trim(), foto_url: prevFoto });
+      window.dispatchEvent(new Event('profileUpdated'));
 
       setSuccess('Perfil actualizado correctamente');
       setTimeout(() => setSuccess(''), 3000);
@@ -279,20 +300,13 @@ export default function Profile({ onClose }) {
                 placeholder="Tu nombre completo"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                disabled={saving || (!isFirstTime)}
+                  disabled={saving}
                 required={isFirstTime}
               />
             </div>
-            {isFirstTime && (
-              <p className="profile-input-hint">
-                Este nombre se configurará solo la primera vez
-              </p>
-            )}
-            {!isFirstTime && (
-              <p className="profile-input-hint">
-                El nombre no se puede cambiar después de la primera configuración
-              </p>
-            )}
+            <p className="profile-input-hint">
+              Este nombre es el que verán en comentarios, reportes y recepción.
+            </p>
           </div>
 
           {/* Apodo */}

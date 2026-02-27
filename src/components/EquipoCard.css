@@ -65,6 +65,42 @@
     opacity: 1;
 }
 
+/* Highlight: equipos retrasados (pendientes sin movimiento) */
+.equipo-card.equipo-card-retrasado {
+    border-color: #facc15;
+    box-shadow:
+        0 0 0 1px rgba(250, 204, 21, 0.4),
+        0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.equipo-card.equipo-card-retrasado::before {
+    background: linear-gradient(90deg, #facc15, #f97316);
+    opacity: 1;
+}
+
+.dark-mode .equipo-card.equipo-card-retrasado {
+    background: rgba(250, 204, 21, 0.08);
+    border-color: rgba(250, 204, 21, 0.65);
+}
+
+/* Highlight: equipos listos para entregar */
+.equipo-card.equipo-card-listo {
+    border-color: #38bdf8;
+    box-shadow:
+        0 0 0 1px rgba(56, 189, 248, 0.4),
+        0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.equipo-card.equipo-card-listo::before {
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    opacity: 1;
+}
+
+.dark-mode .equipo-card.equipo-card-listo {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.7);
+}
+
 .dark-mode .card {
     background: rgba(30, 30, 30, 0.8);
     border-color: rgba(255, 255, 255, 0.1);
