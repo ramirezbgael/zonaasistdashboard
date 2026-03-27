@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import Icon from './Icon.jsx';
 import './Profile.css';
 
@@ -40,7 +40,7 @@ export default function Profile({ onClose }) {
     try {
       setLoading(true);
       // Obtener usuario actual
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+      const { data: { user: currentUser }, error: userError } = await getCurrentUser();
       
       if (userError) throw userError;
       if (!currentUser) {

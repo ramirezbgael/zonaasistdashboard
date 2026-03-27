@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarDocumentoNuevo } from '../utils/notifications.js';
 import { addDocumento as addDocumentoDemo } from '../utils/demoStorage.js';
@@ -245,7 +245,7 @@ export default function AddDocumentoModal({ onClose, onDocumentoAdded, mode = 'm
       }
 
       // Obtener usuario actual
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCurrentUser();
 
       // Insertar documento
       const documentoData = {

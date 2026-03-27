@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import { addInventarioProducto, updateInventarioProducto } from '../utils/demoStorage.js';
 import Icon from './Icon.jsx';
 import CustomSelect from './CustomSelect.jsx';
@@ -248,7 +248,7 @@ export default function AddInventarioModal({ isOpen, onClose, onSuccess, editing
             }
 
             // Obtener usuario actual para Supabase
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await getCurrentUser();
             let productoId;
 
             if (editingProduct) {

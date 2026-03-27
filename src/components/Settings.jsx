@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import Icon from './Icon.jsx';
 import ProcesosPage from './ProcesosPage.jsx';
 import './Settings.css';
@@ -26,7 +26,7 @@ export default function Settings({ onClose }) {
     async function fetchConfig() {
       setSmtpLoading(true);
       setSmtpMessage('');
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await getCurrentUser();
       if (!user) {
         setSmtpMessage('No autenticado');
         setSmtpLoading(false);
@@ -71,7 +71,7 @@ export default function Settings({ onClose }) {
     e.preventDefault();
     setSmtpLoading(true);
     setSmtpMessage('');
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await getCurrentUser();
     if (!user) {
       setSmtpMessage('No autenticado');
       setSmtpLoading(false);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import Icon from './Icon.jsx';
@@ -102,6 +102,10 @@ export default function MainDashboard({ demoMode = false, demoData }) {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
+    const hasLoadedOnce = useRef(false);
+    const retryCount = useRef(0);
+    const retryTimer = useRef(null);
+
     useEffect(() => {
         if (demoMode) {
             const d = demoData || {};
@@ -133,6 +137,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
         
         return () => {
             clearInterval(interval);
+            clearTimeout(retryTimer.current);
             window.removeEventListener('equipoUpdated', handleEquipoUpdated);
             window.removeEventListener('focus', handleFocus);
         };
@@ -156,66 +161,71 @@ export default function MainDashboard({ demoMode = false, demoData }) {
 
     const fetchDashboardData = async () => {
         try {
-            setLoading(true);
-            console.log('🔄 Iniciando fetchDashboardData...');
-            
-            // Obtener todos los equipos
-            const { data: equipos, error: equiposError } = await supabase
-                .from('equipos')
-                .select(`
-                    id,
-                    nota,
-                    marca,
-                    modelo,
-                    created_at,
-                    cliente_id,
-                    clientes (
-                        id,
-                        nombre,
-                        telefono
-                    )
-                `)
-                .order('nota', { ascending: true });
-
-            if (equiposError) {
-                console.error('❌ Error fetching equipos:', equiposError);
-                setLoading(false);
-                return;
+            // Solo mostrar spinner en la carga inicial
+            if (!hasLoadedOnce.current) {
+                setLoading(true);
             }
 
-            console.log(`📦 Equipos obtenidos: ${equipos?.length || 0}`);
+            // Lanzar equipos + estados + queries secundarias en paralelo
+            const [equiposResult, estadosResultPlaceholder, docResult, pedidosResult, comentariosResult, historialResult] = await Promise.all([
+                supabase
+                    .from('equipos')
+                    .select('id, nota, marca, modelo, created_at, cliente_id, clientes(id, nombre, telefono)')
+                    .order('nota', { ascending: true }),
+                // placeholder — se calculará después de tener los IDs
+                Promise.resolve(null),
+                supabase
+                    .from('servicios_documentos')
+                    .select('id, tipo_servicio, descripcion, precio, estado, fecha_entrega, created_at, clientes(id, nombre, telefono)')
+                    .eq('estado', 'pendiente'),
+                supabase
+                    .from('pedidos_piezas')
+                    .select('id, nombre_pieza, cantidad, estado, fecha_estimada_llegada, created_at')
+                    .eq('estado', 'pendiente'),
+                supabase
+                    .from('comentarios')
+                    .select('id, mensaje, modulo, referencia_id, created_at, usuario_id')
+                    .order('created_at', { ascending: false })
+                    .limit(10),
+                supabase
+                    .from('historial_procesos')
+                    .select('id, equipo_id, notas, completado, created_at, equipos(nota, marca, modelo)')
+                    .order('created_at', { ascending: false })
+                    .limit(10),
+            ]);
 
-            // Obtener estados de todos los equipos por separado
-            const equiposConEstado = await Promise.all((equipos || []).map(async (equipo) => {
-                // Obtener el estado más reciente de este equipo
-                const { data: estadoData, error: estadoError } = await supabase
+            if (equiposResult.error) throw equiposResult.error;
+
+            const equipos = equiposResult.data || [];
+
+            // Query de estados en bulk con los IDs ya conocidos
+            const equipoIds = equipos.map(e => e.id);
+            let estadosMap = new Map();
+            if (equipoIds.length > 0) {
+                const { data: todosEstados, error: estadosError } = await supabase
                     .from('estado_equipos')
-                    .select('estado, updated_at, created_at')
-                    .eq('equipo_id', equipo.id)
-                    .order('updated_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-
-                if (estadoError && estadoError.code !== 'PGRST116') {
-                    console.warn(`⚠️ Error obteniendo estado para equipo ${equipo.id}:`, estadoError);
+                    .select('equipo_id, estado, updated_at, created_at')
+                    .in('equipo_id', equipoIds)
+                    .order('updated_at', { ascending: false });
+                if (!estadosError) {
+                    (todosEstados || []).forEach(est => {
+                        if (!estadosMap.has(est.equipo_id)) estadosMap.set(est.equipo_id, est);
+                    });
                 }
-
-                return {
-                    ...equipo,
-                    estado_equipos: estadoData ? [estadoData] : []
-                };
+            }
+            const equiposConEstado = equipos.map(equipo => ({
+                ...equipo,
+                estado_equipos: estadosMap.has(equipo.id) ? [estadosMap.get(equipo.id)] : []
             }));
 
-            console.log(`✅ Equipos con estado procesados: ${equiposConEstado.length}`);
-            
-            // Debug: Verificar algunos equipos
-            if (equiposConEstado.length > 0) {
-                console.log('🔍 Primeros 3 equipos:', equiposConEstado.slice(0, 3).map(e => ({
-                    nota: e.nota,
-                    tieneEstado: !!e.estado_equipos?.[0],
-                    estado: e.estado_equipos?.[0]?.estado || 'sin_estado'
-                })));
-            }
+            // Desempacar resultados de queries secundarias
+            const documentos = docResult.data || [];
+            const pedidos = pedidosResult.data || [];
+            const comentarios = comentariosResult.data || [];
+            const historial = historialResult.data || [];
+
+            // Reset retry counter al tener éxito
+            retryCount.current = 0;
 
             // Procesar equipos y estados
             const ahora = new Date();
@@ -238,9 +248,6 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                     const estado = estadoActual?.estado || 'sin_estado';
                     const ultimaActualizacion = estadoActual?.updated_at || estadoActual?.created_at || equipo.created_at;
                     const diasSinMovimiento = Math.floor((ahora - new Date(ultimaActualizacion)) / (1000 * 60 * 60 * 24));
-                    
-                    // Debug: Log del estado de cada equipo
-                    console.log(`Equipo #${equipo.nota}: estado="${estado}", tieneEstadoActual=${!!estadoActual}, updated_at="${estadoActual?.updated_at || 'N/A'}"`);
                     
                     // Clasificar equipos por estado
                     if (estado === 'ready_for_pickup' || estado === 'listo') { // 'listo' para compatibilidad temporal
@@ -288,25 +295,6 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                 totalEquipos: equipos?.length || 0
             });
 
-            // Obtener documentos pendientes
-            const { data: documentos, error: documentosError } = await supabase
-                .from('servicios_documentos')
-                .select(`
-                    id,
-                    tipo_servicio,
-                    descripcion,
-                    precio,
-                    estado,
-                    fecha_entrega,
-                    created_at,
-                    clientes (
-                        id,
-                        nombre,
-                        telefono
-                    )
-                `)
-                .eq('estado', 'pendiente');
-
             const trabajosPendientes = documentos?.length || 0;
             
             // Trabajos sin presupuesto aprobado (transcripciones sin precio)
@@ -320,19 +308,6 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                 const fechaEntrega = new Date(doc.fecha_entrega);
                 return fechaEntrega.toDateString() === hoy.toDateString();
             }) || [];
-
-            // Obtener pedidos pendientes
-            const { data: pedidos, error: pedidosError } = await supabase
-                .from('pedidos_piezas')
-                .select(`
-                    id,
-                    nombre_pieza,
-                    cantidad,
-                    estado,
-                    fecha_estimada_llegada,
-                    created_at
-                `)
-                .eq('estado', 'pendiente');
 
             const entregasPendientes = pedidos?.length || 0;
             
@@ -468,24 +443,10 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                 });
             }
 
-            // Obtener actividad reciente (comentarios, cambios de estado)
+            // Construir actividad reciente con los datos ya obtenidos en paralelo
             const actividadesRecientes = [];
 
-            // Comentarios recientes
-            const { data: comentarios, error: comentariosError } = await supabase
-                .from('comentarios')
-                .select(`
-                    id,
-                    mensaje,
-                    modulo,
-                    referencia_id,
-                    created_at,
-                    usuario_id
-                `)
-                .order('created_at', { ascending: false })
-                .limit(10);
-
-            if (!comentariosError && comentarios) {
+            if (comentarios) {
                 comentarios.forEach(comentario => {
                     actividadesRecientes.push({
                         id: `comentario-${comentario.id}`,
@@ -500,25 +461,7 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                 });
             }
 
-            // Cambios de estado en equipos (desde historial_procesos)
-            const { data: historial, error: historialError } = await supabase
-                .from('historial_procesos')
-                .select(`
-                    id,
-                    equipo_id,
-                    notas,
-                    completado,
-                    created_at,
-                    equipos (
-                        nota,
-                        marca,
-                        modelo
-                    )
-                `)
-                .order('created_at', { ascending: false })
-                .limit(10);
-
-            if (!historialError && historial) {
+            if (historial) {
                 historial.forEach(item => {
                     if (item.completado) {
                         actividadesRecientes.push({
@@ -548,12 +491,23 @@ export default function MainDashboard({ demoMode = false, demoData }) {
                 equiposTerminadosHoy,
                 equiposTerminadosSemana
             });
-            setSiguientesAcciones(acciones.slice(0, 5)); // Máximo 5 acciones
-            setActividades(actividadesRecientes.slice(0, 10)); // Últimas 10 actividades
+            setSiguientesAcciones(acciones.slice(0, 5));
+            setActividades(actividadesRecientes.slice(0, 10));
+            hasLoadedOnce.current = true;
             setLoading(false);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
-            setLoading(false);
+            // Auto-retry con backoff exponencial en errores de red
+            const isNetworkError = !error?.code || error?.code === '' || error?.message?.includes('fetch') || error?.message?.includes('network');
+            if (isNetworkError && retryCount.current < 3) {
+                retryCount.current += 1;
+                const delay = retryCount.current * 3000; // 3s, 6s, 9s
+                console.warn(`⚠️ Error de red, reintentando en ${delay / 1000}s... (intento ${retryCount.current}/3)`);
+                retryTimer.current = setTimeout(fetchDashboardData, delay);
+            } else {
+                retryCount.current = 0;
+                setLoading(false);
+            }
         }
     };
 

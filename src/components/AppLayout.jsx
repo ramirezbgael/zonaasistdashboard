@@ -1,6 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import TopBar from './TopBar.jsx';
 import Footer from './Footer.jsx';
 import Icon from './Icon.jsx';
@@ -21,7 +21,7 @@ export default function AppLayout({ demoMode = false }) {
         let cancelled = false;
         const checkUser = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { user } } = await getCurrentUser();
                 if (cancelled) return;
                 if (user?.email === ABEL_EMAIL) {
                     setShowAbelPrank(true);

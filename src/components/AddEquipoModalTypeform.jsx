@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import useClienteSearch from '../hooks/useClienteSearch.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
 import { uploadEquipoPhoto } from '../services/photoUpload.service.js';
@@ -800,7 +800,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
       if (data && data[0]) {
         let usuarioId = null;
         try {
-          const { data: { user } } = await supabase.auth.getUser();
+          const { data: { user } } = await getCurrentUser();
           usuarioId = user?.id || null;
         } catch (e) {
           usuarioId = null;
@@ -864,7 +864,7 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
         // Upload photo if captured
         if (capturedImage) {
           try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await getCurrentUser();
             await uploadEquipoPhoto(data[0].id, capturedImage, user?.id || null);
             console.log('✅ Photo uploaded successfully');
           } catch (photoError) {

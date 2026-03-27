@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import { notificarEquipoListo, notificarEquipoFinalizado } from '../utils/notifications.js';
 import { getEquipoPhotos, uploadEquipoPhoto } from '../services/photoUpload.service.js';
 import Icon from './Icon.jsx';
@@ -246,13 +246,11 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   const loadCurrentUser = async () => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      // getSession() lee la sesión cacheada localmente (sin petición de red)
+      const { data: { session }, error } = await supabase.auth.getSession();
       if (error) throw error;
-      if (user) {
-        setCurrentUser(user);
-        console.log('Current user loaded:', user.id);
-      } else {
-        console.warn('No user found');
+      if (session?.user) {
+        setCurrentUser(session.user);
       }
     } catch (error) {
       console.error('Error loading current user:', error);
@@ -464,20 +462,18 @@ export default function EquipoDetalle({ demoMode = false }) {
         }
       }
 
-      // Load estado
-      await loadEstadoEquipo();
-      
-      // Load procesos asociados al equipo con precios
-      await loadProcesosEquipo();
-      
-      // Load historial/timeline
-      await loadHistorial();
-      
-      // Load photos
-      await loadFotos();
+      // Mostrar la página inmediatamente con los datos del equipo
+      setLoading(false);
+
+      // Cargar estado, procesos, historial y fotos en paralelo en segundo plano
+      Promise.all([
+        loadEstadoEquipo(),
+        loadProcesosEquipo(),
+        loadHistorial(),
+        loadFotos(),
+      ]).catch(err => console.error('Error loading secondary data:', err));
     } catch (error) {
       console.error('Error loading equipo:', error);
-    } finally {
       setLoading(false);
     }
   };
@@ -538,13 +534,15 @@ export default function EquipoDetalle({ demoMode = false }) {
       setEstadoEquipo(estadoEquipoParaUI);
 
       if (data.proceso_actual_id) {
-        const { data: procesoData } = await supabase
-          .from('procesos')
-          .select('id, nombre, descripcion, precio')
-          .eq('id', data.proceso_actual_id)
-          .maybeSingle();
-        setProcesoInfo(procesoData || null);
-        await loadSubprocesos(data.proceso_actual_id);
+        const [procesoResult] = await Promise.all([
+          supabase
+            .from('procesos')
+            .select('id, nombre, descripcion, precio')
+            .eq('id', data.proceso_actual_id)
+            .maybeSingle(),
+          loadSubprocesos(data.proceso_actual_id),
+        ]);
+        setProcesoInfo(procesoResult.data || null);
       }
     } catch (error) {
       console.error('Error loading estado:', error);
@@ -636,7 +634,7 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   const loadHistorial = async () => {
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await getCurrentUser();
 
       const { data, error } = await supabase
         .from('historial_procesos')
@@ -646,7 +644,8 @@ export default function EquipoDetalle({ demoMode = false }) {
           subprocesos (nombre)
         `)
         .eq('equipo_id', id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
       
       if (error) throw error;
       
@@ -802,7 +801,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           const base64Data = reader.result;
           
           // Obtener usuario actual
-          const { data: { user } } = await supabase.auth.getUser();
+          const { data: { user } } = await getCurrentUser();
           
           // Subir foto
           await uploadEquipoPhoto(id, base64Data, user?.id || null);

@@ -76,94 +76,139 @@ export default function SearchModal({ isOpen = true, onClose, initialQuery = '',
         setLoading(true);
         try {
             const searchResults = [];
+            const trimmedQuery = query.trim();
+            const EQUIPO_FIELDS = `id, nota, marca, modelo, problema, color, created_at, cliente_id, clientes(id, nombre, telefono)`;
 
-            // Búsqueda en equipos
+            // ── EQUIPOS ──────────────────────────────────────────────────
             if (searchType === 'all' || searchType === 'equipos') {
-                // Primero obtener todos los equipos
-                let equiposQuery = supabase
-                    .from('equipos')
-                    .select(`
-                        id,
-                        nota,
-                        marca,
-                        modelo,
-                        problema,
-                        color,
-                        created_at,
-                        cliente_id,
-                        clientes (
-                            id,
-                            nombre,
-                            telefono
-                        )
-                    `);
+                // Paso 1: resolver IDs permitidos para filtros de estado
+                let allowedEquipoIds = null; // null = sin restricción por estado
 
-                if (activeFilter === 'hoy') {
-                    const hoy = new Date();
-                    hoy.setHours(0, 0, 0, 0);
-                    equiposQuery = equiposQuery.gte('created_at', hoy.toISOString());
+                if (activeFilter === 'atrasados' || activeFilter === 'listos') {
+                    const tresDiasAtras = new Date();
+                    tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
+
+                    // Candidatos: equipos que alguna vez tuvieron el estado buscado
+                    let candidateQ = supabase
+                        .from('estado_equipos')
+                        .select('equipo_id');
+                    if (activeFilter === 'listos') {
+                        candidateQ = candidateQ.eq('estado', 'listo');
+                    } else {
+                        candidateQ = candidateQ
+                            .eq('estado', 'en_proceso')
+                            .lt('updated_at', tresDiasAtras.toISOString());
+                    }
+                    const { data: candidates } = await candidateQ;
+                    const candidateIds = [...new Set((candidates || []).map(c => c.equipo_id))];
+
+                    if (candidateIds.length > 0) {
+                        // Obtener el estado más reciente de esos candidatos
+                        const { data: latestStates } = await supabase
+                            .from('estado_equipos')
+                            .select('equipo_id, estado, updated_at')
+                            .in('equipo_id', candidateIds)
+                            .order('updated_at', { ascending: false });
+
+                        const latestPerEquipo = new Map();
+                        (latestStates || []).forEach(est => {
+                            if (!latestPerEquipo.has(est.equipo_id)) latestPerEquipo.set(est.equipo_id, est);
+                        });
+
+                        allowedEquipoIds = [];
+                        latestPerEquipo.forEach((est, equipoId) => {
+                            if (activeFilter === 'listos' && est.estado === 'listo') {
+                                allowedEquipoIds.push(equipoId);
+                            } else if (
+                                activeFilter === 'atrasados' &&
+                                est.estado === 'en_proceso' &&
+                                new Date(est.updated_at) < tresDiasAtras
+                            ) {
+                                allowedEquipoIds.push(equipoId);
+                            }
+                        });
+                    } else {
+                        allowedEquipoIds = [];
+                    }
                 }
 
-                const { data: equipos, error: equiposError } = await equiposQuery;
+                // Helper para aplicar filtros base a cualquier query de equipos
+                const applyBase = (q) => {
+                    if (allowedEquipoIds !== null) q = q.in('id', allowedEquipoIds.length > 0 ? allowedEquipoIds : ['__no_match__']);
+                    if (activeFilter === 'hoy') {
+                        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+                        q = q.gte('created_at', hoy.toISOString());
+                    }
+                    return q;
+                };
 
-                if (!equiposError && equipos) {
-                    // Obtener estados de equipos por separado
-                    const equiposConEstado = await Promise.all(
-                        equipos.map(async (equipo) => {
-                            const { data: estadoData } = await supabase
-                                .from('estado_equipos')
-                                .select('estado, updated_at')
-                                .eq('equipo_id', equipo.id)
-                                .order('updated_at', { ascending: false })
-                                .limit(1)
-                                .maybeSingle();
+                const seenEquipoIds = new Set();
+                const allEquipos = [];
+                const addEquipos = (data) => {
+                    (data || []).forEach(e => {
+                        if (!seenEquipoIds.has(e.id)) { seenEquipoIds.add(e.id); allEquipos.push(e); }
+                    });
+                };
 
-                            return {
-                                ...equipo,
-                                estado_equipos: estadoData ? [estadoData] : []
-                            };
-                        })
-                    );
+                if (trimmedQuery) {
+                    // Buscar en paralelo: campos texto + nota + cliente
+                    const parallelQueries = [
+                        applyBase(
+                            supabase.from('equipos').select(EQUIPO_FIELDS)
+                                .or(`marca.ilike.%${trimmedQuery}%,modelo.ilike.%${trimmedQuery}%,problema.ilike.%${trimmedQuery}%`)
+                        ).limit(30),
+                    ];
 
-                    // Aplicar filtros de estado
-                    let equiposFiltrados = equiposConEstado;
-                    if (activeFilter === 'atrasados') {
-                        const tresDiasAtras = new Date();
-                        tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
-                        equiposFiltrados = equiposConEstado.filter(equipo => {
-                            const estado = equipo.estado_equipos?.[0]?.estado;
-                            const updatedAt = equipo.estado_equipos?.[0]?.updated_at;
-                            return estado === 'en_proceso' && updatedAt && new Date(updatedAt) < tresDiasAtras;
-                        });
-                    } else if (activeFilter === 'listos') {
-                        equiposFiltrados = equiposConEstado.filter(equipo => 
-                            equipo.estado_equipos?.[0]?.estado === 'listo'
+                    // Nota: búsqueda exacta si la query es numérica
+                    if (/^\d+$/.test(trimmedQuery)) {
+                        parallelQueries.push(
+                            applyBase(
+                                supabase.from('equipos').select(EQUIPO_FIELDS)
+                                    .eq('nota', parseInt(trimmedQuery, 10))
+                            ).limit(5)
                         );
                     }
 
-                    // Búsqueda por texto
-                    if (query.trim()) {
-                        const queryLower = query.toLowerCase();
-                        equiposFiltrados = equiposFiltrados.filter(equipo => {
-                            const nota = equipo.nota?.toString() || '';
-                            const marca = equipo.marca?.toLowerCase() || '';
-                            const modelo = equipo.modelo?.toLowerCase() || '';
-                            const problema = equipo.problema?.toLowerCase() || '';
-                            const nombreCliente = equipo.clientes?.nombre?.toLowerCase() || '';
-                            const telefono = equipo.clientes?.telefono?.toString() || '';
-                            const estado = equipo.estado_equipos?.[0]?.estado || '';
-
-                            return nota.includes(queryLower) ||
-                                   marca.includes(queryLower) ||
-                                   modelo.includes(queryLower) ||
-                                   problema.includes(queryLower) ||
-                                   nombreCliente.includes(queryLower) ||
-                                   telefono.includes(queryLower) ||
-                                   estado.includes(queryLower);
-                        });
+                    // Buscar por nombre/teléfono de cliente
+                    const { data: matchingClientes } = await supabase
+                        .from('clientes').select('id')
+                        .or(`nombre.ilike.%${trimmedQuery}%,telefono.ilike.%${trimmedQuery}%`)
+                        .limit(20);
+                    if (matchingClientes?.length > 0) {
+                        parallelQueries.push(
+                            applyBase(
+                                supabase.from('equipos').select(EQUIPO_FIELDS)
+                                    .in('cliente_id', matchingClientes.map(c => c.id))
+                            ).limit(20)
+                        );
                     }
 
-                    equiposFiltrados.forEach(equipo => {
+                    const resolved = await Promise.all(parallelQueries);
+                    resolved.forEach(({ data }) => addEquipos(data));
+
+                } else if (allowedEquipoIds !== null || activeFilter === 'hoy') {
+                    // Solo filtros, sin texto
+                    const { data } = await applyBase(
+                        supabase.from('equipos').select(EQUIPO_FIELDS)
+                    ).limit(100);
+                    addEquipos(data);
+                }
+
+                // Paso 2: obtener estados SOLO para los equipos encontrados
+                if (allEquipos.length > 0) {
+                    const equipoIds = allEquipos.map(e => e.id);
+                    const estadosMap = new Map();
+                    const { data: estados } = await supabase
+                        .from('estado_equipos')
+                        .select('equipo_id, estado, updated_at')
+                        .in('equipo_id', equipoIds)
+                        .order('updated_at', { ascending: false });
+                    (estados || []).forEach(est => {
+                        if (!estadosMap.has(est.equipo_id)) estadosMap.set(est.equipo_id, est);
+                    });
+
+                    allEquipos.forEach(equipo => {
+                        const estadoInfo = estadosMap.get(equipo.id);
                         searchResults.push({
                             type: 'equipo',
                             id: equipo.id,
@@ -171,137 +216,96 @@ export default function SearchModal({ isOpen = true, onClose, initialQuery = '',
                             subtitle: `${equipo.marca} ${equipo.modelo}`,
                             description: equipo.problema || 'Sin descripción',
                             cliente: equipo.clientes?.nombre,
-                            estado: equipo.estado_equipos?.[0]?.estado,
-                            data: equipo
+                            estado: estadoInfo?.estado,
+                            data: equipo,
                         });
                     });
                 }
             }
 
-            // Búsqueda en clientes
-            if (searchType === 'all' || searchType === 'clientes') {
-                if (query.trim()) {
-                    const queryLower = query.toLowerCase();
-                    const { data: clientes, error } = await supabase
-                        .from('clientes')
-                        .select('id, nombre, telefono, email')
-                        .or(`nombre.ilike.%${query}%,telefono.ilike.%${query}%,email.ilike.%${query}%`);
-
-                    if (!error && clientes) {
-                        clientes.forEach(cliente => {
-                            searchResults.push({
-                                type: 'cliente',
-                                id: cliente.id,
-                                title: cliente.nombre,
-                                subtitle: cliente.telefono || cliente.email || 'Sin contacto',
-                                description: cliente.email || '',
-                                data: cliente
-                            });
+            // ── CLIENTES ─────────────────────────────────────────────────
+            if ((searchType === 'all' || searchType === 'clientes') && trimmedQuery) {
+                const { data: clientes, error } = await supabase
+                    .from('clientes')
+                    .select('id, nombre, telefono, email')
+                    .or(`nombre.ilike.%${trimmedQuery}%,telefono.ilike.%${trimmedQuery}%,email.ilike.%${trimmedQuery}%`)
+                    .limit(20);
+                if (!error && clientes) {
+                    clientes.forEach(cliente => {
+                        searchResults.push({
+                            type: 'cliente',
+                            id: cliente.id,
+                            title: cliente.nombre,
+                            subtitle: cliente.telefono || cliente.email || 'Sin contacto',
+                            description: cliente.email || '',
+                            data: cliente,
                         });
-                    }
+                    });
                 }
             }
 
-            // Búsqueda en documentos
+            // ── DOCUMENTOS ───────────────────────────────────────────────
             if (searchType === 'all' || searchType === 'documentos') {
-                if (query.trim() || activeFilter === 'sin_presupuesto') {
-                    let documentosQuery = supabase
-                        .from('servicios_documentos')
-                        .select(`
-                            id,
-                            tipo_servicio,
-                            descripcion,
-                            precio,
-                            estado,
-                            created_at,
-                            cliente_id,
-                            clientes (
-                                id,
-                                nombre,
-                                telefono
-                            )
-                        `);
-
-                    if (activeFilter === 'sin_presupuesto') {
-                        documentosQuery = documentosQuery.or('precio.is.null,precio.eq.0');
-                    }
-
-                    if (query.trim()) {
-                        const queryLower = query.toLowerCase();
-                        const { data: documentos, error } = await documentosQuery;
-                        
-                        if (!error && documentos) {
-                            const filtered = documentos.filter(doc => {
-                                const tipo = doc.tipo_servicio?.toLowerCase() || '';
-                                const descripcion = doc.descripcion?.toLowerCase() || '';
-                                const nombreCliente = doc.clientes?.nombre?.toLowerCase() || '';
-                                const telefono = doc.clientes?.telefono?.toString() || '';
-
-                                return tipo.includes(queryLower) ||
-                                       descripcion.includes(queryLower) ||
-                                       nombreCliente.includes(queryLower) ||
-                                       telefono.includes(queryLower);
-                            });
-
-                            filtered.forEach(doc => {
-                                searchResults.push({
-                                    type: 'documento',
-                                    id: doc.id,
-                                    title: `${doc.tipo_servicio} - #${doc.id}`,
-                                    subtitle: doc.clientes?.nombre || 'Sin cliente',
-                                    description: doc.descripcion || '',
-                                    estado: doc.estado,
-                                    data: doc
-                                });
+                if (trimmedQuery || activeFilter === 'sin_presupuesto') {
+                    const DOC_FIELDS = `id, tipo_servicio, descripcion, precio, estado, created_at, cliente_id, clientes(id, nombre, telefono)`;
+                    const seenDocIds = new Set();
+                    const pushDoc = (doc) => {
+                        if (!seenDocIds.has(doc.id)) {
+                            seenDocIds.add(doc.id);
+                            searchResults.push({
+                                type: 'documento',
+                                id: doc.id,
+                                title: `${doc.tipo_servicio} - #${doc.id}`,
+                                subtitle: doc.clientes?.nombre || 'Sin cliente',
+                                description: doc.descripcion || '',
+                                estado: doc.estado,
+                                data: doc,
                             });
                         }
-                    } else if (activeFilter === 'sin_presupuesto') {
-                        const { data: documentos, error } = await documentosQuery;
-                        if (!error && documentos) {
-                            documentos.forEach(doc => {
-                                searchResults.push({
-                                    type: 'documento',
-                                    id: doc.id,
-                                    title: `${doc.tipo_servicio} - #${doc.id}`,
-                                    subtitle: doc.clientes?.nombre || 'Sin cliente',
-                                    description: doc.descripcion || '',
-                                    estado: doc.estado,
-                                    data: doc
-                                });
-                            });
+                    };
+
+                    let docQ = supabase.from('servicios_documentos').select(DOC_FIELDS);
+                    if (activeFilter === 'sin_presupuesto') docQ = docQ.or('precio.is.null,precio.eq.0');
+                    if (trimmedQuery) docQ = docQ.or(`tipo_servicio.ilike.%${trimmedQuery}%,descripcion.ilike.%${trimmedQuery}%`);
+                    const { data: documentos, error } = await docQ.limit(20);
+                    if (!error) (documentos || []).forEach(pushDoc);
+
+                    // También buscar por cliente
+                    if (trimmedQuery) {
+                        const { data: matchingClientes } = await supabase
+                            .from('clientes').select('id')
+                            .or(`nombre.ilike.%${trimmedQuery}%,telefono.ilike.%${trimmedQuery}%`)
+                            .limit(20);
+                        if (matchingClientes?.length > 0) {
+                            let cDocQ = supabase.from('servicios_documentos').select(DOC_FIELDS)
+                                .in('cliente_id', matchingClientes.map(c => c.id));
+                            if (activeFilter === 'sin_presupuesto') cDocQ = cDocQ.or('precio.is.null,precio.eq.0');
+                            const { data: clientDocs } = await cDocQ.limit(10);
+                            (clientDocs || []).forEach(pushDoc);
                         }
                     }
                 }
             }
 
-            // Búsqueda en pedidos
-            if (searchType === 'all' || searchType === 'pedidos') {
-                if (query.trim()) {
-                    const queryLower = query.toLowerCase();
-                    const { data: pedidos, error } = await supabase
-                        .from('pedidos_piezas')
-                        .select('id, nombre_pieza, cantidad, estado, created_at');
-
-                    if (!error && pedidos) {
-                        const filtered = pedidos.filter(pedido => {
-                            const nombre = pedido.nombre_pieza?.toLowerCase() || '';
-                            const estado = pedido.estado?.toLowerCase() || '';
-
-                            return nombre.includes(queryLower) || estado.includes(queryLower);
+            // ── PEDIDOS ──────────────────────────────────────────────────
+            if ((searchType === 'all' || searchType === 'pedidos') && trimmedQuery) {
+                const { data: pedidos, error } = await supabase
+                    .from('pedidos_piezas')
+                    .select('id, nombre_pieza, cantidad, estado, created_at')
+                    .ilike('nombre_pieza', `%${trimmedQuery}%`)
+                    .limit(20);
+                if (!error && pedidos) {
+                    pedidos.forEach(pedido => {
+                        searchResults.push({
+                            type: 'pedido',
+                            id: pedido.id,
+                            title: pedido.nombre_pieza,
+                            subtitle: `Cantidad: ${pedido.cantidad}`,
+                            description: `Estado: ${pedido.estado}`,
+                            estado: pedido.estado,
+                            data: pedido,
                         });
-
-                        filtered.forEach(pedido => {
-                            searchResults.push({
-                                type: 'pedido',
-                                id: pedido.id,
-                                title: pedido.nombre_pieza,
-                                subtitle: `Cantidad: ${pedido.cantidad}`,
-                                description: `Estado: ${pedido.estado}`,
-                                estado: pedido.estado,
-                                data: pedido
-                            });
-                        });
-                    }
+                    });
                 }
             }
 
@@ -317,7 +321,7 @@ export default function SearchModal({ isOpen = true, onClose, initialQuery = '',
         onClose();
         switch (result.type) {
             case 'equipo':
-                navigate(`/equipos?equipo=${result.id}`);
+                navigate(`/equipos/${result.id}`);
                 break;
             case 'cliente':
                 navigate(`/clientes?cliente=${result.id}`);

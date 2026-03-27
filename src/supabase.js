@@ -24,7 +24,27 @@ if (import.meta.env.DEV) {
   console.log('✅ Supabase configurado correctamente');
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// fetch con timeout de 15 s para evitar que las queries queden colgadas
+function fetchWithTimeout(input, init) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { fetch: fetchWithTimeout },
+  auth: { persistSession: true, autoRefreshToken: true },
+});
+
+/**
+ * Devuelve el usuario actual leyendo la sesión cacheada localmente.
+ * Misma firma que supabase.auth.getUser() pero sin petición de red.
+ * Usar siempre este helper en lugar de supabase.auth.getUser().
+ */
+export async function getCurrentUser() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  return { data: { user: session?.user ?? null }, error };
+}
 
 export { SUPABASE_URL, SUPABASE_ANON_KEY };
 

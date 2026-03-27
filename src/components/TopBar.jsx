@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import Icon from './Icon.jsx';
 import logo from '../assets/logo.png';
 import Settings from './Settings.jsx';
@@ -105,7 +105,7 @@ export default function TopBar({ demoMode = false }) {
         if (demoMode) return;
         const loadProfilePhoto = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { user } } = await getCurrentUser();
                 if (!user?.id) return;
 
                 // Fuente de verdad: profiles.foto_url (si existe); fallback a user_metadata.avatar_url

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import { updateInventarioProducto } from '../utils/demoStorage.js';
 import Icon from './Icon.jsx';
 import './AddInventarioModal.css';
@@ -59,7 +59,7 @@ export default function AgregarStockModal({ isOpen, onClose, onSuccess, producto
                 return;
             }
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await getCurrentUser();
 
             // Intentar usar la nueva tabla profesional
             let productoId = producto.id;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import Icon from './Icon.jsx';
 import './Notifications.css';
 
@@ -39,7 +39,7 @@ export default function Notifications({ onClose, onCountChange }) {
 
   const loadNotifications = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCurrentUser();
       if (!user) return;
 
       // Obtener notificaciones del usuario
@@ -85,7 +85,7 @@ export default function Notifications({ onClose, onCountChange }) {
 
   const markAllAsRead = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCurrentUser();
       if (!user) return;
 
       const { error } = await supabase

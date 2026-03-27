@@ -1,4 +1,4 @@
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 
 /**
  * Crea una notificación para un usuario
@@ -64,7 +64,7 @@ export async function crearNotificacionGlobal(tipo, titulo, mensaje, datos = nul
     console.error('Error creando notificaciones globales:', error);
     // Si falla la creación global, intentar solo para el usuario actual
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCurrentUser();
       if (user) {
         return await crearNotificacion(user.id, tipo, titulo, mensaje, datos);
       }
@@ -81,7 +81,7 @@ export async function crearNotificacionGlobal(tipo, titulo, mensaje, datos = nul
  */
 export async function notificarEquipoNuevo(equipo, cliente = null) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCurrentUser();
     if (!user) return;
 
     // Si no se pasó el cliente pero hay cliente_id, obtenerlo
@@ -156,7 +156,7 @@ export async function notificarEquipoNuevo(equipo, cliente = null) {
  */
 export async function notificarEquipoListo(equipo, cliente = null) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCurrentUser();
     if (!user) return;
 
     // Si no se pasó el cliente pero hay cliente_id, obtenerlo
@@ -212,7 +212,7 @@ export async function notificarEquipoListo(equipo, cliente = null) {
  */
 export async function notificarEquipoFinalizado(equipo, cliente = null) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCurrentUser();
     if (!user) return;
 
     // Si no se pasó el cliente pero hay cliente_id, obtenerlo
@@ -257,7 +257,7 @@ export async function notificarEquipoFinalizado(equipo, cliente = null) {
  */
 export async function notificarDocumentoNuevo(documento, clienteNombre = null) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCurrentUser();
     if (!user) return;
 
     const titulo = 'Nuevo Documento';
@@ -280,7 +280,7 @@ export async function notificarDocumentoNuevo(documento, clienteNombre = null) {
  */
 export async function notificarPedidoNuevo(pedido, proveedorNombre = null) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCurrentUser();
     if (!user) return;
 
     const titulo = 'Nuevo Pedido';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import { notificarEquipoNuevo } from '../utils/notifications.js';
 
 export default function AddEquipoModal({ onClose, onEquipoAdded }) {
@@ -297,7 +297,7 @@ export default function AddEquipoModal({ onClose, onEquipoAdded }) {
       if (equipoId) {
         let usuarioId = null;
         try {
-          const { data: { user } } = await supabase.auth.getUser();
+          const { data: { user } } = await getCurrentUser();
           usuarioId = user?.id || null;
         } catch (e) {
           usuarioId = null;
