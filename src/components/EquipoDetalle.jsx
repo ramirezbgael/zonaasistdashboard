@@ -130,6 +130,7 @@ export default function EquipoDetalle({ demoMode = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const basePath = demoMode ? '/demo' : '';
   
   const [equipo, setEquipo] = useState(null);
   const [cliente, setCliente] = useState(null);
@@ -183,6 +184,54 @@ export default function EquipoDetalle({ demoMode = false }) {
   const [showConfirmarTotalModal, setShowConfirmarTotalModal] = useState(false);
   const [totalConfirmado, setTotalConfirmado] = useState('');
   const [solucionImplementada, setSolucionImplementada] = useState('');
+  const NOTE_SNAPSHOT_PREFIX = 'NOTE_SNAPSHOT_V1:';
+
+  const parseNoteSnapshot = (evento) => {
+    const raw = evento?.notas;
+    if (!raw || typeof raw !== 'string' || !raw.startsWith(NOTE_SNAPSHOT_PREFIX)) return null;
+    try {
+      return JSON.parse(raw.slice(NOTE_SNAPSHOT_PREFIX.length));
+    } catch {
+      return null;
+    }
+  };
+
+  const getStoredNoteSnapshot = (tipo) => {
+    const tipoEvento = tipo === 'recepcion' ? 'nota_recepcion' : 'nota_entrega';
+    const evento = historial.find((e) => e?.tipo_evento === tipoEvento);
+    return parseNoteSnapshot(evento);
+  };
+
+  const notaRecepcionGuardada = getStoredNoteSnapshot('recepcion');
+  const notaEntregaGuardada = getStoredNoteSnapshot('entrega');
+  const notaRecepcionLegacy = historial.some((e) => e?.tipo_evento === 'recepcion');
+  const notaEntregaLegacy = historial.some((e) => e?.tipo_evento === 'entrega' || e?.tipo_evento === 'finalizacion_especial');
+  const tieneNotaRecepcion = Boolean(notaRecepcionGuardada || notaRecepcionLegacy);
+  const tieneNotaEntrega = Boolean(notaEntregaGuardada || notaEntregaLegacy);
+
+  const guardarSnapshotNota = async (tipo, equipoSnapshot) => {
+    if (demoMode || !equipo?.id) return;
+    const tipoEvento = tipo === 'recepcion' ? 'nota_recepcion' : 'nota_entrega';
+    const payload = {
+      tipo,
+      created_at: new Date().toISOString(),
+      equipo: equipoSnapshot,
+      cliente,
+    };
+    try {
+      await supabase.from('historial_procesos').insert({
+        equipo_id: equipo.id,
+        proceso_id: estadoEquipo?.proceso_actual_id || null,
+        notas: `${NOTE_SNAPSHOT_PREFIX}${JSON.stringify(payload)}`,
+        completado: true,
+        fecha_completado: new Date().toISOString(),
+        usuario_id: currentUser?.id || null,
+        tipo_evento: tipoEvento
+      });
+    } catch (err) {
+      console.error('No se pudo persistir snapshot de nota:', err);
+    }
+  };
 
   useEffect(() => {
     loadCurrentUser();
@@ -206,7 +255,7 @@ export default function EquipoDetalle({ demoMode = false }) {
 
     if (id) {
       const fromList = location.state?.equipoFromList;
-      if (fromList && String(fromList.id) === String(id)) {
+      if (fromList && String(fromList.nota) === String(id)) {
         setEquipo(fromList);
         const clientes = Array.isArray(fromList.clientes) ? fromList.clientes[0] : fromList.clientes;
         setCliente(clientes || null);
@@ -328,7 +377,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           )
         `;
       
-      let result = await supabase.from('equipos').select(selectCompleto).eq('id', id).single();
+      let result = await supabase.from('equipos').select(selectCompleto).eq('nota', parseInt(id, 10)).single();
       equipoData = result.data;
       equipoError = result.error;
       
@@ -363,7 +412,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       
       if (isColumnError) {
         // Intentar sin precio_extra y descripcion_extra
-        result = await supabase.from('equipos').select(selectSinExtra).eq('id', id).single();
+        result = await supabase.from('equipos').select(selectSinExtra).eq('nota', parseInt(id, 10)).single();
         equipoData = result.data;
         equipoError = result.error;
         
@@ -376,7 +425,7 @@ export default function EquipoDetalle({ demoMode = false }) {
             equipoError.message.toLowerCase().includes('column')
           ))
         )) {
-          result = await supabase.from('equipos').select(selectBasico).eq('id', id).single();
+          result = await supabase.from('equipos').select(selectBasico).eq('nota', parseInt(id, 10)).single();
           equipoData = result.data;
           equipoError = result.error;
           
@@ -467,10 +516,10 @@ export default function EquipoDetalle({ demoMode = false }) {
 
       // Cargar estado, procesos, historial y fotos en paralelo en segundo plano
       Promise.all([
-        loadEstadoEquipo(),
-        loadProcesosEquipo(),
-        loadHistorial(),
-        loadFotos(),
+        loadEstadoEquipo(equipoData.id),
+        loadProcesosEquipo(equipoData.id),
+        loadHistorial(equipoData.id),
+        loadFotos(equipoData.id),
       ]).catch(err => console.error('Error loading secondary data:', err));
     } catch (error) {
       console.error('Error loading equipo:', error);
@@ -478,13 +527,13 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const loadPedidosLigados = async () => {
-    if (!id || demoMode) return;
+  const loadPedidosLigados = async (equipoId = equipo?.id) => {
+    if (!equipoId || demoMode) return;
     try {
       const { data, error } = await supabase
         .from('pedidos_piezas')
         .select('id, nombre_pieza, cantidad, precio_unitario, estado')
-        .eq('equipo_id', id);
+        .eq('equipo_id', equipoId);
       if (error) throw error;
       const pedidos = (data || []).filter(p => p.estado !== 'cancelado');
       const total = pedidos.reduce((sum, p) => {
@@ -501,13 +550,14 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const loadEstadoEquipo = async () => {
+  const loadEstadoEquipo = async (equipoId = equipo?.id) => {
+    if (!equipoId) return;
     try {
       // Primero intentar con select mínimo (columnas que siempre existen) para no fallar si falta ready_at/delivered_at
       const { data: dataMin, error: errorMin } = await supabase
         .from('estado_equipos')
         .select('id, equipo_id, estado, proceso_actual_id, created_at, updated_at')
-        .eq('equipo_id', id)
+        .eq('equipo_id', equipoId)
         .maybeSingle();
 
       if (errorMin) {
@@ -550,7 +600,8 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const loadProcesosEquipo = async () => {
+  const loadProcesosEquipo = async (equipoId = equipo?.id) => {
+    if (!equipoId) return;
     try {
       // 1. Cargar procesos desde equipo_procesos (con precios y configuración de recordatorios)
       const { data: epData, error: epError } = await supabase
@@ -565,7 +616,7 @@ export default function EquipoDetalle({ demoMode = false }) {
             meses_vigencia
           )
         `)
-        .eq('equipo_id', id);
+        .eq('equipo_id', equipoId);
 
       let procesosConPrecio = [];
 
@@ -586,7 +637,7 @@ export default function EquipoDetalle({ demoMode = false }) {
         const { data: estado, error: estadoErr } = await supabase
           .from('estado_equipos')
           .select('proceso_actual_id')
-          .eq('equipo_id', id)
+          .eq('equipo_id', equipoId)
           .maybeSingle();
 
         if (!estadoErr && estado?.proceso_actual_id) {
@@ -632,7 +683,8 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const loadHistorial = async () => {
+  const loadHistorial = async (equipoId = equipo?.id) => {
+    if (!equipoId) return;
     try {
       const { data: { user: currentUser } } = await getCurrentUser();
 
@@ -643,7 +695,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           procesos (nombre),
           subprocesos (nombre)
         `)
-        .eq('equipo_id', id)
+        .eq('equipo_id', equipoId)
         .order('created_at', { ascending: false })
         .limit(100);
       
@@ -754,7 +806,7 @@ export default function EquipoDetalle({ demoMode = false }) {
             procesos (nombre),
             subprocesos (nombre)
           `)
-          .eq('equipo_id', id)
+          .eq('equipo_id', equipoId)
           .order('created_at', { ascending: false });
         
         if (!fallbackError) {
@@ -766,9 +818,10 @@ export default function EquipoDetalle({ demoMode = false }) {
     }
   };
 
-  const loadFotos = async () => {
+  const loadFotos = async (equipoId = equipo?.id) => {
+    if (!equipoId) return;
     try {
-      const fotosData = await getEquipoPhotos(id);
+      const fotosData = await getEquipoPhotos(equipoId);
       setFotos(fotosData || []);
     } catch (error) {
       console.error('Error loading photos:', error);
@@ -884,7 +937,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id,
           subproceso_id: subprocesoId,
           completado: true,
@@ -922,7 +975,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { data: estadoExistente, error: consultaError } = await supabase
         .from('estado_equipos')
         .select('id')
-        .eq('equipo_id', id)
+        .eq('equipo_id', equipo.id)
         .single();
 
       if (consultaError && consultaError.code !== 'PGRST116') {
@@ -938,13 +991,13 @@ export default function EquipoDetalle({ demoMode = false }) {
             proceso_actual_id: estadoEquipo?.proceso_actual_id,
             updated_at: now
           })
-          .eq('equipo_id', id);
+          .eq('equipo_id', equipo.id);
         estadoError = error;
       } else {
         const { error } = await supabase
           .from('estado_equipos')
           .insert({
-            equipo_id: id,
+            equipo_id: equipo.id,
             estado: 'ready_for_pickup',
             proceso_actual_id: estadoEquipo?.proceso_actual_id,
             updated_at: now
@@ -971,7 +1024,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id,
           notas: 'Equipo terminado y listo para recoger',
           completado: true,
@@ -1019,7 +1072,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { data: estadoExistente } = await supabase
         .from('estado_equipos')
         .select('id')
-        .eq('equipo_id', id)
+        .eq('equipo_id', equipo.id)
         .maybeSingle();
 
       if (estadoExistente) {
@@ -1029,14 +1082,14 @@ export default function EquipoDetalle({ demoMode = false }) {
             proceso_actual_id: procesoSeleccionado,
             updated_at: new Date().toISOString()
           })
-          .eq('equipo_id', id);
+          .eq('equipo_id', equipo.id);
 
         if (estadoError) throw estadoError;
       } else {
         const { error: estadoError } = await supabase
           .from('estado_equipos')
           .insert({
-            equipo_id: id,
+            equipo_id: equipo.id,
             proceso_actual_id: procesoSeleccionado,
             estado: 'en_proceso',
             updated_at: new Date().toISOString()
@@ -1049,7 +1102,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { data: procesoExistente } = await supabase
         .from('equipo_procesos')
         .select('id')
-        .eq('equipo_id', id)
+        .eq('equipo_id', equipo.id)
         .eq('proceso_id', procesoSeleccionado)
         .maybeSingle();
 
@@ -1058,7 +1111,7 @@ export default function EquipoDetalle({ demoMode = false }) {
         const { error: equipoProcesoError } = await supabase
           .from('equipo_procesos')
           .insert({
-            equipo_id: id,
+            equipo_id: equipo.id,
             proceso_id: procesoSeleccionado
           });
 
@@ -1072,7 +1125,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: procesoSeleccionado,
           notas: `OPCIÓN ESPECIAL: Proceso cambiado a "${procesoNombre}"`,
           completado: null,
@@ -1284,12 +1337,11 @@ export default function EquipoDetalle({ demoMode = false }) {
   };
 
   // Función para abrir nota PDF en página full-screen (mejor para iPhone e imprimir)
-  const abrirNotaPDF = (equipoData, tipoNota) => {
-    const basePath = demoMode ? '/demo' : '';
+  const abrirNotaPDF = (equipoData, tipoNota, clienteData = cliente) => {
     navigate(`${basePath}/nota-pdf`, {
       state: {
         equipo: equipoData,
-        cliente,
+        cliente: clienteData,
         tipo: tipoNota,
         returnTo: `${basePath}/equipos/${id}`
       }
@@ -1298,6 +1350,11 @@ export default function EquipoDetalle({ demoMode = false }) {
 
   // Función para generar/reimprimir nota de recepción
   const generarNotaRecepcion = async () => {
+    if (notaRecepcionGuardada?.equipo) {
+      abrirNotaPDF(notaRecepcionGuardada.equipo, 'recepcion', notaRecepcionGuardada.cliente || cliente);
+      setShowOpcionesEspeciales(false);
+      return;
+    }
     try {
       const { data: pedidosData } = await supabase
         .from('pedidos_piezas')
@@ -1311,17 +1368,40 @@ export default function EquipoDetalle({ demoMode = false }) {
         pedidos_ligados: pedidos,
         pedidos_total: pTotal
       };
+      await guardarSnapshotNota('recepcion', equipoParaNota);
       abrirNotaPDF(equipoParaNota, 'recepcion');
+      await loadHistorial();
       setShowOpcionesEspeciales(false);
     } catch (err) {
       console.error('Error cargando pedidos:', err);
-      abrirNotaPDF({ ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) }, 'recepcion');
+      const snapshot = { ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) };
+      await guardarSnapshotNota('recepcion', snapshot);
+      abrirNotaPDF(snapshot, 'recepcion');
+      await loadHistorial();
       setShowOpcionesEspeciales(false);
     }
   };
 
   // Función para generar/reimprimir nota de entrega
   const generarNotaEntrega = () => {
+    if (notaEntregaGuardada?.equipo) {
+      abrirNotaPDF(notaEntregaGuardada.equipo, 'entrega', notaEntregaGuardada.cliente || cliente);
+      setShowOpcionesEspeciales(false);
+      return;
+    }
+    if (notaEntregaLegacy) {
+      const eqParaNotaLegacy = {
+        ...equipo,
+        procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
+        pedidos_ligados: pedidosLigados,
+        pedidos_total: pedidosTotal,
+        precio_extra: parseFloat(precioExtra) || 0,
+        adelanto: equipo?.adelanto
+      };
+      abrirNotaPDF(eqParaNotaLegacy, 'entrega');
+      setShowOpcionesEspeciales(false);
+      return;
+    }
     const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
     const extra = parseFloat(precioExtra) || 0;
     setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
@@ -1365,7 +1445,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           estado: 'en_proceso',
           updated_at: now
         })
-        .eq('equipo_id', id);
+        .eq('equipo_id', equipo.id);
 
       if (estadoError) throw estadoError;
 
@@ -1373,7 +1453,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id,
           notas: `OPCIÓN ESPECIAL: Equipo reabierto. Justificación: ${justificacionReabrir.trim()}`,
           completado: false,
@@ -1430,7 +1510,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           estado: 'delivered',
           updated_at: now
         })
-        .eq('equipo_id', id);
+        .eq('equipo_id', equipo.id);
 
       if (estadoError) throw estadoError;
 
@@ -1438,7 +1518,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id,
           notas: `OPCIÓN ESPECIAL: Equipo entregado sin completar proceso. Justificación: ${justificacionFinalizado.trim()}`,
           completado: true,
@@ -1486,7 +1566,7 @@ export default function EquipoDetalle({ demoMode = false }) {
           estado: 'delivered',
           updated_at: now
         })
-        .eq('equipo_id', id);
+        .eq('equipo_id', equipo.id);
 
       if (estadoError) throw estadoError;
 
@@ -1500,7 +1580,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id,
           notas: 'Equipo entregado al cliente',
           completado: true,
@@ -1519,7 +1599,6 @@ export default function EquipoDetalle({ demoMode = false }) {
       }
 
       window.dispatchEvent(new Event('equipoUpdated'));
-      const basePath = demoMode ? '/demo' : '';
       const eqParaNota = {
         ...equipo,
         procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []),
@@ -1568,7 +1647,7 @@ export default function EquipoDetalle({ demoMode = false }) {
         .update({
           adelanto: totalCalculado
         })
-        .eq('id', id);
+        .eq('id', equipo.id);
 
       if (updateError) throw updateError;
 
@@ -1576,7 +1655,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error: historialError } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id || null,
           notas: `Pago completo recibido. Total: $${totalCalculado.toFixed(2)}`,
           completado: false,
@@ -1619,7 +1698,7 @@ export default function EquipoDetalle({ demoMode = false }) {
       const { error } = await supabase
         .from('historial_procesos')
         .insert({
-          equipo_id: id,
+          equipo_id: equipo.id,
           proceso_id: estadoEquipo?.proceso_actual_id || null,
           notas: nuevoComentario.trim(),
           completado: false,
@@ -2377,39 +2456,16 @@ export default function EquipoDetalle({ demoMode = false }) {
             <div className="header-notas-actions">
               <button 
                 className="header-nota-btn"
-                onClick={async () => {
-                  try {
-                    const { data: pedidosData } = await supabase
-                      .from('pedidos_piezas')
-                      .select('id, nombre_pieza, cantidad, precio_unitario, estado')
-                      .eq('equipo_id', equipo.id);
-                    const pedidos = (pedidosData || []).filter(p => p.estado !== 'cancelado');
-                    const pTotal = pedidos.reduce((s, p) => s + (parseFloat(p?.cantidad) || 0) * (parseFloat(p?.precio_unitario) || 0), 0);
-                    const eqRec = { ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []), pedidos_ligados: pedidos, pedidos_total: pTotal };
-                    abrirNotaPDF(eqRec, 'recepcion');
-                  } catch (err) {
-                    abrirNotaPDF({ ...equipo, procesos: procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []) }, 'recepcion');
-                  }
-                }}
+                onClick={generarNotaRecepcion}
               >
-                <Icon name="file-alt" /> Nota de Recepción
+                <Icon name="file-alt" /> {tieneNotaRecepcion ? 'Ver nota de recepción' : 'Generar nota de recepción'}
               </button>
-              {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
+              {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
                 <button 
                   className="header-nota-btn header-nota-btn-primary"
-                  onClick={() => {
-                    const serviciosTot = procesosEquipo.reduce((s, p) => s + (parseFloat(p?.precio) || 0), 0);
-                    const extra = parseFloat(precioExtra) || 0;
-                    setTotalConfirmado(String(serviciosTot + pedidosTotal + extra));
-                    const procesosList = procesosEquipo.length > 0 ? procesosEquipo : (procesoInfo ? [procesoInfo] : []);
-                    const problemaTexto = procesosList.length
-                      ? procesosList.map(p => p?.nombre).filter(Boolean).join(', ')
-                      : '';
-                    setSolucionImplementada(problemaTexto);
-                    setShowConfirmarTotalModal(true);
-                  }}
+                  onClick={generarNotaEntrega}
                 >
-                  <Icon name="file-alt" /> Nota de Entrega
+                  <Icon name="file-alt" /> {tieneNotaEntrega ? 'Ver nota de entrega' : 'Generar nota de entrega'}
                 </button>
               )}
             </div>
@@ -2850,8 +2906,10 @@ export default function EquipoDetalle({ demoMode = false }) {
                     precio_total_confirmado: total,
                     solucion_implementada: solucionTexto
                   };
+                  await guardarSnapshotNota('entrega', eqParaNota);
                   setShowConfirmarTotalModal(false);
                   abrirNotaPDF(eqParaNota, 'entrega');
+                  await loadHistorial();
                 }}
               >
                 <Icon name="check" />
@@ -3275,7 +3333,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                     onClick={generarNotaRecepcion}
                   >
                     <Icon name="file-alt" />
-                    <span>Reimprimir nota de recepción</span>
+                    <span>{tieneNotaRecepcion ? 'Ver nota de recepción' : 'Generar nota de recepción'}</span>
                   </button>
                   {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (
                     <button
@@ -3283,7 +3341,7 @@ export default function EquipoDetalle({ demoMode = false }) {
                       onClick={generarNotaEntrega}
                     >
                       <Icon name="file-alt" />
-                      <span>Generar / Reimprimir nota de entrega</span>
+                      <span>{tieneNotaEntrega ? 'Ver nota de entrega' : 'Generar nota de entrega'}</span>
                     </button>
                   )}
                   {(estadoEquipo?.estado === 'ready_for_pickup' || estadoEquipo?.estado === 'delivered' || estadoEquipo?.estado === 'listo' || estadoEquipo?.estado === 'finalizado') && (

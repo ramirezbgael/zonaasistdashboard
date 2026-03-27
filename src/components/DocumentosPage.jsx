@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../supabase.js';
+import { supabase, getCurrentUser } from '../supabase.js';
 import { getDocumentos, updateDocumento } from '../utils/demoStorage.js';
 import DocumentoModal from './DocumentoModal.jsx';
 import Icon from './Icon.jsx';
@@ -14,7 +14,7 @@ const obtenerNombreUsuario = async (userId) => {
     
     try {
         // Intentar obtener desde el usuario actual si coincide
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCurrentUser();
         if (user?.id === userId) {
             return user.user_metadata?.nombre || 
                    user.user_metadata?.full_name || 
@@ -55,19 +55,17 @@ export default function DocumentosPage({ demoMode = false }) {
     useEffect(() => {
         const documentoId = searchParams.get('documento');
         if (documentoId && documentos.length > 0) {
-            // Buscar el documento
             const allDocumentos = [...documentos, ...documentosCompletados];
-            const documento = allDocumentos.find(d => d.id === documentoId);
+            const documento = allDocumentos.find(d => String(d.id) === String(documentoId));
             
             if (documento) {
-                // Cambiar a la pestaña correcta según el estado
                 if (documento.estado === 'pendiente') {
                     setActiveTab('pendientes');
                 } else {
                     setActiveTab('completados');
                 }
-                // Scroll al documento (si implementas scroll)
-                // Limpiar el parámetro de la URL
+                setSelectedDocumento(documento);
+                setShowDocumentoModal(true);
                 setSearchParams({}, { replace: true });
             }
         }
@@ -107,7 +105,7 @@ export default function DocumentosPage({ demoMode = false }) {
             
             // Obtener información de usuarios asignados
             if (data && data.length > 0) {
-                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                const { data: { user: currentUser } } = await getCurrentUser();
                 
                 // Agregar información de usuario a cada documento
                 for (const doc of data) {

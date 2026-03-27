@@ -339,9 +339,9 @@ export default function Dashboard({ demoMode = false }) {
                                     reload={demoMode ? () => {} : refetch}
                                     onClick={() => {
                                         if (demoMode) {
-                                            navigate(`/demo/equipos/${equipo.id}`);
+                                            navigate(`/demo/equipos/${equipo.nota}`);
                                         } else {
-                                            navigate(`/equipos/${equipo.id}`, { state: { equipoFromList: equipo } });
+                                            navigate(`/equipos/${equipo.nota}`, { state: { equipoFromList: equipo } });
                                         }
                                     }}
                                     activeTab={activeTab}

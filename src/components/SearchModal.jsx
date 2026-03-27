@@ -76,237 +76,147 @@ export default function SearchModal({ isOpen = true, onClose, initialQuery = '',
         setLoading(true);
         try {
             const searchResults = [];
-            const trimmedQuery = query.trim();
-            const EQUIPO_FIELDS = `id, nota, marca, modelo, problema, color, created_at, cliente_id, clientes(id, nombre, telefono)`;
+            const q = query.trim();
+            const isNumeric = /^\d+$/.test(q);
+            const EQUIPO_FIELDS = `id, nota, marca, modelo, problema, created_at, cliente_id, clientes(id, nombre, telefono)`;
 
             // ── EQUIPOS ──────────────────────────────────────────────────
+            // Lanza las 3 búsquedas en paralelo desde el inicio:
+            //   1) por modelo (ilike)
+            //   2) por nota  (eq exacto, solo si es numérico)
+            //   3) por nombre/teléfono de cliente → IDs → equipos
             if (searchType === 'all' || searchType === 'equipos') {
-                // Paso 1: resolver IDs permitidos para filtros de estado
-                let allowedEquipoIds = null; // null = sin restricción por estado
+                if (q) {
+                    const [byModelo, byNota, byCliente] = await Promise.all([
+                        // 1. modelo
+                        supabase.from('equipos').select(EQUIPO_FIELDS)
+                            .ilike('modelo', `%${q}%`)
+                            .limit(20),
 
-                if (activeFilter === 'atrasados' || activeFilter === 'listos') {
-                    const tresDiasAtras = new Date();
-                    tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
+                        // 2. nota (solo si es numérico)
+                        isNumeric
+                            ? supabase.from('equipos').select(EQUIPO_FIELDS)
+                                .eq('nota', parseInt(q, 10))
+                                .limit(5)
+                            : Promise.resolve({ data: [] }),
 
-                    // Candidatos: equipos que alguna vez tuvieron el estado buscado
-                    let candidateQ = supabase
-                        .from('estado_equipos')
-                        .select('equipo_id');
-                    if (activeFilter === 'listos') {
-                        candidateQ = candidateQ.eq('estado', 'listo');
-                    } else {
-                        candidateQ = candidateQ
-                            .eq('estado', 'en_proceso')
-                            .lt('updated_at', tresDiasAtras.toISOString());
+                        // 3. clientes por nombre o teléfono
+                        supabase.from('clientes').select('id')
+                            .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%`)
+                            .limit(30),
+                    ]);
+
+                    // Equipos de los clientes encontrados
+                    let byClienteEquipos = { data: [] };
+                    if (byCliente.data?.length > 0) {
+                        byClienteEquipos = await supabase.from('equipos').select(EQUIPO_FIELDS)
+                            .in('cliente_id', byCliente.data.map(c => c.id))
+                            .limit(20);
                     }
-                    const { data: candidates } = await candidateQ;
-                    const candidateIds = [...new Set((candidates || []).map(c => c.equipo_id))];
 
-                    if (candidateIds.length > 0) {
-                        // Obtener el estado más reciente de esos candidatos
-                        const { data: latestStates } = await supabase
+                    // Deduplicar
+                    const seenIds = new Set();
+                    const allEquipos = [];
+                    for (const { data } of [byModelo, byNota, byClienteEquipos]) {
+                        for (const e of (data || [])) {
+                            if (!seenIds.has(e.id)) { seenIds.add(e.id); allEquipos.push(e); }
+                        }
+                    }
+
+                    // Estados solo para los encontrados
+                    if (allEquipos.length > 0) {
+                        const { data: estados } = await supabase
                             .from('estado_equipos')
                             .select('equipo_id, estado, updated_at')
-                            .in('equipo_id', candidateIds)
+                            .in('equipo_id', allEquipos.map(e => e.id))
                             .order('updated_at', { ascending: false });
 
-                        const latestPerEquipo = new Map();
-                        (latestStates || []).forEach(est => {
-                            if (!latestPerEquipo.has(est.equipo_id)) latestPerEquipo.set(est.equipo_id, est);
+                        const estadosMap = new Map();
+                        (estados || []).forEach(est => {
+                            if (!estadosMap.has(est.equipo_id)) estadosMap.set(est.equipo_id, est);
                         });
 
-                        allowedEquipoIds = [];
-                        latestPerEquipo.forEach((est, equipoId) => {
-                            if (activeFilter === 'listos' && est.estado === 'listo') {
-                                allowedEquipoIds.push(equipoId);
-                            } else if (
-                                activeFilter === 'atrasados' &&
-                                est.estado === 'en_proceso' &&
-                                new Date(est.updated_at) < tresDiasAtras
-                            ) {
-                                allowedEquipoIds.push(equipoId);
-                            }
+                        allEquipos.forEach(equipo => {
+                            const estado = estadosMap.get(equipo.id);
+                            searchResults.push({
+                                type: 'equipo',
+                                id: equipo.id,
+                                nota: equipo.nota,
+                                title: `Equipo #${equipo.nota}`,
+                                subtitle: `${equipo.marca || ''} ${equipo.modelo || ''}`.trim(),
+                                description: equipo.problema || '',
+                                cliente: equipo.clientes?.nombre,
+                                estado: estado?.estado,
+                                data: equipo,
+                            });
                         });
-                    } else {
-                        allowedEquipoIds = [];
                     }
-                }
-
-                // Helper para aplicar filtros base a cualquier query de equipos
-                const applyBase = (q) => {
-                    if (allowedEquipoIds !== null) q = q.in('id', allowedEquipoIds.length > 0 ? allowedEquipoIds : ['__no_match__']);
-                    if (activeFilter === 'hoy') {
-                        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-                        q = q.gte('created_at', hoy.toISOString());
-                    }
-                    return q;
-                };
-
-                const seenEquipoIds = new Set();
-                const allEquipos = [];
-                const addEquipos = (data) => {
-                    (data || []).forEach(e => {
-                        if (!seenEquipoIds.has(e.id)) { seenEquipoIds.add(e.id); allEquipos.push(e); }
-                    });
-                };
-
-                if (trimmedQuery) {
-                    // Buscar en paralelo: campos texto + nota + cliente
-                    const parallelQueries = [
-                        applyBase(
-                            supabase.from('equipos').select(EQUIPO_FIELDS)
-                                .or(`marca.ilike.%${trimmedQuery}%,modelo.ilike.%${trimmedQuery}%,problema.ilike.%${trimmedQuery}%`)
-                        ).limit(30),
-                    ];
-
-                    // Nota: búsqueda exacta si la query es numérica
-                    if (/^\d+$/.test(trimmedQuery)) {
-                        parallelQueries.push(
-                            applyBase(
-                                supabase.from('equipos').select(EQUIPO_FIELDS)
-                                    .eq('nota', parseInt(trimmedQuery, 10))
-                            ).limit(5)
-                        );
-                    }
-
-                    // Buscar por nombre/teléfono de cliente
-                    const { data: matchingClientes } = await supabase
-                        .from('clientes').select('id')
-                        .or(`nombre.ilike.%${trimmedQuery}%,telefono.ilike.%${trimmedQuery}%`)
-                        .limit(20);
-                    if (matchingClientes?.length > 0) {
-                        parallelQueries.push(
-                            applyBase(
-                                supabase.from('equipos').select(EQUIPO_FIELDS)
-                                    .in('cliente_id', matchingClientes.map(c => c.id))
-                            ).limit(20)
-                        );
-                    }
-
-                    const resolved = await Promise.all(parallelQueries);
-                    resolved.forEach(({ data }) => addEquipos(data));
-
-                } else if (allowedEquipoIds !== null || activeFilter === 'hoy') {
-                    // Solo filtros, sin texto
-                    const { data } = await applyBase(
-                        supabase.from('equipos').select(EQUIPO_FIELDS)
-                    ).limit(100);
-                    addEquipos(data);
-                }
-
-                // Paso 2: obtener estados SOLO para los equipos encontrados
-                if (allEquipos.length > 0) {
-                    const equipoIds = allEquipos.map(e => e.id);
-                    const estadosMap = new Map();
-                    const { data: estados } = await supabase
-                        .from('estado_equipos')
-                        .select('equipo_id, estado, updated_at')
-                        .in('equipo_id', equipoIds)
-                        .order('updated_at', { ascending: false });
-                    (estados || []).forEach(est => {
-                        if (!estadosMap.has(est.equipo_id)) estadosMap.set(est.equipo_id, est);
-                    });
-
-                    allEquipos.forEach(equipo => {
-                        const estadoInfo = estadosMap.get(equipo.id);
-                        searchResults.push({
-                            type: 'equipo',
-                            id: equipo.id,
-                            title: `Equipo #${equipo.nota}`,
-                            subtitle: `${equipo.marca} ${equipo.modelo}`,
-                            description: equipo.problema || 'Sin descripción',
-                            cliente: equipo.clientes?.nombre,
-                            estado: estadoInfo?.estado,
-                            data: equipo,
-                        });
-                    });
                 }
             }
 
             // ── CLIENTES ─────────────────────────────────────────────────
-            if ((searchType === 'all' || searchType === 'clientes') && trimmedQuery) {
-                const { data: clientes, error } = await supabase
+            if ((searchType === 'all' || searchType === 'clientes') && q) {
+                const { data: clientes } = await supabase
                     .from('clientes')
                     .select('id, nombre, telefono, email')
-                    .or(`nombre.ilike.%${trimmedQuery}%,telefono.ilike.%${trimmedQuery}%,email.ilike.%${trimmedQuery}%`)
+                    .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%`)
                     .limit(20);
-                if (!error && clientes) {
-                    clientes.forEach(cliente => {
-                        searchResults.push({
-                            type: 'cliente',
-                            id: cliente.id,
-                            title: cliente.nombre,
-                            subtitle: cliente.telefono || cliente.email || 'Sin contacto',
-                            description: cliente.email || '',
-                            data: cliente,
-                        });
+                (clientes || []).forEach(cliente => {
+                    searchResults.push({
+                        type: 'cliente',
+                        id: cliente.id,
+                        title: cliente.nombre,
+                        subtitle: cliente.telefono || 'Sin teléfono',
+                        description: cliente.email || '',
+                        data: cliente,
                     });
-                }
+                });
             }
 
             // ── DOCUMENTOS ───────────────────────────────────────────────
-            if (searchType === 'all' || searchType === 'documentos') {
-                if (trimmedQuery || activeFilter === 'sin_presupuesto') {
-                    const DOC_FIELDS = `id, tipo_servicio, descripcion, precio, estado, created_at, cliente_id, clientes(id, nombre, telefono)`;
-                    const seenDocIds = new Set();
-                    const pushDoc = (doc) => {
-                        if (!seenDocIds.has(doc.id)) {
-                            seenDocIds.add(doc.id);
-                            searchResults.push({
-                                type: 'documento',
-                                id: doc.id,
-                                title: `${doc.tipo_servicio} - #${doc.id}`,
-                                subtitle: doc.clientes?.nombre || 'Sin cliente',
-                                description: doc.descripcion || '',
-                                estado: doc.estado,
-                                data: doc,
-                            });
-                        }
-                    };
-
-                    let docQ = supabase.from('servicios_documentos').select(DOC_FIELDS);
-                    if (activeFilter === 'sin_presupuesto') docQ = docQ.or('precio.is.null,precio.eq.0');
-                    if (trimmedQuery) docQ = docQ.or(`tipo_servicio.ilike.%${trimmedQuery}%,descripcion.ilike.%${trimmedQuery}%`);
-                    const { data: documentos, error } = await docQ.limit(20);
-                    if (!error) (documentos || []).forEach(pushDoc);
-
-                    // También buscar por cliente
-                    if (trimmedQuery) {
-                        const { data: matchingClientes } = await supabase
-                            .from('clientes').select('id')
-                            .or(`nombre.ilike.%${trimmedQuery}%,telefono.ilike.%${trimmedQuery}%`)
-                            .limit(20);
-                        if (matchingClientes?.length > 0) {
-                            let cDocQ = supabase.from('servicios_documentos').select(DOC_FIELDS)
-                                .in('cliente_id', matchingClientes.map(c => c.id));
-                            if (activeFilter === 'sin_presupuesto') cDocQ = cDocQ.or('precio.is.null,precio.eq.0');
-                            const { data: clientDocs } = await cDocQ.limit(10);
-                            (clientDocs || []).forEach(pushDoc);
-                        }
-                    }
+            if ((searchType === 'all' || searchType === 'documentos') && q) {
+                const { data: clientes } = await supabase
+                    .from('clientes').select('id')
+                    .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%`)
+                    .limit(30);
+                if (clientes?.length > 0) {
+                    const { data: docs } = await supabase
+                        .from('servicios_documentos')
+                        .select(`id, tipo_servicio, descripcion, precio, estado, cliente_id, clientes(id, nombre, telefono)`)
+                        .in('cliente_id', clientes.map(c => c.id))
+                        .limit(20);
+                    (docs || []).forEach(doc => {
+                        searchResults.push({
+                            type: 'documento',
+                            id: doc.id,
+                            title: `${doc.tipo_servicio} - #${doc.id}`,
+                            subtitle: doc.clientes?.nombre || 'Sin cliente',
+                            description: doc.descripcion || '',
+                            estado: doc.estado,
+                            data: doc,
+                        });
+                    });
                 }
             }
 
             // ── PEDIDOS ──────────────────────────────────────────────────
-            if ((searchType === 'all' || searchType === 'pedidos') && trimmedQuery) {
-                const { data: pedidos, error } = await supabase
+            if ((searchType === 'all' || searchType === 'pedidos') && q) {
+                const { data: pedidos } = await supabase
                     .from('pedidos_piezas')
                     .select('id, nombre_pieza, cantidad, estado, created_at')
-                    .ilike('nombre_pieza', `%${trimmedQuery}%`)
+                    .ilike('nombre_pieza', `%${q}%`)
                     .limit(20);
-                if (!error && pedidos) {
-                    pedidos.forEach(pedido => {
-                        searchResults.push({
-                            type: 'pedido',
-                            id: pedido.id,
-                            title: pedido.nombre_pieza,
-                            subtitle: `Cantidad: ${pedido.cantidad}`,
-                            description: `Estado: ${pedido.estado}`,
-                            estado: pedido.estado,
-                            data: pedido,
-                        });
+                (pedidos || []).forEach(pedido => {
+                    searchResults.push({
+                        type: 'pedido',
+                        id: pedido.id,
+                        title: pedido.nombre_pieza,
+                        subtitle: `Cantidad: ${pedido.cantidad}`,
+                        description: `Estado: ${pedido.estado}`,
+                        estado: pedido.estado,
+                        data: pedido,
                     });
-                }
+                });
             }
 
             setResults(searchResults);
@@ -321,10 +231,10 @@ export default function SearchModal({ isOpen = true, onClose, initialQuery = '',
         onClose();
         switch (result.type) {
             case 'equipo':
-                navigate(`/equipos/${result.id}`);
+                navigate(`/equipos/${result.nota}`);
                 break;
             case 'cliente':
-                navigate(`/clientes?cliente=${result.id}`);
+                navigate(`/clientes/${result.id}`);
                 break;
             case 'documento':
                 navigate(`/documentos?documento=${result.id}`);

@@ -3,14 +3,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase.js';
 import { getClientes as getClientesDemo } from '../utils/demoStorage.js';
 import AddClienteModal from './AddClienteModal.jsx';
-import ClienteHistorialModal from './ClienteHistorialModal.jsx';
 import Icon from './Icon.jsx';
 import './ClientesPage.css';
 
 export default function ClientesPage({ demoMode = false }) {
     const [showAddModal, setShowAddModal] = useState(false);
-    const [showHistorialModal, setShowHistorialModal] = useState(false);
-    const [selectedCliente, setSelectedCliente] = useState(null);
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -23,6 +20,13 @@ export default function ClientesPage({ demoMode = false }) {
             setSearchParams({}, { replace: true });
         }
     }, [searchParams, setSearchParams]);
+
+    useEffect(() => {
+        const clienteId = searchParams.get('cliente');
+        if (clienteId) {
+            navigate(`/clientes/${clienteId}`, { replace: true });
+        }
+    }, [searchParams, navigate]);
 
     const loadClientes = () => {
         if (demoMode) {
@@ -103,10 +107,7 @@ export default function ClientesPage({ demoMode = false }) {
                         <div 
                             key={cliente.id} 
                             className="cliente-card"
-                            onClick={() => {
-                                setSelectedCliente(cliente);
-                                setShowHistorialModal(true);
-                            }}
+                            onClick={() => navigate(`/clientes/${cliente.id}`)}
                             style={{ cursor: 'pointer' }}
                         >
                             <div className="cliente-card-header">
@@ -208,15 +209,6 @@ export default function ClientesPage({ demoMode = false }) {
                 />
             )}
 
-            {showHistorialModal && selectedCliente && (
-                <ClienteHistorialModal
-                    cliente={selectedCliente}
-                    onClose={() => {
-                        setShowHistorialModal(false);
-                        setSelectedCliente(null);
-                    }}
-                />
-            )}
         </div>
     );
 }

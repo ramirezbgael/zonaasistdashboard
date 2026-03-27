@@ -275,7 +275,7 @@ export default function EquipoCard({ equipo, reload, onClick, activeTab, demoMod
     if (onClick) {
       onClick();
     } else {
-      navigate(`/equipos/${equipo.id}`);
+      navigate(`/equipos/${equipo.nota}`);
     }
   };
 

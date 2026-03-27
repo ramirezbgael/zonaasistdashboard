@@ -104,6 +104,7 @@ export async function notificarEquipoNuevo(equipo, cliente = null) {
     // Preparar datos para el otro proyecto (nota de recepción por correo)
     const datos = {
       equipo_id: equipo.id,
+      equipo_nota: equipo.nota,
       cliente_id: equipo.cliente_id || null,
       tipo_notificacion: 'recepcion', // Para identificar que es nota de recepción
       equipo_info: {
@@ -179,6 +180,7 @@ export async function notificarEquipoListo(equipo, cliente = null) {
     // Preparar datos para el otro proyecto (WhatsApp)
     const datos = {
       equipo_id: equipo.id,
+      equipo_nota: equipo.nota,
       cliente_id: equipo.cliente_id || null,
       tipo_notificacion: 'equipo_listo', // Para identificar que es notificación de equipo listo
       equipo_info: {
@@ -238,7 +240,8 @@ export async function notificarEquipoFinalizado(equipo, cliente = null) {
       titulo,
       mensaje,
       { 
-        equipo_id: equipo.id, 
+        equipo_id: equipo.id,
+        equipo_nota: equipo.nota,
         cliente_id: equipo.cliente_id,
         cliente_info: clienteInfo ? {
           nombre: clienteInfo.nombre,

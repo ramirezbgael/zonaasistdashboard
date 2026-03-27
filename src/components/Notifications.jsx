@@ -182,8 +182,9 @@ export default function Notifications({ onClose, onCountChange }) {
 
     // Notificaciones de equipos
     if (tipo === 'equipo_nuevo' || tipo === 'equipo_listo' || tipo === 'equipo_finalizado') {
-      if (datos.equipo_id) {
-        return `/equipos?equipo=${datos.equipo_id}`;
+        const equipoParam = datos.equipo_nota || datos.equipo_id;
+      if (equipoParam) {
+        return `/equipos?equipo=${equipoParam}`;
       }
       return '/equipos';
     }

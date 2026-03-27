@@ -12,6 +12,7 @@ import NuevoEquipoPage from './components/NuevoEquipoPage.jsx';
 import NuevoDocumentoPage from './components/NuevoDocumentoPage.jsx';
 import NuevoPedidoPage from './components/NuevoPedidoPage.jsx';
 import ClientesPage from './components/ClientesPage.jsx';
+import ClienteDetalle from './components/ClienteDetalle.jsx';
 import InventarioPage from './components/InventarioPage.jsx';
 import ReportesPage from './components/ReportesPage.jsx';
 import WhatsAppPage from './components/WhatsAppPage.jsx';
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="logistica" element={<LogisticaPage demoMode />} />
               <Route path="logistica/nuevo" element={<NuevoPedidoPage demoMode />} />
               <Route path="clientes" element={<ClientesPage demoMode />} />
+              <Route path="clientes/:id" element={<ClienteDetalle demoMode />} />
               <Route path="inventario" element={<InventarioPage demoMode />} />
               <Route path="reportes" element={<ReportesPage demoMode />} />
               <Route path="whatsapp" element={<WhatsAppPage demoMode />} />
@@ -76,6 +78,7 @@ export default function App() {
               <Route path="logistica" element={<LogisticaPage />} />
               <Route path="logistica/nuevo" element={<NuevoPedidoPage />} />
               <Route path="clientes" element={<ClientesPage />} />
+              <Route path="clientes/:id" element={<ClienteDetalle />} />
               <Route path="inventario" element={<InventarioPage />} />
               <Route path="reportes" element={<ReportesPage />} />
               <Route path="whatsapp" element={<WhatsAppPage />} />

@@ -154,12 +154,16 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose, asP
         const modelo = equipo.modelo || '—';
         const det = equipo.color ? `${equipo.color}${equipo.detalles ? ', ' + equipo.detalles : ''}` : (equipo.detalles || '—');
         const pass = equipo.contraseña ? `Contraseña: ${equipo.contraseña}` : '';
+        const cargadorSeQueda = equipo?.cargador === true ? 'Sí' : equipo?.cargador === false ? 'No' : 'No especificado';
         const lineaCabecera = tipoEq
           ? `${tipoEq}   ·   ${marca}   ·   ${modelo}`
           : `${marca}   ·   ${modelo}`;
         doc.text(lineaCabecera, r2.innerX, r2.innerY + 2);
         doc.text(`Color / detalles: ${det}`, r2.innerX, r2.innerY + 7);
         if (pass) doc.text(pass, r2.innerX, r2.innerY + 12);
+        if (tipo === 'entrega') {
+          doc.text(`¿Se queda cargador?: ${cargadorSeQueda}`, r2.innerX, r2.innerY + (pass ? 17 : 12));
+        }
       } else {
         doc.text('—', r2.innerX, r2.innerY + 2);
       }
@@ -424,7 +428,7 @@ export default function NotaPDF({ equipo, cliente, proveedor, tipo, onClose, asP
           <iframe
             ref={iframeRef}
             title={tipo === 'recepcion' ? 'Nota de Recepción' : 'Nota de Entrega'}
-            src={pdfUrl.blobUrl || pdfUrl.dataUri}
+            src={pdfUrl.dataUri || pdfUrl.blobUrl}
             className="nota-pdf-page-iframe"
           />
         ) : (

@@ -32,19 +32,17 @@ export default function LogisticaPage({ demoMode = false }) {
     useEffect(() => {
         const pedidoId = searchParams.get('pedido');
         if (pedidoId && pedidos.length > 0) {
-            // Buscar el pedido
             const allPedidos = [...pedidos, ...pedidosRecibidos];
-            const pedido = allPedidos.find(p => p.id === pedidoId);
+            const pedido = allPedidos.find(p => String(p.id) === String(pedidoId));
             
             if (pedido) {
-                // Cambiar a la pestaña correcta según el estado
                 if (pedido.estado === 'pendiente') {
                     setActiveTab('pendientes');
                 } else {
                     setActiveTab('recibidos');
                 }
-                // Scroll al pedido (si implementas scroll)
-                // Limpiar el parámetro de la URL
+                setSelectedPedido(pedido);
+                setShowPedidoModal(true);
                 setSearchParams({}, { replace: true });
             }
         }
