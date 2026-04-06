@@ -943,10 +943,19 @@ export default function AddEquipoModalTypeform({ onClose, onEquipoAdded, mode = 
       onClick={mode === 'modal' ? handleClose : undefined}
     >
       <div
-        className={mode === 'modal' ? 'typeform-modal' : 'typeform-modal typeform-page-inner'}
-        onClick={mode === 'modal' ? (e) => e.stopPropagation() : undefined}
+      className={
+        mode === 'modal'
+          ? 'typeform-modal'
+          : 'typeform-page-shell typeform-page-inner'
+      }
+      onClick={mode === 'modal' ? (e) => e.stopPropagation() : undefined}
       >
-        <button onClick={handleClose} className="typeform-close-btn">×</button>
+      <button
+        onClick={handleClose}
+        className={mode === 'modal' ? 'typeform-close-btn' : 'typeform-close-btn typeform-close-btn-page'}
+      >
+        ×
+      </button>
         
         {/* Progress Bar */}
         <div className="typeform-progress">

@@ -37,10 +37,48 @@
   box-sizing: border-box;
 }
 
+.typeform-page-shell {
+  width: 100%;
+  max-width: 980px;
+  /* En vez de look de modal: que se comporte como página */
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding-bottom: 24px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
+  overflow: visible !important;
+  position: relative !important;
+}
+
+.dark-mode .typeform-page-shell {
+  background: rgba(20, 20, 24, 0.98);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 .typeform-page-inner {
   max-height: none;
   height: auto;
   animation: none;
+}
+
+/* Ajuste: cuando se usa como "page", ignorar restricciones de .typeform-modal */
+.typeform-page-shell {
+  max-height: none !important;
+  height: auto !important;
+}
+
+@media (max-width: 480px) {
+  .typeform-page {
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  .typeform-page-shell {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
 }
 
 @keyframes fadeIn {
@@ -119,6 +157,32 @@
   transform: rotate(90deg);
   border-color: rgba(255, 255, 255, 0.4);
   box-shadow: 0 6px 20px rgba(239, 83, 80, 0.4);
+}
+
+/* Cerrar en modo página (mejor contraste/estética) */
+.typeform-close-btn-page {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #6b7280 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.typeform-close-btn-page:hover {
+  background: rgba(239, 83, 80, 0.95) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.dark-mode .typeform-close-btn-page {
+  background: rgba(30, 30, 34, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: rgba(226, 232, 240, 0.85) !important;
+}
+
+.dark-mode .typeform-close-btn-page:hover {
+  background: rgba(239, 83, 80, 0.95) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
 }
 
 /* Progress Bar */
